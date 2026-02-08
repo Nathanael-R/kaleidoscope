@@ -4,13 +4,14 @@ import { processManager } from '../process-manager.js';
 
 const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
 
-const deviceIds = [
+const ALL_DEVICE_IDS = [
   'iphone-14', 'samsung-s21', 'pixel-6',
   'ipad', 'ipad-pro',
   'macbook-air', 'desktop', 'desktop-4k',
-] as const;
+];
 
 export function registerPreviewTools(server: McpServer) {
+  // @ts-expect-error MCP SDK server.tool() causes TS2589 with complex zod schemas
   server.tool(
     'preview_responsive',
     'Open a URL for responsive preview across multiple device sizes in Kaleidoscope. ' +
@@ -18,7 +19,7 @@ export function registerPreviewTools(server: McpServer) {
     'Automatically starts Kaleidoscope services if not running.',
     {
       url: z.string().url().describe('The URL to preview (e.g. http://localhost:3000)'),
-      devices: z.array(z.enum(deviceIds)).optional().describe(
+      devices: z.array(z.string()).optional().describe(
         'Optional list of device IDs to preview. Defaults to all devices. ' +
         'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k'
       ),
@@ -75,7 +76,7 @@ export function registerPreviewTools(server: McpServer) {
         }
 
         // List device previews
-        const devicesToShow = selectedDevices ?? [...deviceIds];
+        const devicesToShow = selectedDevices ?? [...ALL_DEVICE_IDS];
         results.push('Device previews:');
         for (const deviceId of devicesToShow) {
           results.push(`  - ${deviceId}`);

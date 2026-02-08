@@ -14,7 +14,8 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0"
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.11",

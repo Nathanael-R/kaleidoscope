@@ -4,12 +4,6 @@ import { processManager } from '../process-manager.js';
 
 const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
 
-const deviceIds = [
-  'iphone-14', 'samsung-s21', 'pixel-6',
-  'ipad', 'ipad-pro',
-  'macbook-air', 'desktop', 'desktop-4k',
-] as const;
-
 export function registerScreenshotTools(server: McpServer) {
   server.tool(
     'capture_screenshots',
@@ -18,8 +12,9 @@ export function registerScreenshotTools(server: McpServer) {
     'Requires Kaleidoscope server to be running.',
     {
       url: z.string().url().describe('The URL to screenshot'),
-      devices: z.array(z.enum(deviceIds)).optional().describe(
-        'Device viewports to capture. Defaults to iphone-14, ipad, desktop.'
+      devices: z.array(z.string()).optional().describe(
+        'Device viewports to capture. Defaults to iphone-14, ipad, desktop. ' +
+        'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k'
       ),
       output_dir: z.string().optional().describe(
         'Directory to save screenshots. Defaults to ./screenshots/'

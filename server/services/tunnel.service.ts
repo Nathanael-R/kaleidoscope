@@ -212,15 +212,4 @@ class TunnelService {
 // Singleton instance
 export const tunnelService = new TunnelService();
 
-// Cleanup on process exit
-process.on('SIGINT', async () => {
-  console.log('Closing all tunnels...');
-  await tunnelService.closeAllTunnels();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('Closing all tunnels...');
-  await tunnelService.closeAllTunnels();
-  process.exit(0);
-});
+// Cleanup is centralized in index.ts

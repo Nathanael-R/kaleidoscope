@@ -13,7 +13,7 @@ RUN npm run build
 FROM node:20-alpine AS server-build
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm ci --ignore-scripts --omit=dev
+RUN npm ci --ignore-scripts
 COPY server/ ./
 RUN npx esbuild index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 

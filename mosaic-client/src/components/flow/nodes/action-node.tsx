@@ -1,10 +1,16 @@
-import { memo, useState } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { memo, useState, useCallback } from "react";
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import { Zap } from "lucide-react";
 
-function ActionNode({ data, selected }: NodeProps) {
+function ActionNode({ id, data, selected }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(String(data.label || "Action"));
+  const { setNodes } = useReactFlow();
+
+  const commitLabel = useCallback(() => {
+    setEditing(false);
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, label } } : n));
+  }, [id, label, setNodes]);
 
   return (
     <div
@@ -20,15 +26,9 @@ function ActionNode({ data, selected }: NodeProps) {
             className="text-sm font-medium bg-transparent border-b border-amber-300 outline-none w-full"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            onBlur={() => {
-              setEditing(false);
-              data.label = label;
-            }}
+            onBlur={commitLabel}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                setEditing(false);
-                data.label = label;
-              }
+              if (e.key === "Enter") commitLabel();
             }}
             autoFocus
           />

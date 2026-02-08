@@ -1,10 +1,16 @@
-import { memo, useState } from "react";
-import { type NodeProps } from "@xyflow/react";
+import { memo, useState, useCallback } from "react";
+import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { StickyNote } from "lucide-react";
 
-function NoteNode({ data, selected }: NodeProps) {
+function NoteNode({ id, data, selected }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(String(data.label || "Note"));
+  const { setNodes } = useReactFlow();
+
+  const commitLabel = useCallback(() => {
+    setEditing(false);
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, label } } : n));
+  }, [id, label, setNodes]);
 
   return (
     <div
@@ -19,10 +25,7 @@ function NoteNode({ data, selected }: NodeProps) {
             className="text-xs bg-transparent border-b border-yellow-300 outline-none w-full resize-none"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            onBlur={() => {
-              setEditing(false);
-              data.label = label;
-            }}
+            onBlur={commitLabel}
             rows={3}
             autoFocus
           />

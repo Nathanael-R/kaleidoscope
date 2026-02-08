@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export interface SocketHookOptions {
   autoConnect?: boolean;
@@ -21,6 +21,14 @@ export function useSocket(options: SocketHookOptions = {}) {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Store callbacks in refs to avoid reconnection on callback identity change
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onReloadRef = useRef(onReload);
+  onConnectRef.current = onConnect;
+  onDisconnectRef.current = onDisconnect;
+  onReloadRef.current = onReload;
+
   useEffect(() => {
     if (!autoConnect) return;
 
@@ -38,26 +46,26 @@ export function useSocket(options: SocketHookOptions = {}) {
     socket.on('connect', () => {
       console.log('WebSocket connected');
       setIsConnected(true);
-      onConnect?.();
+      onConnectRef.current?.();
     });
 
     socket.on('disconnect', () => {
       console.log('WebSocket disconnected');
       setIsConnected(false);
-      onDisconnect?.();
+      onDisconnectRef.current?.();
     });
 
     // Reload event from file watcher
     socket.on('reload', (data: { path: string; timestamp: number }) => {
       console.log('Reload triggered by:', data.path);
-      onReload?.();
+      onReloadRef.current?.();
     });
 
     // Cleanup
     return () => {
       socket.disconnect();
     };
-  }, [autoConnect, onConnect, onDisconnect, onReload]);
+  }, [autoConnect]);
 
   const emit = (event: string, data?: any) => {
     if (socketRef.current) {

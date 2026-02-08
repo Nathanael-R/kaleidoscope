@@ -135,7 +135,8 @@ export default function PreviewArea({
       const devices = viewMode === 'comparison' && pinnedDevices.length > 0
         ? pinnedDevices.map(d => d.id)
         : [selectedDevice.id];
-      const res = await fetch('http://localhost:5000/api/screenshots', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/screenshots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: currentUrl, devices }),

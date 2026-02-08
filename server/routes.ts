@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { type Server } from "http";
 import type { HealthResponse } from "./types.js";
 import tunnelRoutes from "./routes/tunnel.routes.js";
 import watcherRoutes from "./routes/watcher.routes.js";

@@ -1,5 +1,5 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 
 interface DeviceConfig {
@@ -49,8 +49,7 @@ function findChromium(): string {
   // Also scan the ms-playwright dir for any chromium version
   const playwrightDir = join(homedir, '.cache/ms-playwright');
   try {
-    const { readdirSync } = require('node:fs');
-    const entries = readdirSync(playwrightDir) as string[];
+    const entries = readdirSync(playwrightDir);
     for (const entry of entries) {
       if (entry.startsWith('chromium-')) {
         const candidate = join(playwrightDir, entry, 'chrome-linux/chrome');
@@ -159,11 +158,4 @@ class ScreenshotService {
 
 export const screenshotService = new ScreenshotService();
 
-// Cleanup on exit
-process.on('SIGINT', async () => {
-  await screenshotService.close();
-});
-
-process.on('SIGTERM', async () => {
-  await screenshotService.close();
-});
+// Cleanup is centralized in index.ts
