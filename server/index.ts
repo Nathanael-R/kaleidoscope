@@ -1,7 +1,9 @@
 import express, { type Request, type Response, type NextFunction } from "express";
+import { createServer } from "http";
+import { Server as SocketServer } from "socket.io";
 import path from "path";
 import fs from "fs";
-import { registerRoutes } from "./routes";
+import { registerRoutes } from "./routes.js";
 
 const app = express();
 app.use(express.json());
@@ -41,7 +43,34 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Create HTTP server for Socket.IO
+  const httpServer = createServer(app);
+
+  // Setup Socket.IO for live reload
+  const io = new SocketServer(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
+
+  // Socket.IO connection handling
+  io.on('connection', (socket) => {
+    console.log('Client connected:', socket.id);
+
+    socket.on('disconnect', () => {
+      console.log('Client disconnected:', socket.id);
+    });
+
+    socket.on('ping', () => {
+      socket.emit('pong');
+    });
+  });
+
+  // Make io available globally for services
+  (global as any).io = io;
+
+  await registerRoutes(app);
 
   // Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -118,14 +147,15 @@ app.use((req, res, next) => {
   }
 
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, "0.0.0.0", () => {
+  httpServer.listen(port, "0.0.0.0", () => {
     const timestamp = new Date().toLocaleTimeString("en-US", {
       hour: "numeric",
-      minute: "2-digit", 
+      minute: "2-digit",
       second: "2-digit",
       hour12: true,
     });
     console.log(`${timestamp} [express] backend API server running on port ${port}`);
+    console.log(`${timestamp} [express] WebSocket server ready for live reload`);
     console.log(`${timestamp} [express] completely independent of frontend`);
     console.log(`${timestamp} [express] frontend should be served separately on port 80`);
     console.log(`${timestamp} [express] health check available at /api/health`);

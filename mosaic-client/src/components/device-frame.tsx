@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
+import type { AuthCookie } from "./auth-wizard";
 
 interface DeviceFrameProps {
   device: Device;
@@ -10,54 +11,62 @@ interface DeviceFrameProps {
   scale?: number;
   onLoad?: () => void;
   onError?: () => void;
+  reloadTrigger?: number;
+  authCookies?: AuthCookie[];
 }
 
-export default function DeviceFrame({ 
-  device, 
-  url, 
+export default function DeviceFrame({
+  device,
+  url,
   isLandscape = false,
   scale = 1,
   onLoad,
-  onError 
+  onError,
+  reloadTrigger = 0,
+  authCookies = []
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [hasUrl, setHasUrl] = useState(false);
-  const [isLocalhost, setIsLocalhost] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
+  const [authApplied, setAuthApplied] = useState(false);
 
   useEffect(() => {
     if (url) {
       setHasUrl(true);
-      
-      // Check if URL is localhost
-      try {
-        const urlObj = new URL(url);
-        const isLocal = urlObj.hostname === 'localhost' || 
-                       urlObj.hostname === '127.0.0.1' || 
-                       urlObj.hostname.endsWith('.local') ||
-                       urlObj.hostname.includes('localhost');
-        setIsLocalhost(isLocal);
-        
-        if (isLocal) {
-          // Don't even try to load localhost URLs
-          setLoading(false);
-          setError(true);
-        } else {
-          setLoading(true);
-          setError(false);
-        }
-      } catch {
-        setIsLocalhost(false);
-        setLoading(true);
-        setError(false);
-      }
+      setLoading(true);
+      setError(false);
     } else {
       setHasUrl(false);
       setLoading(false);
       setError(false);
-      setIsLocalhost(false);
     }
   }, [url]);
+
+  // Handle reload trigger from live reload
+  useEffect(() => {
+    if (reloadTrigger > 0 && hasUrl) {
+      console.log('Reloading iframe due to live reload trigger');
+      setIframeKey(prev => prev + 1); // Force iframe reload by changing key
+      setLoading(true);
+    }
+  }, [reloadTrigger, hasUrl]);
+
+  // Handle auth cookies
+  useEffect(() => {
+    if (authCookies.length > 0) {
+      console.log('Auth cookies provided for preview:', authCookies);
+      setAuthApplied(true);
+
+      // Note: Cookie injection into cross-origin iframes is blocked by browsers
+      // This is a security feature. For auth preview to work:
+      // 1. URL must be same-origin (localhost to localhost works)
+      // 2. Or use a proxy server that adds cookies
+      // For now, we just track that auth was attempted
+    } else {
+      setAuthApplied(false);
+    }
+  }, [authCookies]);
 
   const handleIframeLoad = () => {
     setLoading(false);
@@ -176,15 +185,12 @@ export default function DeviceFrame({
                 Unable to load website
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                {isLocalhost 
-                  ? "Localhost URLs cannot be previewed due to browser security restrictions. Try using a public website URL instead."
-                  : "The website may be down or doesn't allow embedding in frames."}
+                The website may be down, doesn't allow embedding in frames (X-Frame-Options),
+                or you may need to enable tunneling for localhost URLs.
               </p>
-              {!isLocalhost && (
-                <Button onClick={handleRetry} data-testid="button-retry">
-                  Try Again
-                </Button>
-              )}
+              <Button onClick={handleRetry} data-testid="button-retry">
+                Try Again
+              </Button>
             </div>
           </div>
         )}
@@ -207,6 +213,7 @@ export default function DeviceFrame({
         {/* Iframe */}
         {hasUrl && (
           <iframe
+            key={iframeKey}
             data-device-frame
             src={url}
             className="w-full h-full border-0 bg-white"

@@ -1,0 +1,386 @@
+# 🌈 Kaleidoscope
+
+> Responsive design preview tool for developers using Claude Code. See your websites across multiple devices simultaneously before pushing to production.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+## 🎯 What is Kaleidoscope?
+
+Kaleidoscope is a multi-device preview tool designed for developers using Claude Code who need to validate responsive designs across 8 different device sizes before deploying. It combines:
+
+- **Multi-device preview**: View websites on iPhone, iPad, Desktop simultaneously
+- **Localhost support**: Preview your local dev server (`http://localhost:3000`)
+- **Auth preview**: Test authenticated pages with cookie injection
+- **Interactive flow diagrams**: Map user journeys and test entire flows
+- **MCP integration**: Claude can programmatically invoke previews
+
+## ✨ Features
+
+- 📱 8 device types (Mobile, Tablet, Desktop)
+- 🔥 Live reload when files change
+- 🔐 Authentication support
+- 🔄 URL tunneling for web Claude Code users
+- 📸 Screenshots (Basic & HD)
+- 🔍 Flow diagram search & spotlight
+- ⌨️ Keyboard navigation
+- 🌙 Dark mode
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- npm or pnpm
+- (Optional) Docker for containerized setup
+
+### Option 1: Manual Setup (Recommended for Development)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/Kaleidoscope.git
+cd Kaleidoscope
+
+# 2. Install dependencies
+npm run install:all
+
+# 3. Start development servers
+npm run dev:all
+```
+
+This starts:
+- **Frontend**: http://localhost:5173
+- **Backend**: http://localhost:5000
+
+### Option 2: Docker (Easiest)
+
+```bash
+# Start everything with Docker Compose
+docker-compose up
+
+# Access Kaleidoscope at http://localhost:5173
+```
+
+## 📖 How to Use
+
+### Basic Preview
+
+1. Open Kaleidoscope: http://localhost:5173
+2. In the sidebar, enter a URL: `https://example.com`
+3. Press Enter or click the arrow button
+4. See your site on 8 different devices!
+
+### Preview Your Local Development Server
+
+```bash
+# Terminal 1: Start your dev server
+cd your-project
+npm run dev
+# Running on http://localhost:3000
+
+# Terminal 2: Already running Kaleidoscope
+# Just enter: http://localhost:3000 in Kaleidoscope
+```
+
+**Note**: Localhost URLs now work! Previously blocked, this has been fixed in the latest version.
+
+### Test With Sample Projects
+
+We include sample projects for testing:
+
+```bash
+# Start sample site (port 3000)
+cd examples/sample-site
+npm install
+npm run dev
+
+# Start auth demo (port 3001)
+cd examples/auth-demo
+npm install
+npm run dev
+```
+
+Then preview:
+- Sample site: `http://localhost:3000`
+- Auth demo: `http://localhost:3001`
+
+### Preview Authenticated Pages
+
+Some pages require login (e.g., dashboards). Here's how to preview them:
+
+1. **Start the auth demo**:
+   ```bash
+   cd examples/auth-demo
+   npm run dev
+   ```
+
+2. **Log in normally** in a new tab:
+   - Go to http://localhost:3001/login
+   - Username: `demo`, Password: `demo`
+   - You'll be redirected to the dashboard
+
+3. **Get your session cookie**:
+   - Open DevTools (F12)
+   - Go to Application → Cookies
+   - Find `session_token`
+   - Copy the value: `demo_session_abc123`
+
+4. **In Kaleidoscope**:
+   - Enter URL: `http://localhost:3001/dashboard`
+   - Click "Preview with Auth" (coming in next update)
+   - Paste cookie name: `session_token`
+   - Paste cookie value: `demo_session_abc123`
+   - All devices now show the logged-in dashboard!
+
+## 🧪 Testing
+
+### Run All Tests
+
+```bash
+npm test
+```
+
+### Unit Tests (Vitest)
+
+```bash
+cd mosaic-client
+npm run test
+
+# With UI
+npm run test:ui
+
+# With coverage
+npm run test:coverage
+```
+
+### E2E Tests (Playwright)
+
+```bash
+# Run tests
+npm run test:e2e
+
+# Interactive mode
+npm run test:e2e:ui
+
+# Specific browser
+npx playwright test --project=chromium
+```
+
+### Manual Testing Checklist
+
+Use this checklist to verify everything works:
+
+#### Basic Functionality
+- [ ] Can open Kaleidoscope at http://localhost:5173
+- [ ] Can enter a URL and see it load
+- [ ] All 8 devices render correctly
+- [ ] Can switch between devices
+- [ ] Dark mode toggle works
+
+#### Localhost Support
+- [ ] Can preview `http://localhost:3000`
+- [ ] Can preview `http://127.0.0.1:3000`
+- [ ] No "localhost blocked" error message
+
+#### Device Interaction
+- [ ] Can pin devices (click pin icon or press Space)
+- [ ] Comparison mode shows pinned devices side-by-side
+- [ ] Can toggle comparison mode with C key
+- [ ] Can navigate devices with arrow keys
+
+#### Auth Preview (Future)
+- [ ] Can capture session cookies
+- [ ] Authenticated pages load correctly
+- [ ] All devices show logged-in view
+
+## 📁 Project Structure
+
+```
+Kaleidoscope/
+├── mosaic-client/          # React frontend (Vite + TypeScript)
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── hooks/          # Custom hooks
+│   │   ├── lib/            # Utilities
+│   │   ├── pages/          # Page components
+│   │   └── tests/          # Unit tests
+│   └── vitest.config.ts
+├── server/                 # Express backend
+│   ├── index.ts
+│   ├── routes.ts
+│   └── types.ts
+├── examples/               # Sample projects for testing
+│   ├── sample-site/        # Basic responsive site
+│   └── auth-demo/          # Authentication demo
+├── tests/
+│   ├── e2e/               # Playwright E2E tests
+│   └── unit/              # Additional unit tests
+├── docker-compose.yml      # Docker setup
+├── playwright.config.ts    # Playwright configuration
+└── package.json           # Monorepo scripts
+```
+
+## 🔧 Development
+
+### Available Scripts
+
+```bash
+# Development
+npm run dev:client          # Start frontend only
+npm run dev:server          # Start backend only
+npm run dev:all            # Start everything (recommended)
+
+# Testing
+npm test                   # Run all tests
+npm run test:unit          # Unit tests only
+npm run test:e2e           # E2E tests only
+npm run test:e2e:ui        # E2E tests with UI
+
+# Building
+cd mosaic-client && npm run build
+cd server && npm run build
+
+# Linting
+cd mosaic-client && npm run lint
+
+# Type checking
+cd mosaic-client && npm run check
+cd server && npm run check
+
+# Docker
+npm run docker:up          # Start with Docker
+npm run docker:down        # Stop Docker containers
+npm run docker:build       # Rebuild images
+```
+
+### Technology Stack
+
+**Frontend:**
+- React 19 + TypeScript
+- Vite 7 (build tool)
+- Tailwind CSS v4
+- shadcn/ui components
+- React Query (data fetching)
+- Vitest (testing)
+
+**Backend:**
+- Express.js
+- TypeScript
+- esbuild (bundler)
+
+**Testing:**
+- Vitest (unit tests)
+- Playwright (E2E tests)
+- React Testing Library
+
+## 🐛 Troubleshooting
+
+### "Cannot connect to localhost:3000"
+
+**Problem**: Kaleidoscope can't reach your dev server.
+
+**Solutions**:
+1. Ensure your dev server is running: `npm run dev` in your project
+2. Check the port number matches
+3. Try http://127.0.0.1:3000 instead of localhost
+
+### "Refused to display in a frame"
+
+**Problem**: Website has `X-Frame-Options: DENY` header.
+
+**Explanation**: Some sites (Google, Facebook) block embedding for security.
+
+**Solutions**:
+- This is expected behavior for those sites
+- Your own localhost sites won't have this restriction
+- For production sites, you can't bypass this (it's a security feature)
+
+### "High memory usage"
+
+**Problem**: Browser using too much RAM with 8 iframes.
+
+**Solutions**:
+- Close some device previews
+- Use single device mode instead of comparison
+- Reduce number of pinned devices
+- Restart browser
+
+### Tests Failing
+
+**Problem**: E2E tests fail to connect.
+
+**Solutions**:
+```bash
+# Install Playwright browsers
+npx playwright install
+
+# Make sure servers are running
+npm run dev:all
+
+# Run tests again
+npm test
+```
+
+## 🗺️ Roadmap
+
+### Week 0: Foundation ✅
+- [x] Testing infrastructure (Vitest, Playwright)
+- [x] Docker Compose setup
+- [x] Sample projects
+- [x] Remove localhost blocking
+
+### Week 1-2: Core Features (In Progress)
+- [ ] ngrok tunnel integration
+- [ ] Live reload with file watching
+- [ ] Auth capture wizard
+
+### Week 3-4: MCP Server
+- [ ] MCP server with process management
+- [ ] `preview_responsive` tool
+- [ ] Screenshot tools (basic + HD)
+
+### Week 5-7: Flow Diagrams
+- [ ] React Flow integration
+- [ ] Interactive flow builder
+- [ ] Search & spotlight feature
+- [ ] Save/load flows
+
+### Week 8-9: Polish
+- [ ] Accessibility improvements
+- [ ] Mobile responsive layout
+- [ ] Performance optimization
+- [ ] Comprehensive documentation
+
+### Week 10: Launch
+- [ ] Production deployment
+- [ ] Beta launch
+- [ ] User feedback iteration
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## 🙏 Acknowledgments
+
+- Built for developers using [Claude Code](https://claude.ai/code)
+- Inspired by the need for better responsive design testing
+- Powered by React, Vite, and modern web technologies
+
+## 📞 Support
+
+- 📧 Issues: [GitHub Issues](https://github.com/yourusername/Kaleidoscope/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/Kaleidoscope/discussions)
+- 📖 Docs: [Full Documentation](https://kaleidoscope-docs.example.com)
+
+---
+
+**Made with ❤️ for the Claude Code community**

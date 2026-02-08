@@ -1,0 +1,12 @@
+{
+  "name": "sample-site",
+  "version": "1.0.0",
+  "description": "Simple HTML site for testing Kaleidoscope",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

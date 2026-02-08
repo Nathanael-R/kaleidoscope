@@ -1,0 +1,29 @@
+{
+  "name": "kaleidoscope-monorepo",
+  "version": "1.0.0",
+  "description": "Kaleidoscope - Responsive design preview tool for Claude Code",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:client": "cd mosaic-client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "dev:all": "concurrently \"npm run dev:client\" \"npm run dev:server\" --names \"client,server\" --prefix-colors \"cyan,magenta\"",
+    "install:all": "npm install && cd mosaic-client && npm install && cd ../server && npm install && cd ../examples/sample-site && npm install && cd ../auth-demo && npm install",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "cd mosaic-client && npm run test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "concurrently": "^9.1.2"
+  },
+  "workspaces": [
+    "mosaic-client",
+    "server",
+    "examples/*"
+  ]
+}
