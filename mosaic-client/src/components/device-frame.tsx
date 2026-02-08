@@ -222,6 +222,8 @@ export default function DeviceFrame({
             onError={handleIframeError}
             style={{ display: loading ? 'none' : 'block' }}
             data-testid="preview-iframe"
+            title={`${device.name} - ${url}`}
+            aria-label={`Preview of ${url} on ${device.name}`}
           />
         )}
       </div>

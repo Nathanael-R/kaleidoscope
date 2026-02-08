@@ -17,6 +17,7 @@ export default function Header() {
 
   return (
     <header
+      role="banner"
       className={`bg-white border-b border-gray-200 sticky top-0 z-50 ${
         darkMode ? "dark:bg-gray-900 dark:border-gray-700" : ""
       }`}
@@ -37,15 +38,16 @@ export default function Header() {
           >
             Kaleidoscope
           </h1>
-          <nav className="flex items-center space-x-1 ml-6">
+          <nav className="flex items-center space-x-1 ml-6" aria-label="Main navigation">
             <Link href="/">
               <Button
                 variant={location === "/" ? "secondary" : "ghost"}
                 size="sm"
                 className="text-sm h-8"
+                aria-current={location === "/" ? "page" : undefined}
               >
                 <Smartphone className="w-4 h-4 mr-1.5" />
-                Preview
+                <span className="hidden md:inline">Preview</span>
               </Button>
             </Link>
             <Link href="/flows">
@@ -53,9 +55,10 @@ export default function Header() {
                 variant={location === "/flows" ? "secondary" : "ghost"}
                 size="sm"
                 className="text-sm h-8"
+                aria-current={location === "/flows" ? "page" : undefined}
               >
                 <GitBranch className="w-4 h-4 mr-1.5" />
-                Flows
+                <span className="hidden md:inline">Flows</span>
               </Button>
             </Link>
           </nav>
@@ -64,16 +67,18 @@ export default function Header() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            className="hidden md:flex text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             data-testid="button-help"
+            aria-label="Help"
           >
             <HelpCircle className="w-5 h-5" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            className="hidden md:flex text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             data-testid="button-settings"
+            aria-label="Settings"
           >
             <Settings className="w-5 h-5" />
           </Button>

@@ -105,7 +105,7 @@ export default function Sidebar({
 
   if (isCollapsed) {
     return (
-      <aside className="w-16 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-16 bg-white border-r border-gray-200 flex flex-col" role="complementary" aria-label="Device controls">
         {/* Collapsed Header */}
         <div className="p-4 border-b border-gray-200 flex justify-center">
           <Button
@@ -145,7 +145,10 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="w-80 bg-white border-r border-gray-200 flex flex-col">
+    <>
+    {/* Mobile backdrop overlay */}
+    <div className="md:hidden fixed inset-0 top-16 bg-black/30 z-30" onClick={onToggleCollapse} />
+    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white border-r border-gray-200 flex flex-col" role="complementary" aria-label="Device controls">
       {/* Header with collapse button */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-3">
@@ -193,6 +196,7 @@ export default function Sidebar({
             onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
             className="pr-12"
             data-testid="input-url"
+            aria-label="Website URL to preview across devices"
           />
           <Button
             size="sm"
@@ -333,7 +337,7 @@ export default function Sidebar({
       {/* Device Selection */}
       <div className="flex-1 p-6 overflow-y-auto">
         <h3 className="text-sm font-medium text-gray-700 mb-4">Select Device</h3>
-        <div className="space-y-6">
+        <div className="space-y-6" role="listbox" aria-label="Device list">
           {Object.entries(devicesByCategory).map(([category, categoryDevices]) => (
             <div key={category}>
               <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
@@ -354,6 +358,8 @@ export default function Sidebar({
                       )}
                       onClick={() => onDeviceSelect(device)}
                       data-testid={`device-${device.id}`}
+                      role="option"
+                      aria-selected={selectedDevice.id === device.id}
                     >
                       <span className="mr-3 text-lg">
                         {getDeviceIcon(device.icon)}
@@ -383,6 +389,7 @@ export default function Sidebar({
                         onDevicePin(device);
                       }}
                       data-testid={`pin-${device.id}`}
+                      aria-label={`${pinnedDevices.find(d => d.id === device.id) ? 'Unpin' : 'Pin'} ${device.name}`}
                     >
                       {pinnedDevices.find(d => d.id === device.id) ? (
                         <Pin className="w-3 h-3 text-orange-500" />
@@ -398,5 +405,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   );
 }

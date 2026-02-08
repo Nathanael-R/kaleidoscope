@@ -99,10 +99,23 @@ export default function Home() {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [handleKeyNavigation]);
 
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div className="bg-gray-50">
+      <a href="#preview-content" className="sr-only focus:not-sr-only focus:absolute focus:top-20 focus:left-4 focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:rounded focus:shadow-lg">Skip to preview</a>
       <Header />
-      <div className="flex h-screen pt-16">
+      <div className="flex flex-col md:flex-row h-screen pt-16">
         <Sidebar
           selectedDevice={selectedDevice}
           onDeviceSelect={handleDeviceSelect}
@@ -118,16 +131,18 @@ export default function Home() {
           onReload={handleReload}
           onAuthCapture={handleAuthCapture}
         />
-        <PreviewArea
-          selectedDevice={selectedDevice}
-          currentUrl={currentUrl}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
-          pinnedDevices={pinnedDevices}
-          viewMode={viewMode}
-          reloadTrigger={reloadTrigger}
-          authCookies={authCookies}
-        />
+        <div id="preview-content" className="flex-1 flex">
+          <PreviewArea
+            selectedDevice={selectedDevice}
+            currentUrl={currentUrl}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={handleToggleSidebar}
+            pinnedDevices={pinnedDevices}
+            viewMode={viewMode}
+            reloadTrigger={reloadTrigger}
+            authCookies={authCookies}
+          />
+        </div>
       </div>
     </div>
   );

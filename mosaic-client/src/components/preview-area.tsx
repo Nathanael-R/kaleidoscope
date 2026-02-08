@@ -181,7 +181,7 @@ export default function PreviewArea({
   const deviceHeight = isLandscape ? selectedDevice.width : selectedDevice.height;
 
   return (
-    <main className={`flex-1 p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}> 
+    <main role="main" className={`flex-1 p-4 md:p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}>
       {/* Floating Sidebar Toggle (when collapsed) */}
       {isSidebarCollapsed && onToggleSidebar && (
         <Button
@@ -198,17 +198,17 @@ export default function PreviewArea({
 
       {/* Preview Header */}
       <div className="mb-6 flex items-center justify-between">
-        <div>
+        <div aria-live="polite">
           <h2 className="text-lg font-semibold text-gray-900" data-testid="text-device-name">
             {viewMode === 'comparison' ? `Comparing ${pinnedDevices.length} Devices` : `${selectedDevice.name} Preview`}
           </h2>
           <p className="text-sm text-gray-600" data-testid="text-device-dimensions">
-            {viewMode === 'comparison' 
+            {viewMode === 'comparison'
               ? `Side-by-side device comparison`
               : `${deviceWidth} × ${deviceHeight} pixels`}
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center flex-wrap gap-2 md:gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -217,7 +217,7 @@ export default function PreviewArea({
             data-testid="button-refresh"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button
             variant="outline"
@@ -232,7 +232,7 @@ export default function PreviewArea({
             ) : (
               <Camera className="w-4 h-4 mr-2" />
             )}
-            Screenshot
+            <span className="hidden sm:inline">Screenshot</span>
           </Button>
           <Button
             size="sm"
@@ -241,7 +241,7 @@ export default function PreviewArea({
             data-testid="button-fullscreen"
           >
             <Expand className="w-4 h-4 mr-2" />
-            Fullscreen
+            <span className="hidden sm:inline">Fullscreen</span>
           </Button>
         </div>
       </div>
@@ -417,27 +417,29 @@ export default function PreviewArea({
 
       {/* Quick Actions */}
       <div className="mt-12 flex justify-center">
-        <div className="flex items-center space-x-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRotate}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-rotate"
+            aria-label="Rotate device orientation"
           >
             <RotateCw className="w-4 h-4 mr-2" />
-            Rotate
+            <span className="hidden sm:inline">Rotate</span>
           </Button>
-          <div className="w-px h-6 bg-gray-300"></div>
+          <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleZoomIn}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-zoom-in"
+            aria-label="Zoom in"
           >
             <ZoomIn className="w-4 h-4 mr-2" />
-            Zoom In
+            <span className="hidden sm:inline">Zoom In</span>
           </Button>
           <Button
             variant="ghost"
@@ -445,20 +447,22 @@ export default function PreviewArea({
             onClick={handleZoomOut}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-zoom-out"
+            aria-label="Zoom out"
           >
             <ZoomOut className="w-4 h-4 mr-2" />
-            Zoom Out
+            <span className="hidden sm:inline">Zoom Out</span>
           </Button>
-          <div className="w-px h-6 bg-gray-300"></div>
+          <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleResetZoom}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-reset-zoom"
+            aria-label="Fit to screen"
           >
             <ArrowLeftFromLine className="w-4 h-4 mr-2" />
-            Fit
+            <span className="hidden sm:inline">Fit</span>
           </Button>
         </div>
       </div>
