@@ -3,6 +3,7 @@ import type { Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
 import { ArrowLeftFromLine, Camera, Expand, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
+import type { AuthCookie } from "./auth-wizard";
 
 interface PreviewAreaProps {
   selectedDevice: Device;
@@ -13,6 +14,7 @@ interface PreviewAreaProps {
   viewMode: 'single' | 'comparison';
   onDevicePin?: (device: Device) => void;
   reloadTrigger?: number;
+  authCookies?: AuthCookie[];
 }
 
 import * as React from "react";
@@ -25,7 +27,8 @@ export default function PreviewArea({
   pinnedDevices,
   viewMode,
   onDevicePin,
-  reloadTrigger = 0
+  reloadTrigger = 0,
+  authCookies = []
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -224,6 +227,7 @@ export default function PreviewArea({
           isLandscape={isLandscape}
           scale={scale}
           reloadTrigger={reloadTrigger}
+          authCookies={authCookies}
         />
       ) : (
         <div className="space-y-8">
@@ -352,6 +356,7 @@ export default function PreviewArea({
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger}
+                        authCookies={authCookies}
                       />
                     </div>
                   </div>

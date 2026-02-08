@@ -3,6 +3,7 @@ import Header from "@/components/header";
 import Sidebar from "@/components/sidebar";
 import PreviewArea from "@/components/preview-area";
 import { devices, type Device } from "@/lib/devices";
+import type { AuthCookie } from "@/components/auth-wizard";
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]); // Default to iPhone 14
@@ -11,6 +12,7 @@ export default function Home() {
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
   const [reloadTrigger, setReloadTrigger] = useState(0); // Increment to trigger reload
+  const [authCookies, setAuthCookies] = useState<AuthCookie[]>([]); // Auth cookies for injection
 
   const handleDeviceSelect = (device: Device) => {
     setSelectedDevice(device);
@@ -44,6 +46,13 @@ export default function Home() {
 
   const handleReload = () => {
     console.log('Triggering preview reload...');
+    setReloadTrigger(prev => prev + 1);
+  };
+
+  const handleAuthCapture = (cookies: AuthCookie[]) => {
+    console.log('Auth cookies captured:', cookies);
+    setAuthCookies(cookies);
+    // Trigger reload to apply cookies
     setReloadTrigger(prev => prev + 1);
   };
 
@@ -107,6 +116,7 @@ export default function Home() {
           viewMode={viewMode}
           onViewModeToggle={handleViewModeToggle}
           onReload={handleReload}
+          onAuthCapture={handleAuthCapture}
         />
         <PreviewArea
           selectedDevice={selectedDevice}
@@ -116,6 +126,7 @@ export default function Home() {
           pinnedDevices={pinnedDevices}
           viewMode={viewMode}
           reloadTrigger={reloadTrigger}
+          authCookies={authCookies}
         />
       </div>
     </div>

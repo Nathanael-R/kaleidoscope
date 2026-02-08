@@ -8,6 +8,7 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, Columns, Pin, X } from "l
 import { useState } from "react";
 import TunnelButton from "@/components/tunnel-button";
 import LiveReloadToggle from "@/components/live-reload-toggle";
+import AuthWizard, { type AuthCookie } from "@/components/auth-wizard";
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -22,6 +23,7 @@ interface SidebarProps {
   viewMode: 'single' | 'comparison';
   onViewModeToggle: () => void;
   onReload?: () => void;
+  onAuthCapture?: (cookies: AuthCookie[]) => void;
 }
 
 export default function Sidebar({
@@ -35,7 +37,8 @@ export default function Sidebar({
   onDevicePin,
   viewMode,
   onViewModeToggle,
-  onReload
+  onReload,
+  onAuthCapture
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
@@ -220,6 +223,16 @@ export default function Sidebar({
         </Label>
         <LiveReloadToggle onReload={onReload} />
       </div>
+
+      {/* Auth Section */}
+      {urlInput && (
+        <div className="p-6 border-b border-gray-200">
+          <Label className="block text-sm font-medium text-gray-700 mb-3">
+            Authentication
+          </Label>
+          <AuthWizard onAuthCapture={onAuthCapture || (() => {})} />
+        </div>
+      )}
 
       {/* Recent URLs */}
       <div className="p-6 border-b border-gray-200">

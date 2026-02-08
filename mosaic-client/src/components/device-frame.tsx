@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
+import type { AuthCookie } from "./auth-wizard";
 
 interface DeviceFrameProps {
   device: Device;
@@ -11,6 +12,7 @@ interface DeviceFrameProps {
   onLoad?: () => void;
   onError?: () => void;
   reloadTrigger?: number;
+  authCookies?: AuthCookie[];
 }
 
 export default function DeviceFrame({
@@ -20,12 +22,14 @@ export default function DeviceFrame({
   scale = 1,
   onLoad,
   onError,
-  reloadTrigger = 0
+  reloadTrigger = 0,
+  authCookies = []
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [hasUrl, setHasUrl] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [authApplied, setAuthApplied] = useState(false);
 
   useEffect(() => {
     if (url) {
@@ -47,6 +51,22 @@ export default function DeviceFrame({
       setLoading(true);
     }
   }, [reloadTrigger, hasUrl]);
+
+  // Handle auth cookies
+  useEffect(() => {
+    if (authCookies.length > 0) {
+      console.log('Auth cookies provided for preview:', authCookies);
+      setAuthApplied(true);
+
+      // Note: Cookie injection into cross-origin iframes is blocked by browsers
+      // This is a security feature. For auth preview to work:
+      // 1. URL must be same-origin (localhost to localhost works)
+      // 2. Or use a proxy server that adds cookies
+      // For now, we just track that auth was attempted
+    } else {
+      setAuthApplied(false);
+    }
+  }, [authCookies]);
 
   const handleIframeLoad = () => {
     setLoading(false);
