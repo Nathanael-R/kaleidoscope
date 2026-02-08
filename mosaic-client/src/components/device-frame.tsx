@@ -10,19 +10,22 @@ interface DeviceFrameProps {
   scale?: number;
   onLoad?: () => void;
   onError?: () => void;
+  reloadTrigger?: number;
 }
 
-export default function DeviceFrame({ 
-  device, 
-  url, 
+export default function DeviceFrame({
+  device,
+  url,
   isLandscape = false,
   scale = 1,
   onLoad,
-  onError 
+  onError,
+  reloadTrigger = 0
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [hasUrl, setHasUrl] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
 
   useEffect(() => {
     if (url) {
@@ -35,6 +38,15 @@ export default function DeviceFrame({
       setError(false);
     }
   }, [url]);
+
+  // Handle reload trigger from live reload
+  useEffect(() => {
+    if (reloadTrigger > 0 && hasUrl) {
+      console.log('Reloading iframe due to live reload trigger');
+      setIframeKey(prev => prev + 1); // Force iframe reload by changing key
+      setLoading(true);
+    }
+  }, [reloadTrigger, hasUrl]);
 
   const handleIframeLoad = () => {
     setLoading(false);
@@ -181,6 +193,7 @@ export default function DeviceFrame({
         {/* Iframe */}
         {hasUrl && (
           <iframe
+            key={iframeKey}
             data-device-frame
             src={url}
             className="w-full h-full border-0 bg-white"

@@ -10,6 +10,7 @@ export default function Home() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
+  const [reloadTrigger, setReloadTrigger] = useState(0); // Increment to trigger reload
 
   const handleDeviceSelect = (device: Device) => {
     setSelectedDevice(device);
@@ -39,6 +40,11 @@ export default function Home() {
 
   const handleViewModeToggle = () => {
     setViewMode(prev => prev === 'single' ? 'comparison' : 'single');
+  };
+
+  const handleReload = () => {
+    console.log('Triggering preview reload...');
+    setReloadTrigger(prev => prev + 1);
   };
 
   // Keyboard navigation
@@ -100,6 +106,7 @@ export default function Home() {
           onDevicePin={handleDevicePin}
           viewMode={viewMode}
           onViewModeToggle={handleViewModeToggle}
+          onReload={handleReload}
         />
         <PreviewArea
           selectedDevice={selectedDevice}
@@ -108,6 +115,7 @@ export default function Home() {
           onToggleSidebar={handleToggleSidebar}
           pinnedDevices={pinnedDevices}
           viewMode={viewMode}
+          reloadTrigger={reloadTrigger}
         />
       </div>
     </div>

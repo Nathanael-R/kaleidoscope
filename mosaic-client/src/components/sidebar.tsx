@@ -6,6 +6,8 @@ import { devices, getDevicesByCategory, type Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Columns, Pin, X } from "lucide-react";
 import { useState } from "react";
+import TunnelButton from "@/components/tunnel-button";
+import LiveReloadToggle from "@/components/live-reload-toggle";
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -19,10 +21,11 @@ interface SidebarProps {
   onDevicePin: (device: Device) => void;
   viewMode: 'single' | 'comparison';
   onViewModeToggle: () => void;
+  onReload?: () => void;
 }
 
-export default function Sidebar({ 
-  selectedDevice, 
+export default function Sidebar({
+  selectedDevice,
   onDeviceSelect,
   onUrlChange,
   onLoadUrl,
@@ -31,12 +34,32 @@ export default function Sidebar({
   pinnedDevices,
   onDevicePin,
   viewMode,
-  onViewModeToggle
+  onViewModeToggle,
+  onReload
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
-  
+
   const devicesByCategory = getDevicesByCategory();
+
+  // Extract port from URL for tunnel
+  const getPortFromUrl = (url: string): number => {
+    try {
+      const urlObj = new URL(url);
+      const port = urlObj.port;
+      if (port) return parseInt(port, 10);
+
+      // Default ports
+      if (urlObj.protocol === 'https:') return 443;
+      if (urlObj.protocol === 'http:') return 80;
+
+      return 3000; // Default dev server port
+    } catch {
+      return 3000;
+    }
+  };
+
+  const currentPort = urlInput ? getPortFromUrl(urlInput) : 3000;
 
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) return;
@@ -180,6 +203,22 @@ export default function Sidebar({
         <p className="text-xs text-gray-500 mt-2">
           Enter any website URL to preview across devices
         </p>
+      </div>
+
+      {/* Tunnel Section */}
+      <div className="p-6 border-b border-gray-200">
+        <Label className="block text-sm font-medium text-gray-700 mb-3">
+          Share Localhost
+        </Label>
+        <TunnelButton port={currentPort} />
+      </div>
+
+      {/* Live Reload Section */}
+      <div className="p-6 border-b border-gray-200">
+        <Label className="block text-sm font-medium text-gray-700 mb-3">
+          Auto Refresh
+        </Label>
+        <LiveReloadToggle onReload={onReload} />
       </div>
 
       {/* Recent URLs */}

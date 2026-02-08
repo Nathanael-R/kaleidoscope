@@ -12,18 +12,20 @@ interface PreviewAreaProps {
   pinnedDevices: Device[];
   viewMode: 'single' | 'comparison';
   onDevicePin?: (device: Device) => void;
+  reloadTrigger?: number;
 }
 
 import * as React from "react";
 
-export default function PreviewArea({ 
-  selectedDevice, 
-  currentUrl, 
-  isSidebarCollapsed = false, 
+export default function PreviewArea({
+  selectedDevice,
+  currentUrl,
+  isSidebarCollapsed = false,
   onToggleSidebar,
   pinnedDevices,
   viewMode,
-  onDevicePin
+  onDevicePin,
+  reloadTrigger = 0
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -221,6 +223,7 @@ export default function PreviewArea({
           url={currentUrl}
           isLandscape={isLandscape}
           scale={scale}
+          reloadTrigger={reloadTrigger}
         />
       ) : (
         <div className="space-y-8">
@@ -348,6 +351,7 @@ export default function PreviewArea({
                         url={currentUrl}
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
+                        reloadTrigger={reloadTrigger}
                       />
                     </div>
                   </div>
