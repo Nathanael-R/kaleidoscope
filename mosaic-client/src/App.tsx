@@ -4,6 +4,7 @@ import { Route, Switch } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "./components/ui/sonner";
 import { lazy, Suspense } from "react";
+import ErrorBoundary from "./components/error-boundary";
 import Ahome from "./pages/a-home";
 
 const Home = lazy(() => import("@/pages/home"));
@@ -34,12 +35,14 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

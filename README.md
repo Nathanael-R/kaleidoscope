@@ -51,13 +51,23 @@ This starts:
 - **Frontend**: http://localhost:5173
 - **Backend**: http://localhost:5000
 
-### Option 2: Docker (Easiest)
+### Option 2: Docker Development
 
 ```bash
-# Start everything with Docker Compose
+# Start development environment with Docker Compose
 docker-compose up
 
 # Access Kaleidoscope at http://localhost:5173
+```
+
+### Option 3: Docker Production
+
+```bash
+# Build and run the production container
+docker compose -f docker-compose.prod.yml up --build
+
+# Access Kaleidoscope at http://localhost:5000
+# Frontend and API are served from a single container
 ```
 
 ## 📖 How to Use
@@ -402,22 +412,23 @@ npm test
 - [x] Screenshot API with Playwright/Chromium
 - [x] Screenshot panel UI in sidebar
 
-### Week 5-7: Flow Diagrams
-- [ ] React Flow integration
-- [ ] Interactive flow builder
-- [ ] Search & spotlight feature
-- [ ] Save/load flows
+### Week 5-7: Flow Diagrams ✅
+- [x] React Flow integration with 4 node types (Page, Action, Condition, Note)
+- [x] Interactive flow builder with drag-and-drop
+- [x] Search & spotlight feature with focus navigation
+- [x] Save/load flows (localStorage + JSON export/import)
 
-### Week 8-9: Polish
-- [ ] Accessibility improvements
-- [ ] Mobile responsive layout
-- [ ] Performance optimization
-- [ ] Comprehensive documentation
+### Week 8-9: Polish ✅
+- [x] Accessibility (ARIA labels, skip-to-content, keyboard focus)
+- [x] Mobile responsive layout (sidebar overlay, stacked, icon-only buttons)
+- [x] Lazy loading (React.lazy + Suspense)
+- [x] Error boundary for crash recovery
 
-### Week 10: Launch
-- [ ] Production deployment
-- [ ] Beta launch
-- [ ] User feedback iteration
+### Week 10: Production ✅
+- [x] Production Docker build (multi-stage, single container)
+- [x] Error boundary for crash recovery
+- [x] Environment configuration (.env.example)
+- [x] Health checks
 
 ## 🤝 Contributing
 
