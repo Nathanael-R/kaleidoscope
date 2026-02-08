@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Kaleidoscope frontend
+  kaleidoscope-client:
+    build:
+      context: ./mosaic-client
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./mosaic-client:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5000
+    command: npm run dev
+    networks:
+      - kaleidoscope-network
+
+  # Kaleidoscope backend
+  kaleidoscope-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+    command: npm run dev
+    networks:
+      - kaleidoscope-network
+
+  # Sample test site
+  sample-site:
+    build:
+      context: ./examples/sample-site
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./examples/sample-site:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - kaleidoscope-network
+
+  # Auth demo site
+  auth-demo:
+    build:
+      context: ./examples/auth-demo
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./examples/auth-demo:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - kaleidoscope-network
+
+networks:
+  kaleidoscope-network:
+    driver: bridge
+
+volumes:
+  node_modules:
