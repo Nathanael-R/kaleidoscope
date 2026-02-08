@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
-import { ArrowLeftFromLine, Camera, Expand, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeftFromLine, Camera, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
 import type { AuthCookie } from "./auth-wizard";
 
@@ -126,10 +126,32 @@ export default function PreviewArea({
     }
   };
 
-  const handleScreenshot = () => {
-    // Basic screenshot functionality - in a real app this would capture the iframe content
-    console.log('Screenshot functionality would be implemented here');
-    alert('Screenshot functionality would be implemented here');
+  const [screenshotting, setScreenshotting] = React.useState(false);
+
+  const handleScreenshot = async () => {
+    if (!currentUrl) return;
+    setScreenshotting(true);
+    try {
+      const devices = viewMode === 'comparison' && pinnedDevices.length > 0
+        ? pinnedDevices.map(d => d.id)
+        : [selectedDevice.id];
+      const res = await fetch('http://localhost:5000/api/screenshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: currentUrl, devices }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { screenshots: Array<{ device: string; path: string }> };
+        alert(`${data.screenshots.length} screenshot(s) saved to ./screenshots/`);
+      } else {
+        const err = await res.json() as { error: string };
+        alert(`Screenshot failed: ${err.error}`);
+      }
+    } catch (error) {
+      alert(`Screenshot error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setScreenshotting(false);
+    }
   };
 
   const handleFullscreen = () => {
@@ -201,10 +223,15 @@ export default function PreviewArea({
             variant="outline"
             size="sm"
             onClick={handleScreenshot}
+            disabled={screenshotting || !currentUrl}
             className="flex items-center"
             data-testid="button-screenshot"
           >
-            <Camera className="w-4 h-4 mr-2" />
+            {screenshotting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Camera className="w-4 h-4 mr-2" />
+            )}
             Screenshot
           </Button>
           <Button

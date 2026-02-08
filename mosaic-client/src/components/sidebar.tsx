@@ -9,6 +9,7 @@ import { useState } from "react";
 import TunnelButton from "@/components/tunnel-button";
 import LiveReloadToggle from "@/components/live-reload-toggle";
 import AuthWizard, { type AuthCookie } from "@/components/auth-wizard";
+import ScreenshotPanel from "@/components/screenshot-panel";
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -231,6 +232,16 @@ export default function Sidebar({
             Authentication
           </Label>
           <AuthWizard onAuthCapture={onAuthCapture || (() => {})} />
+        </div>
+      )}
+
+      {/* Screenshot Section */}
+      {urlInput && (
+        <div className="p-6 border-b border-gray-200">
+          <Label className="block text-sm font-medium text-gray-700 mb-3">
+            Screenshots
+          </Label>
+          <ScreenshotPanel currentUrl={urlInput} />
         </div>
       )}
 

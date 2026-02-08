@@ -1,5 +1,7 @@
-import { Router, Request, Response } from 'express';
-import { tunnelService, TunnelOptions } from '../services/tunnel.service.js';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { tunnelService } from '../services/tunnel.service.js';
+import type { TunnelOptions } from '../services/tunnel.service.js';
 
 const router = Router();
 

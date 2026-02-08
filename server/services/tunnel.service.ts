@@ -1,3 +1,4 @@
+// @ts-expect-error localtunnel has no type declarations
 import localtunnel from 'localtunnel';
 
 export interface TunnelInfo {
@@ -118,7 +119,7 @@ class TunnelService {
     });
 
     // Handle tunnel error
-    tunnel.on('error', (err) => {
+    tunnel.on('error', (err: Error) => {
       console.error(`Tunnel error for port ${port}:`, err);
       if (this.activeTunnels.has(port)) {
         const info = this.activeTunnels.get(port)!;

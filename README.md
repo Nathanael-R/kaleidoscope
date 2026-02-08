@@ -131,6 +131,64 @@ Some pages require login (e.g., dashboards). Here's how to preview them:
    - Paste cookie value: `demo_session_abc123`
    - All devices now show the logged-in dashboard!
 
+## 🤖 MCP Server (Claude Code Integration)
+
+Kaleidoscope includes an MCP server that lets Claude Code control previews and screenshots programmatically.
+
+### Setup
+
+Add to your Claude Code MCP config (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
+      "cwd": "/path/to/Kaleidoscope/mcp-server"
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `preview_responsive` | Open a URL for responsive preview across device sizes |
+| `capture_screenshots` | Capture screenshots across multiple viewports |
+| `kaleidoscope_status` | Check if services are running |
+| `kaleidoscope_start` | Start Kaleidoscope services |
+| `kaleidoscope_stop` | Stop all services |
+
+### Example Usage (in Claude Code)
+
+```
+"Preview my app at localhost:3000 across all mobile devices"
+→ Calls preview_responsive(url="http://localhost:3000", devices=["iphone-14","samsung-s21","pixel-6"])
+
+"Take screenshots of my dashboard on desktop and iPad"
+→ Calls capture_screenshots(url="http://localhost:3000/dashboard", devices=["desktop","ipad"])
+```
+
+## 📸 Screenshots
+
+Capture device screenshots via the sidebar panel or the Screenshot button in the toolbar.
+
+- Select which device viewports to capture
+- Toggle full-page capture for scrollable content
+- Screenshots are saved to `./screenshots/` as PNG files
+- Powered by Playwright + Chromium for pixel-perfect results
+
+### Screenshot API
+
+```bash
+# Capture screenshots via API
+curl -X POST http://localhost:5000/api/screenshots \
+  -H "Content-Type: application/json" \
+  -d '{"url":"http://localhost:3000","devices":["iphone-14","desktop"]}'
+```
+
 ## 🧪 Testing
 
 ### Run All Tests
@@ -207,13 +265,16 @@ Kaleidoscope/
 ├── server/                 # Express backend
 │   ├── index.ts
 │   ├── routes.ts
-│   └── types.ts
+│   ├── services/           # Tunnel, watcher, screenshot services
+│   └── routes/             # API route handlers
+├── mcp-server/             # MCP server for Claude Code integration
+│   └── src/
+│       ├── index.ts        # MCP server entry point
+│       ├── process-manager.ts  # Start/stop Kaleidoscope services
+│       └── tools/          # MCP tool definitions
 ├── examples/               # Sample projects for testing
 │   ├── sample-site/        # Basic responsive site
 │   └── auth-demo/          # Authentication demo
-├── tests/
-│   ├── e2e/               # Playwright E2E tests
-│   └── unit/              # Additional unit tests
 ├── docker-compose.yml      # Docker setup
 ├── playwright.config.ts    # Playwright configuration
 └── package.json           # Monorepo scripts
@@ -328,15 +389,18 @@ npm test
 - [x] Sample projects
 - [x] Remove localhost blocking
 
-### Week 1-2: Core Features (In Progress)
-- [ ] ngrok tunnel integration
-- [ ] Live reload with file watching
-- [ ] Auth capture wizard
+### Week 1-2: Core Features ✅
+- [x] Tunnel integration (localtunnel + fallbacks)
+- [x] Live reload with file watching (chokidar + WebSocket)
+- [x] Auth capture wizard
 
-### Week 3-4: MCP Server
-- [ ] MCP server with process management
-- [ ] `preview_responsive` tool
-- [ ] Screenshot tools (basic + HD)
+### Week 3-4: MCP Server & Screenshots ✅
+- [x] MCP server with process management
+- [x] `preview_responsive` tool
+- [x] `capture_screenshots` tool
+- [x] `kaleidoscope_status`, `kaleidoscope_start`, `kaleidoscope_stop` tools
+- [x] Screenshot API with Playwright/Chromium
+- [x] Screenshot panel UI in sidebar
 
 ### Week 5-7: Flow Diagrams
 - [ ] React Flow integration

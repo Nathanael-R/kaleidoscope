@@ -1,5 +1,7 @@
-import { Router, Request, Response } from 'express';
-import { watcherService, WatcherConfig } from '../services/watcher.service.js';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { watcherService } from '../services/watcher.service.js';
+import type { WatcherConfig } from '../services/watcher.service.js';
 
 const router = Router();
 
