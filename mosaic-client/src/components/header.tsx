@@ -1,9 +1,11 @@
 import * as React from "react";
-import { Smartphone, HelpCircle, Settings, Moon, Sun } from "lucide-react";
+import { Smartphone, HelpCircle, Settings, Moon, Sun, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link, useLocation } from "wouter";
 
 export default function Header() {
   const [darkMode, setDarkMode] = React.useState(false);
+  const [location] = useLocation();
 
   React.useEffect(() => {
     if (darkMode) {
@@ -35,6 +37,28 @@ export default function Header() {
           >
             Kaleidoscope
           </h1>
+          <nav className="flex items-center space-x-1 ml-6">
+            <Link href="/">
+              <Button
+                variant={location === "/" ? "secondary" : "ghost"}
+                size="sm"
+                className="text-sm h-8"
+              >
+                <Smartphone className="w-4 h-4 mr-1.5" />
+                Preview
+              </Button>
+            </Link>
+            <Link href="/flows">
+              <Button
+                variant={location === "/flows" ? "secondary" : "ghost"}
+                size="sm"
+                className="text-sm h-8"
+              >
+                <GitBranch className="w-4 h-4 mr-1.5" />
+                Flows
+              </Button>
+            </Link>
+          </nav>
         </div>
         <div className="flex items-center space-x-4">
           <Button
