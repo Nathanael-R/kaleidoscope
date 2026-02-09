@@ -36,6 +36,7 @@ export default function PreviewArea({
     offset: { x: 0, y: 0 }
   });
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
 
   // Detect dark mode from body class
   const [darkMode, setDarkMode] = React.useState(false);
@@ -118,10 +119,7 @@ export default function PreviewArea({
   };
 
   const handleRefresh = () => {
-    const iframe = document.querySelector('iframe[data-device-frame]') as HTMLIFrameElement;
-    if (iframe) {
-      iframe.contentWindow?.location.reload();
-    }
+    setLocalReloadTrigger(prev => prev + 1);
   };
 
   const [screenshotting, setScreenshotting] = React.useState(false);
@@ -253,7 +251,7 @@ export default function PreviewArea({
           proxyUrl={proxyUrl}
           isLandscape={isLandscape}
           scale={scale}
-          reloadTrigger={reloadTrigger}
+          reloadTrigger={reloadTrigger + localReloadTrigger}
 
         />
       ) : (
@@ -367,7 +365,7 @@ export default function PreviewArea({
                         proxyUrl={proxyUrl}
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
-                        reloadTrigger={reloadTrigger}
+                        reloadTrigger={reloadTrigger + localReloadTrigger}
               
                       />
                     </div>

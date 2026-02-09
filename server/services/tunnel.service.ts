@@ -125,6 +125,7 @@ class TunnelService {
         const info = this.activeTunnels.get(port)!;
         info.status = 'error';
       }
+      this.tunnelClosers.delete(port);
     });
 
     // Store closer function

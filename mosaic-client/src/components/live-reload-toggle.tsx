@@ -8,11 +8,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface LiveReloadToggleProps {
   onReload?: () => void;
-  currentUrl?: string;
   className?: string;
 }
 
-export default function LiveReloadToggle({ onReload, currentUrl, className }: LiveReloadToggleProps) {
+export default function LiveReloadToggle({ onReload, className }: LiveReloadToggleProps) {
   const [enabled, setEnabled] = useState(false);
   const [lastReload, setLastReload] = useState<Date | null>(null);
   const [watcherStarted, setWatcherStarted] = useState(false);
