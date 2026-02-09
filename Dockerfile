@@ -21,6 +21,18 @@ RUN npx esbuild index.ts --platform=node --packages=external --bundle --format=e
 FROM node:22-alpine
 WORKDIR /app
 
+# Install Chromium and its dependencies for Playwright
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Tell Playwright to use the system-installed Chromium
+ENV CHROME_BIN=/usr/bin/chromium-browser
+
 # Create non-root user
 RUN addgroup -S kaleidoscope && adduser -S kaleidoscope -G kaleidoscope
 

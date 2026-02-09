@@ -1,6 +1,7 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { findChromium } from './find-chromium.js';
 
 interface DeviceConfig {
@@ -35,6 +36,64 @@ export interface ScreenshotResult {
   height: number;
 }
 
+function findChromiumPath(): string | null {
+  const homedir = process.env.HOME || '/root';
+  const paths = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+  ];
+
+  // Scan the ms-playwright cache dir for any installed chromium version
+  const playwrightDir = join(homedir, '.cache/ms-playwright');
+  try {
+    const entries = readdirSync(playwrightDir);
+    for (const entry of entries) {
+      if (entry.startsWith('chromium-')) {
+        paths.unshift(join(playwrightDir, entry, 'chrome-linux/chrome'));
+      }
+    }
+  } catch {
+    // Directory may not exist yet
+  }
+
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+
+  return null;
+}
+
+function installChromium(): void {
+  console.log('Chromium not found. Installing via Playwright...');
+  try {
+    execFileSync('npx', ['playwright', 'install', '--with-deps', 'chromium'], {
+      stdio: 'inherit',
+      timeout: 120_000,
+    });
+  } catch {
+    // --with-deps may fail without root; retry without system deps
+    execFileSync('npx', ['playwright', 'install', 'chromium'], {
+      stdio: 'inherit',
+      timeout: 120_000,
+    });
+  }
+}
+
+function ensureChromium(): string {
+  const existing = findChromiumPath();
+  if (existing) return existing;
+
+  installChromium();
+
+  const installed = findChromiumPath();
+  if (installed) return installed;
+
+  throw new Error(
+    'Chromium installation failed. Try manually: npx playwright install --with-deps chromium'
+  );
+}
+
 class ScreenshotService {
   private browser: Browser | null = null;
 
@@ -43,7 +102,7 @@ class ScreenshotService {
       return this.browser;
     }
 
-    const executablePath = findChromium();
+    const executablePath = ensureChromium();
     this.browser = await chromium.launch({
       executablePath,
       headless: true,
