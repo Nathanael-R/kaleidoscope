@@ -1,9 +1,9 @@
 {
-  "name": "devicepreview-backend",
+  "name": "kaleidoscope-server",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "DevicePreview backend API server",
+  "description": "Kaleidoscope backend API server",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx index.ts",
     "build": "esbuild index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "chokidar": "^5.0.0",
-    "cors": "^2.8.6",
     "express": "^4.21.2",
     "localtunnel": "^2.0.2",
+    "playwright-core": "^1.58.2",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Link, LinkOff, ExternalLink, Copy, Check } from 'lucide-react';
+import { Loader2, Link, Unlink, ExternalLink, Copy, Check } from 'lucide-react';
 import { useTunnel } from '@/hooks/use-tunnel';
 import { cn } from '@/lib/utils';
 
@@ -73,7 +73,7 @@ export default function TunnelButton({ port, className }: TunnelButtonProps) {
           </>
         ) : (
           <>
-            <LinkOff className="w-4 h-4 mr-2" />
+            <Unlink className="w-4 h-4 mr-2" />
             Enable Tunnel
           </>
         )}

@@ -3,18 +3,29 @@ import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes.js";
+import { tunnelService } from "./services/tunnel.service.js";
+import { watcherService } from "./services/watcher.service.js";
+import { screenshotService } from "./services/screenshot.service.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
+const port = parseInt(process.env.PORT || '5000', 10);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// CORS middleware for development
+// CORS middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigin = process.env.NODE_ENV === 'production'
+    ? (process.env.CORS_ORIGIN || '*')
+    : '*';
+  res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -72,81 +83,47 @@ app.use((req, res, next) => {
 
   await registerRoutes(app);
 
-  // Error handler
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  // In production, serve static files from dist/public
+  if (process.env.NODE_ENV === "production") {
+    const distPath = process.env.STATIC_DIR || path.resolve(__dirname, "public");
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+
+      // SPA fallback - only for non-API routes
+      app.use((req, res, next) => {
+        if (req.path.startsWith('/api/')) {
+          return res.status(404).json({ error: 'API endpoint not found' });
+        }
+        res.sendFile(path.resolve(distPath, "index.html"));
+      });
+    } else {
+      console.warn(`Production static files not found at ${distPath}. Run client build first.`);
+    }
+  }
+
+  // Error handler (must be registered after routes and static files)
+  app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
     console.error(err);
   });
 
-  // In production, serve static files from dist
-  if (process.env.NODE_ENV === "production") {
-    const distPath = path.resolve(process.cwd(), "dist", "public");
-    
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.use((_req, res) => {
-        res.sendFile(path.resolve(distPath, "index.html"));
-      });
-    } else {
-      console.warn("Production build not found. Run 'npm run build' first.");
-    }
-  } else {
-    // Development fallback - serve a simple message
-    app.get("*", (req, res) => {
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>DevicePreview - Backend Only</title>
-          <style>
-            body { 
-              font-family: system-ui, -apple-system, sans-serif; 
-              max-width: 600px; 
-              margin: 100px auto; 
-              padding: 20px;
-              line-height: 1.6;
-            }
-            .status { color: #059669; }
-            .info { background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            code { background: #e5e7eb; padding: 2px 4px; border-radius: 3px; }
-          </style>
-        </head>
-        <body>
-          <h1>DevicePreview Backend</h1>
-          <p class="status">✅ Backend server is running successfully on port ${port}</p>
-          
-          <div class="info">
-            <h3>Development Setup</h3>
-            <p>This is the independent backend server for DevicePreview. It provides:</p>
-            <ul>
-              <li>Health check endpoint: <code>/api/health</code></li>
-              <li>CORS support for frontend communication</li>
-              <li>No Vite dependencies - completely independent</li>
-            </ul>
-          </div>
+  // Centralized graceful shutdown
+  const shutdown = async () => {
+    console.log('Shutting down...');
+    httpServer.close();
+    await Promise.allSettled([
+      tunnelService.closeAllTunnels(),
+      watcherService.unwatchAll(),
+      screenshotService.close(),
+    ]);
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
-          <div class="info">
-            <h3>Architecture</h3>
-            <p>The server and client are now completely independent:</p>
-            <ul>
-              <li><strong>Backend:</strong> Pure Express API server (this server)</li>
-              <li><strong>Frontend:</strong> Served by Vite dev server (separate process)</li>
-              <li><strong>Storage:</strong> Client-side localStorage only</li>
-            </ul>
-          </div>
-
-          <p>
-            <a href="/api/health">Test API Health Check</a>
-          </p>
-        </body>
-        </html>
-      `);
-    });
-  }
-
-  const port = parseInt(process.env.PORT || '5000', 10);
   httpServer.listen(port, "0.0.0.0", () => {
     const timestamp = new Date().toLocaleTimeString("en-US", {
       hour: "numeric",
@@ -154,10 +131,7 @@ app.use((req, res, next) => {
       second: "2-digit",
       hour12: true,
     });
-    console.log(`${timestamp} [express] backend API server running on port ${port}`);
-    console.log(`${timestamp} [express] WebSocket server ready for live reload`);
-    console.log(`${timestamp} [express] completely independent of frontend`);
-    console.log(`${timestamp} [express] frontend should be served separately on port 80`);
-    console.log(`${timestamp} [express] health check available at /api/health`);
+    console.log(`${timestamp} [express] Kaleidoscope server running on port ${port}`);
+    console.log(`${timestamp} [express] health check: /api/health`);
   });
 })();

@@ -4,12 +4,3 @@ export interface RecentUrl {
   domain: string;
   timestamp: number;
 }
-
-export interface Device {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  category: string;
-  icon: string;
-}

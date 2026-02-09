@@ -1,7 +1,26 @@
-import { Router, Request, Response } from 'express';
-import { watcherService, WatcherConfig } from '../services/watcher.service.js';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import path from 'path';
+import { watcherService } from '../services/watcher.service.js';
+import type { WatcherConfig } from '../services/watcher.service.js';
 
 const router = Router();
+
+// Only allow watching paths under the current working directory
+const ALLOWED_BASE = process.cwd();
+
+function validateWatchPaths(paths: string[]): string | null {
+  for (const p of paths) {
+    const resolved = path.resolve(p);
+    if (!resolved.startsWith(ALLOWED_BASE)) {
+      return `Path "${p}" is outside the allowed directory`;
+    }
+    if (p.includes('..')) {
+      return `Path "${p}" contains disallowed traversal`;
+    }
+  }
+  return null;
+}
 
 /**
  * POST /api/watcher/start
@@ -15,6 +34,11 @@ router.post('/start', (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'paths array is required'
       });
+    }
+
+    const pathError = validateWatchPaths(paths);
+    if (pathError) {
+      return res.status(400).json({ error: pathError });
     }
 
     // Note: Handler will emit via WebSocket (set up in index.ts)

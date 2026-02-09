@@ -1,3 +1,4 @@
+// @ts-expect-error localtunnel has no type declarations
 import localtunnel from 'localtunnel';
 
 export interface TunnelInfo {
@@ -118,7 +119,7 @@ class TunnelService {
     });
 
     // Handle tunnel error
-    tunnel.on('error', (err) => {
+    tunnel.on('error', (err: Error) => {
       console.error(`Tunnel error for port ${port}:`, err);
       if (this.activeTunnels.has(port)) {
         const info = this.activeTunnels.get(port)!;
@@ -211,15 +212,4 @@ class TunnelService {
 // Singleton instance
 export const tunnelService = new TunnelService();
 
-// Cleanup on process exit
-process.on('SIGINT', async () => {
-  console.log('Closing all tunnels...');
-  await tunnelService.closeAllTunnels();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('Closing all tunnels...');
-  await tunnelService.closeAllTunnels();
-  process.exit(0);
-});
+// Cleanup is centralized in index.ts

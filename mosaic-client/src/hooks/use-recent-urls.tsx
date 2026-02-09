@@ -1,5 +1,5 @@
 import type { RecentUrl } from "@/types";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 const RECENT_URLS_KEY = 'devicePreview_recentUrls';
 const MAX_RECENT_URLS = 10;
@@ -25,14 +25,8 @@ function setStoredRecentUrls(urls: RecentUrl[]): void {
 }
 
 export function useRecentUrls() {
-  const [recentUrls, setRecentUrls] = useState<RecentUrl[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const urls = getStoredRecentUrls();
-    setRecentUrls(urls);
-    setIsLoading(false);
-  }, []);
+  // localStorage is synchronous - use lazy initializer instead of useEffect
+  const [recentUrls, setRecentUrls] = useState<RecentUrl[]>(() => getStoredRecentUrls());
 
   const addRecentUrl = useCallback((url: string) => {
     try {
@@ -72,7 +66,7 @@ export function useRecentUrls() {
 
   return {
     data: recentUrls,
-    isLoading,
+    isLoading: false as const,
     addRecentUrl,
     clearRecentUrls
   };

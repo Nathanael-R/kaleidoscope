@@ -1,4 +1,4 @@
-import chokidar, { FSWatcher } from 'chokidar';
+import chokidar, { type FSWatcher } from 'chokidar';
 import path from 'path';
 
 export interface WatcherConfig {
@@ -177,13 +177,4 @@ class WatcherService {
 // Singleton instance
 export const watcherService = new WatcherService();
 
-// Cleanup on process exit
-process.on('SIGINT', async () => {
-  console.log('Stopping all watchers...');
-  await watcherService.unwatchAll();
-});
-
-process.on('SIGTERM', async () => {
-  console.log('Stopping all watchers...');
-  await watcherService.unwatchAll();
-});
+// Cleanup is centralized in index.ts

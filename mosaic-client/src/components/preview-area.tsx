@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
-import { ArrowLeftFromLine, Camera, Expand, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeftFromLine, Camera, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
 import type { AuthCookie } from "./auth-wizard";
 
 interface PreviewAreaProps {
   selectedDevice: Device;
   currentUrl: string;
+  proxyUrl?: string | null;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   pinnedDevices: Device[];
@@ -22,6 +23,7 @@ import * as React from "react";
 export default function PreviewArea({
   selectedDevice,
   currentUrl,
+  proxyUrl,
   isSidebarCollapsed = false,
   onToggleSidebar,
   pinnedDevices,
@@ -126,10 +128,33 @@ export default function PreviewArea({
     }
   };
 
-  const handleScreenshot = () => {
-    // Basic screenshot functionality - in a real app this would capture the iframe content
-    console.log('Screenshot functionality would be implemented here');
-    alert('Screenshot functionality would be implemented here');
+  const [screenshotting, setScreenshotting] = React.useState(false);
+
+  const handleScreenshot = async () => {
+    if (!currentUrl) return;
+    setScreenshotting(true);
+    try {
+      const devices = viewMode === 'comparison' && pinnedDevices.length > 0
+        ? pinnedDevices.map(d => d.id)
+        : [selectedDevice.id];
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/screenshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: currentUrl, devices }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { screenshots: Array<{ device: string; path: string }> };
+        alert(`${data.screenshots.length} screenshot(s) saved to ./screenshots/`);
+      } else {
+        const err = await res.json() as { error: string };
+        alert(`Screenshot failed: ${err.error}`);
+      }
+    } catch (error) {
+      alert(`Screenshot error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setScreenshotting(false);
+    }
   };
 
   const handleFullscreen = () => {
@@ -159,7 +184,7 @@ export default function PreviewArea({
   const deviceHeight = isLandscape ? selectedDevice.width : selectedDevice.height;
 
   return (
-    <main className={`flex-1 p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}> 
+    <main role="main" className={`flex-1 p-4 md:p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}>
       {/* Floating Sidebar Toggle (when collapsed) */}
       {isSidebarCollapsed && onToggleSidebar && (
         <Button
@@ -176,17 +201,17 @@ export default function PreviewArea({
 
       {/* Preview Header */}
       <div className="mb-6 flex items-center justify-between">
-        <div>
+        <div aria-live="polite">
           <h2 className="text-lg font-semibold text-gray-900" data-testid="text-device-name">
             {viewMode === 'comparison' ? `Comparing ${pinnedDevices.length} Devices` : `${selectedDevice.name} Preview`}
           </h2>
           <p className="text-sm text-gray-600" data-testid="text-device-dimensions">
-            {viewMode === 'comparison' 
+            {viewMode === 'comparison'
               ? `Side-by-side device comparison`
               : `${deviceWidth} × ${deviceHeight} pixels`}
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center flex-wrap gap-2 md:gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -195,17 +220,22 @@ export default function PreviewArea({
             data-testid="button-refresh"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handleScreenshot}
+            disabled={screenshotting || !currentUrl}
             className="flex items-center"
             data-testid="button-screenshot"
           >
-            <Camera className="w-4 h-4 mr-2" />
-            Screenshot
+            {screenshotting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Camera className="w-4 h-4 mr-2" />
+            )}
+            <span className="hidden sm:inline">Screenshot</span>
           </Button>
           <Button
             size="sm"
@@ -214,7 +244,7 @@ export default function PreviewArea({
             data-testid="button-fullscreen"
           >
             <Expand className="w-4 h-4 mr-2" />
-            Fullscreen
+            <span className="hidden sm:inline">Fullscreen</span>
           </Button>
         </div>
       </div>
@@ -224,6 +254,7 @@ export default function PreviewArea({
         <DeviceFrame
           device={selectedDevice}
           url={currentUrl}
+          proxyUrl={proxyUrl}
           isLandscape={isLandscape}
           scale={scale}
           reloadTrigger={reloadTrigger}
@@ -353,6 +384,7 @@ export default function PreviewArea({
                       <DeviceFrame
                         device={device}
                         url={currentUrl}
+                        proxyUrl={proxyUrl}
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger}
@@ -390,27 +422,29 @@ export default function PreviewArea({
 
       {/* Quick Actions */}
       <div className="mt-12 flex justify-center">
-        <div className="flex items-center space-x-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRotate}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-rotate"
+            aria-label="Rotate device orientation"
           >
             <RotateCw className="w-4 h-4 mr-2" />
-            Rotate
+            <span className="hidden sm:inline">Rotate</span>
           </Button>
-          <div className="w-px h-6 bg-gray-300"></div>
+          <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleZoomIn}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-zoom-in"
+            aria-label="Zoom in"
           >
             <ZoomIn className="w-4 h-4 mr-2" />
-            Zoom In
+            <span className="hidden sm:inline">Zoom In</span>
           </Button>
           <Button
             variant="ghost"
@@ -418,20 +452,22 @@ export default function PreviewArea({
             onClick={handleZoomOut}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-zoom-out"
+            aria-label="Zoom out"
           >
             <ZoomOut className="w-4 h-4 mr-2" />
-            Zoom Out
+            <span className="hidden sm:inline">Zoom Out</span>
           </Button>
-          <div className="w-px h-6 bg-gray-300"></div>
+          <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleResetZoom}
             className="flex items-center text-gray-700 hover:text-primary"
             data-testid="button-reset-zoom"
+            aria-label="Fit to screen"
           >
             <ArrowLeftFromLine className="w-4 h-4 mr-2" />
-            Fit
+            <span className="hidden sm:inline">Fit</span>
           </Button>
         </div>
       </div>
