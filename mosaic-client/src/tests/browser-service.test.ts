@@ -15,7 +15,7 @@
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 describe('Chromium discovery logic', () => {
   // Test the findChromiumPath logic by validating the search strategy.
@@ -57,6 +57,7 @@ describe('Chromium discovery logic', () => {
     process.env.PLAYWRIGHT_BROWSERS_PATH = baseDir;
 
     try {
+      vi.resetModules();
       const { findChromium } = await import('../../../server/services/find-chromium.ts');
       expect(findChromium()).toBe(chromeLinux64Path);
     } finally {
