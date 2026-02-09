@@ -83,21 +83,18 @@ app.use((req, res, next) => {
 
   await registerRoutes(app);
 
-  // Error handler
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    res.status(status).json({ message });
-    console.error(err);
-  });
-
   // In production, serve static files from dist/public
   if (process.env.NODE_ENV === "production") {
     const distPath = process.env.STATIC_DIR || path.resolve(__dirname, "public");
 
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.use((_req, res) => {
+
+      // SPA fallback - only for non-API routes
+      app.use((req, res, next) => {
+        if (req.path.startsWith('/api/')) {
+          return res.status(404).json({ error: 'API endpoint not found' });
+        }
         res.sendFile(path.resolve(distPath, "index.html"));
       });
     } else {
@@ -105,12 +102,23 @@ app.use((req, res, next) => {
     }
   }
 
-  // Centralized cleanup
+  // Error handler (must be registered after routes and static files)
+  app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    console.error(err);
+  });
+
+  // Centralized graceful shutdown
   const shutdown = async () => {
     console.log('Shutting down...');
-    await tunnelService.closeAllTunnels();
-    await watcherService.unwatchAll();
-    await screenshotService.close();
+    httpServer.close();
+    await Promise.allSettled([
+      tunnelService.closeAllTunnels(),
+      watcherService.unwatchAll(),
+      screenshotService.close(),
+    ]);
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

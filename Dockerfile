@@ -21,6 +21,9 @@ RUN npx esbuild index.ts --platform=node --packages=external --bundle --format=e
 FROM node:22-alpine
 WORKDIR /app
 
+# Create non-root user
+RUN addgroup -S kaleidoscope && adduser -S kaleidoscope -G kaleidoscope
+
 # Install production dependencies for server
 COPY server/package*.json ./
 RUN npm ci --ignore-scripts --omit=dev && npm cache clean --force
@@ -30,6 +33,11 @@ COPY --from=server-build /app/server/dist ./dist
 
 # Copy built frontend into dist/public for Express static serving
 COPY --from=client-build /app/mosaic-client/dist ./dist/public
+
+# Create screenshots directory owned by non-root user
+RUN mkdir -p screenshots && chown -R kaleidoscope:kaleidoscope /app
+
+USER kaleidoscope
 
 ENV NODE_ENV=production
 ENV PORT=5000
