@@ -65,6 +65,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
     onAuthCapture(validCookies);
 
     // If we have a URL and proxy callback, create a proxy session
+    let failed = false;
     if (currentUrl && onProxyUrl) {
       setProxyLoading(true);
       setProxyError(null);
@@ -110,12 +111,15 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
         }
       } catch (error) {
         setProxyError(error instanceof Error ? error.message : 'Failed to create proxy session');
+        failed = true;
       } finally {
         setProxyLoading(false);
       }
     }
 
-    setIsExpanded(false);
+    if (!failed) {
+      setIsExpanded(false);
+    }
   };
 
   const handleMockChange = (index: number, field: 'pattern' | 'response', value: string) => {

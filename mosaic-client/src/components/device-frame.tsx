@@ -27,7 +27,7 @@ export default function DeviceFrame({
   reloadTrigger = 0,
   authCookies = []
 }: DeviceFrameProps) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 

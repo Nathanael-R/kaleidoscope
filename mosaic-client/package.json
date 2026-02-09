@@ -52,7 +52,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
-    "jsdom": "^25.0.1",
+    "happy-dom": "^20.5.3",
     "tsx": "^4.20.4",
     "tw-animate-css": "^1.3.7",
     "typescript": "~5.9.3",
