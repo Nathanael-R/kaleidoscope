@@ -12,7 +12,7 @@
  * These tests don't need Playwright or a real browser — they test
  * the discovery and validation logic.
  */
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
@@ -51,6 +51,7 @@ describe('Chromium discovery logic', () => {
     const chromeLinux64Path = join(chromeLinux64Dir, 'chrome');
     mkdirSync(chromeLinux64Dir, { recursive: true });
     writeFileSync(chromeLinux64Path, '');
+    chmodSync(chromeLinux64Path, 0o755);
 
     const previousPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
     process.env.PLAYWRIGHT_BROWSERS_PATH = baseDir;

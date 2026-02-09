@@ -33,16 +33,15 @@ function findChromiumPath(): string | null {
   }
 
   // Scan each potential Playwright cache for chromium-* directories
-  const candidates: string[] = [];
   const chromiumBins = ['chrome-linux', 'chrome-linux64'];
   for (const dir of browserPaths) {
     try {
       const entries = readdirSync(dir);
       for (const entry of entries) {
-        if (entry.startsWith('chromium-')) {
-          for (const binDir of chromiumBins) {
-            candidates.push(join(dir, entry, binDir, 'chrome'));
-          }
+        if (!entry.startsWith('chromium-')) continue;
+        for (const binDir of chromiumBins) {
+          const candidate = join(dir, entry, binDir, 'chrome');
+          if (existsSync(candidate)) return candidate;
         }
       }
     } catch {
@@ -51,13 +50,13 @@ function findChromiumPath(): string | null {
   }
 
   // Also check system-wide Chromium installs
-  candidates.push(
+  const systemCandidates = [
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
-  );
+  ];
 
-  for (const p of candidates) {
+  for (const p of systemCandidates) {
     if (existsSync(p)) return p;
   }
 
