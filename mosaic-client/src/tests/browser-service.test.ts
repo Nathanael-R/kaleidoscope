@@ -42,6 +42,11 @@ describe('Chromium discovery logic', () => {
     }
   });
 
+  it('should support chrome-linux64 Playwright cache layout', () => {
+    const chromeLinux64Path = '/home/user/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome';
+    expect(chromeLinux64Path).toContain('chrome-linux64/chrome');
+  });
+
   it('should prioritize PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var', () => {
     // The env var is checked first, before any scanning
     const envPath = '/custom/path/to/chromium';

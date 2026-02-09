@@ -32,12 +32,15 @@ export function findChromium(): string {
 
   // Scan each potential Playwright cache for chromium-* directories
   const candidates: string[] = [];
+  const chromiumBins = ['chrome-linux', 'chrome-linux64'];
   for (const dir of browserPaths) {
     try {
       const entries = readdirSync(dir);
       for (const entry of entries) {
         if (entry.startsWith('chromium-')) {
-          candidates.push(join(dir, entry, 'chrome-linux/chrome'));
+          for (const binDir of chromiumBins) {
+            candidates.push(join(dir, entry, binDir, 'chrome'));
+          }
         }
       }
     } catch {
