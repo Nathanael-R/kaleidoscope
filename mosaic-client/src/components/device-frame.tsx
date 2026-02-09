@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
@@ -29,54 +29,43 @@ export default function DeviceFrame({
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [hasUrl, setHasUrl] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const [authApplied, setAuthApplied] = useState(false);
 
-  useEffect(() => {
+  // Derived state - no Effect needed (react.dev/learn/you-might-not-need-an-effect)
+  const hasUrl = !!url;
+  const authApplied = authCookies.length > 0;
+
+  // Adjust state during render when props change (avoids extra re-render vs useEffect)
+  const prevUrlRef = useRef(url);
+  const prevProxyUrlRef = useRef(proxyUrl);
+  const prevReloadTriggerRef = useRef(reloadTrigger);
+
+  if (url !== prevUrlRef.current) {
+    prevUrlRef.current = url;
     if (url) {
-      setHasUrl(true);
       setLoading(true);
       setError(false);
     } else {
-      setHasUrl(false);
       setLoading(false);
       setError(false);
     }
-  }, [url]);
+  }
 
-  // Reload iframe when proxy URL changes
-  useEffect(() => {
+  if (proxyUrl !== prevProxyUrlRef.current) {
+    prevProxyUrlRef.current = proxyUrl;
     if (proxyUrl && hasUrl) {
-      setIframeKey(prev => prev + 1);
+      setIframeKey(k => k + 1);
       setLoading(true);
     }
-  }, [proxyUrl, hasUrl]);
+  }
 
-  // Handle reload trigger from live reload
-  useEffect(() => {
+  if (reloadTrigger !== prevReloadTriggerRef.current) {
+    prevReloadTriggerRef.current = reloadTrigger;
     if (reloadTrigger > 0 && hasUrl) {
-      console.log('Reloading iframe due to live reload trigger');
-      setIframeKey(prev => prev + 1); // Force iframe reload by changing key
+      setIframeKey(k => k + 1);
       setLoading(true);
     }
-  }, [reloadTrigger, hasUrl]);
-
-  // Handle auth cookies
-  useEffect(() => {
-    if (authCookies.length > 0) {
-      console.log('Auth cookies provided for preview:', authCookies);
-      setAuthApplied(true);
-
-      // Note: Cookie injection into cross-origin iframes is blocked by browsers
-      // This is a security feature. For auth preview to work:
-      // 1. URL must be same-origin (localhost to localhost works)
-      // 2. Or use a proxy server that adds cookies
-      // For now, we just track that auth was attempted
-    } else {
-      setAuthApplied(false);
-    }
-  }, [authCookies]);
+  }
 
   const handleIframeLoad = () => {
     setLoading(false);

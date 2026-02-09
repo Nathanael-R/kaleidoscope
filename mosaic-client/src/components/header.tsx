@@ -7,13 +7,12 @@ export default function Header() {
   const [darkMode, setDarkMode] = React.useState(false);
   const [location] = useLocation();
 
-  React.useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add("dark");
-    } else {
-      document.body.classList.remove("dark");
-    }
-  }, [darkMode]);
+  // Dark mode is toggled by user interaction, not a sync effect
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    document.body.classList.toggle("dark", next);
+    setDarkMode(next);
+  };
 
   return (
     <header
@@ -87,7 +86,7 @@ export default function Header() {
             size="sm"
             className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             aria-label="Toggle dark mode"
-            onClick={() => setDarkMode((prev) => !prev)}
+            onClick={toggleDarkMode}
             data-testid="button-darkmode"
           >
             {darkMode ? (
