@@ -12,7 +12,10 @@
  * These tests don't need Playwright or a real browser — they test
  * the discovery and validation logic.
  */
-import { describe, it, expect } from 'vitest';
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, it, expect, vi } from 'vitest';
 
 describe('Chromium discovery logic', () => {
   // Test the findChromiumPath logic by validating the search strategy.
@@ -39,6 +42,31 @@ describe('Chromium discovery logic', () => {
     for (const home of KNOWN_HOME_DIRS) {
       const cacheDir = `${home}/.cache/ms-playwright`;
       expect(cacheDir).toContain('.cache/ms-playwright');
+    }
+  });
+
+  it('should detect chrome-linux64 Playwright cache layout', async () => {
+    const baseDir = mkdtempSync(join(tmpdir(), 'playwright-cache-'));
+    const chromeLinux64Dir = join(baseDir, 'chromium-1208', 'chrome-linux64');
+    const chromeLinux64Path = join(chromeLinux64Dir, 'chrome');
+    mkdirSync(chromeLinux64Dir, { recursive: true });
+    writeFileSync(chromeLinux64Path, '');
+    chmodSync(chromeLinux64Path, 0o755);
+
+    const previousPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    process.env.PLAYWRIGHT_BROWSERS_PATH = baseDir;
+
+    try {
+      vi.resetModules();
+      const { findChromium } = await import('../../../server/services/find-chromium.ts');
+      expect(findChromium()).toBe(chromeLinux64Path);
+    } finally {
+      if (previousPath) {
+        process.env.PLAYWRIGHT_BROWSERS_PATH = previousPath;
+      } else {
+        delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+      }
+      rmSync(baseDir, { recursive: true, force: true });
     }
   });
 
