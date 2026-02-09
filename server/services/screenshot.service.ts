@@ -1,6 +1,7 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 interface DeviceConfig {
   id: string;
@@ -34,40 +35,61 @@ export interface ScreenshotResult {
   height: number;
 }
 
-function findChromium(): string {
-  // Check common Playwright browser cache locations
+function findChromiumPath(): string | null {
   const homedir = process.env.HOME || '/root';
   const paths = [
-    join(homedir, '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'),
-    join(homedir, '.cache/ms-playwright/chromium-1195/chrome-linux/chrome'),
-    join(homedir, '.cache/ms-playwright/chromium-1196/chrome-linux/chrome'),
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
   ];
 
-  // Also scan the ms-playwright dir for any chromium version
+  // Scan the ms-playwright cache dir for any installed chromium version
   const playwrightDir = join(homedir, '.cache/ms-playwright');
   try {
     const entries = readdirSync(playwrightDir);
     for (const entry of entries) {
       if (entry.startsWith('chromium-')) {
-        const candidate = join(playwrightDir, entry, 'chrome-linux/chrome');
-        if (!paths.includes(candidate)) {
-          paths.unshift(candidate); // prioritize dynamically found
-        }
+        paths.unshift(join(playwrightDir, entry, 'chrome-linux/chrome'));
       }
     }
   } catch {
-    // ignore scan failures
+    // Directory may not exist yet
   }
 
   for (const p of paths) {
     if (existsSync(p)) return p;
   }
 
+  return null;
+}
+
+function installChromium(): void {
+  console.log('Chromium not found. Installing via Playwright...');
+  try {
+    execFileSync('npx', ['playwright', 'install', '--with-deps', 'chromium'], {
+      stdio: 'inherit',
+      timeout: 120_000,
+    });
+  } catch {
+    // --with-deps may fail without root; retry without system deps
+    execFileSync('npx', ['playwright', 'install', 'chromium'], {
+      stdio: 'inherit',
+      timeout: 120_000,
+    });
+  }
+}
+
+function ensureChromium(): string {
+  const existing = findChromiumPath();
+  if (existing) return existing;
+
+  installChromium();
+
+  const installed = findChromiumPath();
+  if (installed) return installed;
+
   throw new Error(
-    'Chromium not found. Install Playwright browsers with: npx playwright install chromium'
+    'Chromium installation failed. Try manually: npx playwright install --with-deps chromium'
   );
 }
 
@@ -79,7 +101,7 @@ class ScreenshotService {
       return this.browser;
     }
 
-    const executablePath = findChromium();
+    const executablePath = ensureChromium();
     this.browser = await chromium.launch({
       executablePath,
       headless: true,
