@@ -1,6 +1,5 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { findChromium } from './find-chromium.js';
 
 export interface PageInfo {
   url: string;
@@ -14,34 +13,6 @@ export interface CrawlResult {
   startUrl: string;
   pages: PageInfo[];
   sitemapUrls: string[];
-}
-
-function findChromium(): string {
-  const homedir = process.env.HOME || '/root';
-  const paths = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-  ];
-
-  const playwrightDir = join(homedir, '.cache/ms-playwright');
-  try {
-    const entries = readdirSync(playwrightDir);
-    for (const entry of entries) {
-      if (entry.startsWith('chromium-')) {
-        const candidate = join(playwrightDir, entry, 'chrome-linux/chrome');
-        paths.unshift(candidate);
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  for (const p of paths) {
-    if (existsSync(p)) return p;
-  }
-
-  throw new Error('Chromium not found. Install with: npx playwright install chromium');
 }
 
 class CrawlService {
