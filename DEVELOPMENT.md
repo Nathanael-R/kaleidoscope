@@ -449,6 +449,22 @@ npx vitest run --clearCache
 npx playwright install
 ```
 
+#### Playwright Chromium (Screenshots & Flows)
+
+Kaleidoscope uses `playwright-core`, so browsers are not auto-downloaded.
+
+```bash
+# Recommended: install Playwright-managed Chromium once
+npx playwright install chromium
+
+# Alternative: use system Chrome/Chromium
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/path/to/chrome"
+```
+
+**Tradeoffs**:
+- Playwright-managed Chromium is consistent across machines.
+- System Chrome avoids downloads but can behave differently across versions.
+
 ## Performance Optimization
 
 ### Frontend Optimization

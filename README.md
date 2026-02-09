@@ -391,6 +391,19 @@ npm run dev:all
 npm test
 ```
 
+### "Chromium installation failed" (screenshots/flows)
+
+**Problem**: Screenshot/flow capture fails because Kaleidoscope can't locate a Chromium binary.
+
+**Recommended (local dev)**: Install Playwright's managed Chromium once so the server can find it.
+```bash
+npx playwright install chromium
+```
+
+**Alternatives & tradeoffs**:
+- **Use system Chrome/Chromium** by setting `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` (fast, no download; but results vary with local browser versions).
+- **Switch to full `playwright`** (auto-downloads browsers; larger install size, slower installs).
+
 ## 🗺️ Roadmap
 
 ### Week 0: Foundation ✅
