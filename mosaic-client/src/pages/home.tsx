@@ -3,10 +3,11 @@ import Header from "@/components/header";
 import Sidebar from "@/components/sidebar";
 import PreviewArea from "@/components/preview-area";
 import { devices, type Device } from "@/lib/devices";
+import { usePreviewStore } from "@/store/preview-store";
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]); // Default to iPhone 14
-  const [currentUrl, setCurrentUrl] = useState("");
+  const { currentUrl, setCurrentUrl } = usePreviewStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
@@ -62,7 +63,7 @@ export default function Home() {
     }
   };
 
-  // Keyboard navigation
+  // Keyboard navigation — only ←/→ for devices (↑/↓ reserved for page scrolling)
   const handleKeyNavigation = useCallback((e: KeyboardEvent) => {
     // Only handle keyboard navigation when not typing in inputs
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -70,17 +71,15 @@ export default function Home() {
     }
 
     const currentIndex = devices.findIndex(d => d.id === selectedDevice.id);
-    
+
     switch (e.key) {
-      case 'ArrowLeft':
-      case 'ArrowUp': {
+      case 'ArrowLeft': {
         e.preventDefault();
         const prevIndex = currentIndex > 0 ? currentIndex - 1 : devices.length - 1;
         setSelectedDevice(devices[prevIndex]);
         break;
       }
-      case 'ArrowRight':
-      case 'ArrowDown': {
+      case 'ArrowRight': {
         e.preventDefault();
         const nextIndex = currentIndex < devices.length - 1 ? currentIndex + 1 : 0;
         setSelectedDevice(devices[nextIndex]);

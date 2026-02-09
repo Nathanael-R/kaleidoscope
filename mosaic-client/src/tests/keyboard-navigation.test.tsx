@@ -38,12 +38,13 @@ describe('Keyboard navigation', () => {
     expect(screen.getByTestId(`device-${devices[0].id}`)).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('selects next device on ArrowDown', () => {
+  it('does not switch devices on ArrowDown (reserved for page scroll)', () => {
     renderHome();
 
     fireEvent.keyDown(document, { key: 'ArrowDown' });
 
-    expect(screen.getByTestId(`device-${devices[1].id}`)).toHaveAttribute('aria-selected', 'true');
+    // ArrowDown should NOT change device selection — first device stays selected
+    expect(screen.getByTestId(`device-${devices[0].id}`)).toHaveAttribute('aria-selected', 'true');
   });
 
   it('selects previous device on ArrowLeft', () => {
