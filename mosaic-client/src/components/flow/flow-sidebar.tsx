@@ -13,6 +13,8 @@ import {
   FolderOpen,
   ChevronLeft,
   ChevronRight,
+  Loader2,
+  Search,
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -27,6 +29,7 @@ interface FlowSidebarProps {
   savedFlows: string[];
   onLoadFlow: (name: string) => void;
   onDeleteFlow: (name: string) => void;
+  onGenerateFromUrl?: (url: string) => Promise<void>;
 }
 
 const NODE_TYPES = [
@@ -77,8 +80,29 @@ export default function FlowSidebar({
   savedFlows,
   onLoadFlow,
   onDeleteFlow,
+  onGenerateFromUrl,
 }: FlowSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [crawlUrl, setCrawlUrl] = useState("");
+  const [crawling, setCrawling] = useState(false);
+  const [crawlError, setCrawlError] = useState<string | null>(null);
+
+  const handleCrawl = async () => {
+    if (!crawlUrl.trim() || !onGenerateFromUrl) return;
+    let finalUrl = crawlUrl.trim();
+    if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+      finalUrl = "https://" + finalUrl;
+    }
+    setCrawling(true);
+    setCrawlError(null);
+    try {
+      await onGenerateFromUrl(finalUrl);
+    } catch (err) {
+      setCrawlError(err instanceof Error ? err.message : "Crawl failed");
+    } finally {
+      setCrawling(false);
+    }
+  };
 
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
@@ -140,6 +164,45 @@ export default function FlowSidebar({
           className="h-8 text-sm"
           placeholder="My User Flow"
         />
+      </div>
+
+      {/* Generate from URL */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <Label className="text-xs font-medium text-gray-600 mb-1 block">
+          Generate from URL
+        </Label>
+        <div className="flex gap-1.5">
+          <Input
+            value={crawlUrl}
+            onChange={(e) => setCrawlUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCrawl()}
+            placeholder="https://example.com"
+            className="h-8 text-sm flex-1"
+            disabled={crawling}
+          />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleCrawl}
+            disabled={crawling || !crawlUrl.trim()}
+            className="h-8 px-2"
+          >
+            {crawling ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Search className="w-3.5 h-3.5" />
+            )}
+          </Button>
+        </div>
+        {crawling && (
+          <p className="text-[10px] text-blue-600 mt-1">Crawling site pages...</p>
+        )}
+        {crawlError && (
+          <p className="text-[10px] text-red-600 mt-1">{crawlError}</p>
+        )}
+        <p className="text-[10px] text-gray-400 mt-1">
+          Enter a URL to auto-generate a site flow
+        </p>
       </div>
 
       {/* Node Palette */}

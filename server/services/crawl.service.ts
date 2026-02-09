@@ -1,5 +1,5 @@
-import { chromium, type Browser, type Page } from 'playwright-core';
-import { findChromium } from './find-chromium.js';
+import type { Browser, Page } from 'playwright-core';
+import { getSharedBrowser } from './browser.service.js';
 
 export interface PageInfo {
   url: string;
@@ -16,23 +16,6 @@ export interface CrawlResult {
 }
 
 class CrawlService {
-  private browser: Browser | null = null;
-
-  private async getBrowser(): Promise<Browser> {
-    if (this.browser?.isConnected()) {
-      return this.browser;
-    }
-
-    const executablePath = findChromium();
-    this.browser = await chromium.launch({
-      executablePath,
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
-    return this.browser;
-  }
-
   async crawl(url: string, depth: number = 1): Promise<CrawlResult> {
     const origin = new URL(url).origin;
 
@@ -63,7 +46,7 @@ class CrawlService {
   }
 
   private async crawlPages(startUrl: string, origin: string, depth: number): Promise<PageInfo[]> {
-    const browser = await this.getBrowser();
+    const browser = await getSharedBrowser();
     const visited = new Set<string>();
     const pages: PageInfo[] = [];
 
@@ -80,7 +63,6 @@ class CrawlService {
     visited: Set<string>,
     pages: PageInfo[]
   ): Promise<void> {
-    // Normalize URL for dedup
     const normalized = this.normalizeUrl(url);
     if (visited.has(normalized) || depth < 0) return;
     visited.add(normalized);
@@ -106,7 +88,6 @@ class CrawlService {
             const href = (a as HTMLAnchorElement).href;
             const parsed = new URL(href, document.location.href);
 
-            // Only same-origin, non-hash, non-mailto links
             if (parsed.origin !== orig) continue;
             if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
 
@@ -159,17 +140,9 @@ class CrawlService {
   private normalizeUrl(url: string): string {
     try {
       const parsed = new URL(url);
-      // Remove trailing slash, hash, and query for dedup
       return `${parsed.origin}${parsed.pathname.replace(/\/$/, '') || '/'}`;
     } catch {
       return url;
-    }
-  }
-
-  async close(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
     }
   }
 }
