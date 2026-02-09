@@ -22,23 +22,41 @@ export function findChromium(): string {
   homeDirs.add('/home/user');
 
   // PLAYWRIGHT_BROWSERS_PATH overrides the default cache location
-  const browserPaths: string[] = [];
+  const browserPaths = new Set<string>();
   if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
-    browserPaths.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+    browserPaths.add(process.env.PLAYWRIGHT_BROWSERS_PATH);
+  }
+  if (process.env.XDG_CACHE_HOME) {
+    browserPaths.add(join(process.env.XDG_CACHE_HOME, 'ms-playwright'));
+  }
+  if (process.env.LOCALAPPDATA) {
+    browserPaths.add(join(process.env.LOCALAPPDATA, 'ms-playwright'));
+  }
+  if (process.env.USERPROFILE) {
+    browserPaths.add(join(process.env.USERPROFILE, 'AppData', 'Local', 'ms-playwright'));
   }
   for (const home of homeDirs) {
-    browserPaths.push(join(home, '.cache/ms-playwright'));
+    browserPaths.add(join(home, '.cache', 'ms-playwright'));
+    browserPaths.add(join(home, 'Library', 'Caches', 'ms-playwright'));
+    browserPaths.add(join(home, 'AppData', 'Local', 'ms-playwright'));
   }
 
   // Scan each potential Playwright cache for chromium-* directories
-  const chromiumBinDirs = ['chrome-linux', 'chrome-linux64'];
+  const chromiumBinDirs = [
+    ['chrome-linux', 'chrome'],
+    ['chrome-linux64', 'chrome'],
+    ['chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'],
+    ['chrome-mac-arm64', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'],
+    ['chrome-win', 'chrome.exe'],
+    ['chrome-win64', 'chrome.exe'],
+  ];
   for (const dir of browserPaths) {
     try {
       const entries = readdirSync(dir);
       for (const entry of entries) {
         if (!entry.startsWith('chromium-')) continue;
         for (const binDir of chromiumBinDirs) {
-          const candidate = join(dir, entry, binDir, 'chrome');
+          const candidate = join(dir, entry, ...binDir);
           if (existsSync(candidate)) return candidate;
         }
       }
@@ -52,13 +70,26 @@ export function findChromium(): string {
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
   ];
+  if (process.env.PROGRAMFILES) {
+    systemCandidates.push(join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'));
+  }
+  if (process.env['PROGRAMFILES(X86)']) {
+    systemCandidates.push(
+      join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')
+    );
+  }
+  if (process.env.LOCALAPPDATA) {
+    systemCandidates.push(join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'));
+  }
 
   for (const p of systemCandidates) {
     if (existsSync(p)) return p;
   }
 
   throw new Error(
-    'Chromium not found. Install Playwright browsers with: npx playwright install chromium'
+    'Chromium not found. Install Playwright browsers with: npx playwright install chromium or set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH.'
   );
 }

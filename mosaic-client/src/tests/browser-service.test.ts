@@ -70,6 +70,31 @@ describe('Chromium discovery logic', () => {
     }
   });
 
+  it('should detect chrome-mac Playwright cache layout', async () => {
+    const baseDir = mkdtempSync(join(tmpdir(), 'playwright-cache-'));
+    const chromeMacDir = join(baseDir, 'chromium-1208', 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS');
+    const chromeMacPath = join(chromeMacDir, 'Chromium');
+    mkdirSync(chromeMacDir, { recursive: true });
+    writeFileSync(chromeMacPath, '');
+    chmodSync(chromeMacPath, 0o755);
+
+    const previousPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    process.env.PLAYWRIGHT_BROWSERS_PATH = baseDir;
+
+    try {
+      vi.resetModules();
+      const { findChromium } = await import('../../../server/services/find-chromium.ts');
+      expect(findChromium()).toBe(chromeMacPath);
+    } finally {
+      if (previousPath) {
+        process.env.PLAYWRIGHT_BROWSERS_PATH = previousPath;
+      } else {
+        delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+      }
+      rmSync(baseDir, { recursive: true, force: true });
+    }
+  });
+
   it('should prioritize PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var', () => {
     // The env var is checked first, before any scanning
     const envPath = '/custom/path/to/chromium';
