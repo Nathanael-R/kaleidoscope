@@ -43,10 +43,10 @@ cd Kaleidoscope
 # 2. Install dependencies
 npm run install:all
 
-# 2.5 Install Playwright Chromium (recommended for screenshots/flows)
+# 3. Install Playwright Chromium (recommended for screenshots/flows)
 npx playwright install chromium
 
-# 3. Start development servers
+# 4. Start development servers
 npm run dev:all
 ```
 

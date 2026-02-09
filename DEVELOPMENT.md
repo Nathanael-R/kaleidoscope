@@ -52,7 +52,8 @@ Screenshots/flows use `playwright-core`, so Chromium is not auto-downloaded.
 npx playwright install chromium
 ```
 
-If the command prints nothing, ensure `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` is not set and re-run:
+If the command prints nothing, ensure `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` is not set and re-run
+with system dependencies included:
 
 ```bash
 npx playwright install --with-deps chromium
