@@ -90,8 +90,8 @@ describe('Keyboard navigation', () => {
 
     fireEvent.keyDown(document, { key: ' ' });
 
-    // Should show pinned count
-    expect(screen.getByText(/1 pinned device/)).toBeInTheDocument();
+    // Should show a pinned device chip with an unpin button
+    expect(screen.getByTestId(`quick-unpin-${devices[0].id}`)).toBeInTheDocument();
   });
 
   it('unpins device on second Space press', () => {
@@ -99,11 +99,11 @@ describe('Keyboard navigation', () => {
 
     // Pin
     fireEvent.keyDown(document, { key: ' ' });
-    expect(screen.getByText(/1 pinned device/)).toBeInTheDocument();
+    expect(screen.getByTestId(`quick-unpin-${devices[0].id}`)).toBeInTheDocument();
 
     // Unpin
     fireEvent.keyDown(document, { key: ' ' });
-    expect(screen.queryByText(/pinned device/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`quick-unpin-${devices[0].id}`)).not.toBeInTheDocument();
   });
 
   it('toggles comparison mode on C key', () => {
