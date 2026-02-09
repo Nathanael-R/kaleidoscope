@@ -437,6 +437,7 @@ function FlowEditor() {
           savedFlows={savedFlows}
           onLoadFlow={handleLoad}
           onDeleteFlow={deleteFlow}
+          onGenerateFromUrl={discoverPages}
         />
         <div className="flex-1 relative" ref={reactFlowWrapper}>
           {/* Discover Pages banner — shows when URL is loaded but canvas is empty */}

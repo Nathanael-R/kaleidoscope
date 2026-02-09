@@ -1,24 +1,37 @@
-import { Router, type Request, type Response } from 'express';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { crawlService } from '../services/crawl.service.js';
 
 const router = Router();
 
-// POST /api/crawl — Discover pages from a URL
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    if (parsed.hostname === '169.254.169.254' || parsed.hostname === 'metadata.google.internal') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * POST /api/crawl
+ * Discover pages from a URL using Playwright.
+ *
+ * Body: { url: string, depth?: number }
+ * Response: { startUrl, pages: [{ url, path, title, links }], sitemapUrls }
+ */
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { url, depth = 1 } = req.body as { url?: string; depth?: number };
 
-    if (!url) {
-      res.status(400).json({ error: 'URL is required' });
-      return;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'url is required' });
     }
 
-    // Validate URL
-    try {
-      new URL(url);
-    } catch {
-      res.status(400).json({ error: 'Invalid URL format' });
-      return;
+    if (!isAllowedUrl(url)) {
+      return res.status(400).json({ error: 'Invalid URL. Only http: and https: URLs are allowed.' });
     }
 
     // Clamp depth to prevent abuse
