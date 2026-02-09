@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import path from 'path';
 import { watcherService } from '../services/watcher.service.js';
 import type { WatcherConfig } from '../services/watcher.service.js';
+import { sseService } from '../services/sse.service.js';
 
 const router = Router();
 
@@ -41,13 +42,12 @@ router.post('/start', (req: Request, res: Response) => {
       return res.status(400).json({ error: pathError });
     }
 
-    // Note: Handler will emit via WebSocket (set up in index.ts)
     watcherService.watch(
       id,
       { paths, ignored, debounceMs },
       (event) => {
-        // Emit event via WebSocket
         console.log(`File ${event.type}: ${event.path}`);
+        sseService.broadcast('reload', { path: event.path, timestamp: Date.now() });
       }
     );
 

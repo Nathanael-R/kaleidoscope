@@ -1,6 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
-import { Server as SocketServer } from "socket.io";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -8,6 +7,7 @@ import { registerRoutes } from "./routes.js";
 import { tunnelService } from "./services/tunnel.service.js";
 import { watcherService } from "./services/watcher.service.js";
 import { screenshotService } from "./services/screenshot.service.js";
+import { sseService } from "./services/sse.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,32 +54,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Create HTTP server for Socket.IO
   const httpServer = createServer(app);
 
-  // Setup Socket.IO for live reload
-  const io = new SocketServer(httpServer, {
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
-    }
+  // SSE endpoint for live reload events
+  app.get('/api/events', (req, res) => {
+    sseService.addClient(req, res);
   });
-
-  // Socket.IO connection handling
-  io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-
-    socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
-    });
-
-    socket.on('ping', () => {
-      socket.emit('pong');
-    });
-  });
-
-  // Make io available globally for services
-  (global as any).io = io;
 
   await registerRoutes(app);
 
