@@ -8,7 +8,7 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, Columns, Pin, X } from "l
 import { useState } from "react";
 import TunnelButton from "@/components/tunnel-button";
 import LiveReloadToggle from "@/components/live-reload-toggle";
-import AuthWizard, { type AuthCookie } from "@/components/auth-wizard";
+import AuthWizard, { type AuthCookie, type ProxySession } from "@/components/auth-wizard";
 import ScreenshotPanel from "@/components/screenshot-panel";
 
 interface SidebarProps {
@@ -25,6 +25,7 @@ interface SidebarProps {
   onViewModeToggle: () => void;
   onReload?: () => void;
   onAuthCapture?: (cookies: AuthCookie[]) => void;
+  onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
 }
 
 export default function Sidebar({
@@ -39,7 +40,8 @@ export default function Sidebar({
   viewMode,
   onViewModeToggle,
   onReload,
-  onAuthCapture
+  onAuthCapture,
+  onProxyUrl
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
@@ -235,7 +237,11 @@ export default function Sidebar({
           <Label className="block text-sm font-medium text-gray-700 mb-3">
             Authentication
           </Label>
-          <AuthWizard onAuthCapture={onAuthCapture || (() => {})} />
+          <AuthWizard
+            onAuthCapture={onAuthCapture || (() => {})}
+            onProxyUrl={onProxyUrl}
+            currentUrl={urlInput}
+          />
         </div>
       )}
 

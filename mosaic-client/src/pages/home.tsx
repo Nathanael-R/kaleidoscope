@@ -3,7 +3,7 @@ import Header from "@/components/header";
 import Sidebar from "@/components/sidebar";
 import PreviewArea from "@/components/preview-area";
 import { devices, type Device } from "@/lib/devices";
-import type { AuthCookie } from "@/components/auth-wizard";
+import type { AuthCookie, ProxySession } from "@/components/auth-wizard";
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]); // Default to iPhone 14
@@ -13,6 +13,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
   const [reloadTrigger, setReloadTrigger] = useState(0); // Increment to trigger reload
   const [authCookies, setAuthCookies] = useState<AuthCookie[]>([]); // Auth cookies for injection
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null); // Proxy URL for auth preview
 
   const handleDeviceSelect = (device: Device) => {
     setSelectedDevice(device);
@@ -54,6 +55,14 @@ export default function Home() {
     setAuthCookies(cookies);
     // Trigger reload to apply cookies
     setReloadTrigger(prev => prev + 1);
+  };
+
+  const handleProxyUrl = (url: string | null, _session: ProxySession | null) => {
+    setProxyUrl(url);
+    // Trigger reload so iframe picks up the proxy URL
+    if (url) {
+      setReloadTrigger(prev => prev + 1);
+    }
   };
 
   // Keyboard navigation
@@ -130,11 +139,13 @@ export default function Home() {
           onViewModeToggle={handleViewModeToggle}
           onReload={handleReload}
           onAuthCapture={handleAuthCapture}
+          onProxyUrl={handleProxyUrl}
         />
         <div id="preview-content" className="flex-1 flex">
           <PreviewArea
             selectedDevice={selectedDevice}
             currentUrl={currentUrl}
+            proxyUrl={proxyUrl}
             isSidebarCollapsed={isSidebarCollapsed}
             onToggleSidebar={handleToggleSidebar}
             pinnedDevices={pinnedDevices}

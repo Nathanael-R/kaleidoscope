@@ -8,6 +8,7 @@ import type { AuthCookie } from "./auth-wizard";
 interface PreviewAreaProps {
   selectedDevice: Device;
   currentUrl: string;
+  proxyUrl?: string | null;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   pinnedDevices: Device[];
@@ -22,6 +23,7 @@ import * as React from "react";
 export default function PreviewArea({
   selectedDevice,
   currentUrl,
+  proxyUrl,
   isSidebarCollapsed = false,
   onToggleSidebar,
   pinnedDevices,
@@ -252,6 +254,7 @@ export default function PreviewArea({
         <DeviceFrame
           device={selectedDevice}
           url={currentUrl}
+          proxyUrl={proxyUrl}
           isLandscape={isLandscape}
           scale={scale}
           reloadTrigger={reloadTrigger}
@@ -381,6 +384,7 @@ export default function PreviewArea({
                       <DeviceFrame
                         device={device}
                         url={currentUrl}
+                        proxyUrl={proxyUrl}
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger}

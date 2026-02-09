@@ -7,6 +7,7 @@ import type { AuthCookie } from "./auth-wizard";
 interface DeviceFrameProps {
   device: Device;
   url: string;
+  proxyUrl?: string | null;
   isLandscape?: boolean;
   scale?: number;
   onLoad?: () => void;
@@ -18,6 +19,7 @@ interface DeviceFrameProps {
 export default function DeviceFrame({
   device,
   url,
+  proxyUrl,
   isLandscape = false,
   scale = 1,
   onLoad,
@@ -42,6 +44,14 @@ export default function DeviceFrame({
       setError(false);
     }
   }, [url]);
+
+  // Reload iframe when proxy URL changes
+  useEffect(() => {
+    if (proxyUrl && hasUrl) {
+      setIframeKey(prev => prev + 1);
+      setLoading(true);
+    }
+  }, [proxyUrl, hasUrl]);
 
   // Handle reload trigger from live reload
   useEffect(() => {
@@ -210,12 +220,12 @@ export default function DeviceFrame({
           </div>
         )}
 
-        {/* Iframe */}
+        {/* Iframe - use proxy URL when available for auth-protected sites */}
         {hasUrl && (
           <iframe
             key={iframeKey}
             data-device-frame
-            src={url}
+            src={proxyUrl || url}
             className="w-full h-full border-0 bg-white"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             onLoad={handleIframeLoad}
@@ -223,7 +233,7 @@ export default function DeviceFrame({
             style={{ display: loading ? 'none' : 'block' }}
             data-testid="preview-iframe"
             title={`${device.name} - ${url}`}
-            aria-label={`Preview of ${url} on ${device.name}`}
+            aria-label={`Preview of ${url} on ${device.name}${proxyUrl ? ' (via proxy)' : ''}`}
           />
         )}
       </div>
