@@ -43,6 +43,9 @@ cd Kaleidoscope
 # 2. Install dependencies
 npm run install:all
 
+# 2.5 Install Playwright Chromium (recommended for screenshots/flows)
+npx playwright install chromium
+
 # 3. Start development servers
 npm run dev:all
 ```
@@ -399,6 +402,11 @@ npm test
 ```bash
 npx playwright install chromium
 ```
+
+**If the install command prints nothing**:
+- Ensure `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` is not set.
+- Re-run with dependencies: `npx playwright install --with-deps chromium`
+- Verify the cache directory exists (e.g. `~/.cache/ms-playwright/chromium-*`).
 
 **Alternatives & tradeoffs**:
 - **Use system Chrome/Chromium** by setting `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` (fast, no download; but results vary with local browser versions).

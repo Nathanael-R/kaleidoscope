@@ -44,6 +44,20 @@ npm install
 npm run install:all
 ```
 
+### 1.5 Install Playwright Chromium (Recommended)
+
+Screenshots/flows use `playwright-core`, so Chromium is not auto-downloaded.
+
+```bash
+npx playwright install chromium
+```
+
+If the command prints nothing, ensure `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` is not set and re-run:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
 This installs dependencies for:
 - Root monorepo
 - `mosaic-client/` (frontend)
@@ -460,6 +474,10 @@ npx playwright install chromium
 # Alternative: use system Chrome/Chromium
 export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/path/to/chrome"
 ```
+
+If `npx playwright install chromium` produces no output, check that
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` is unset and verify
+`~/.cache/ms-playwright/chromium-*` exists.
 
 **Tradeoffs**:
 - Playwright-managed Chromium is consistent across machines.
