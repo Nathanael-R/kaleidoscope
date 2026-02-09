@@ -3,7 +3,6 @@ import Header from "@/components/header";
 import Sidebar from "@/components/sidebar";
 import PreviewArea from "@/components/preview-area";
 import { devices, type Device } from "@/lib/devices";
-import type { AuthCookie, ProxySession } from "@/components/auth-wizard";
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]); // Default to iPhone 14
@@ -49,13 +48,13 @@ export default function Home() {
     setReloadTrigger(prev => prev + 1);
   };
 
-  const handleAuthCapture = (_cookies: AuthCookie[]) => {
+  const handleAuthCapture = () => {
     // Auth cookies are injected server-side by the proxy, not by the iframe.
     // Trigger reload so the proxy picks up the new cookies.
     setReloadTrigger(prev => prev + 1);
   };
 
-  const handleProxyUrl = (url: string | null, _session: ProxySession | null) => {
+  const handleProxyUrl = (url: string | null) => {
     setProxyUrl(url);
     // Trigger reload so iframe picks up the proxy URL
     if (url) {

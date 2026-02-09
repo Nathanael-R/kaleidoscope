@@ -78,12 +78,11 @@ export default function Sidebar({
     }
     
     try {
-    //   const url = new URL(finalUrl);
-    //   const domain = url.hostname;
-      
+      new URL(finalUrl); // validate URL format
+
       // Add to recent URLs
       addRecentUrl(finalUrl);
-      
+
       onLoadUrl(finalUrl);
       onUrlChange(finalUrl);
     } catch (error) {

@@ -12,6 +12,7 @@ import {
   type Node,
   type Edge,
   type NodeTypes,
+  type ReactFlowInstance,
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -24,11 +25,6 @@ import ActionNode from "@/components/flow/nodes/action-node";
 import ConditionNode from "@/components/flow/nodes/condition-node";
 import NoteNode from "@/components/flow/nodes/note-node";
 import { useFlowStorage } from "@/hooks/use-flow-storage";
-
-let nodeIdCounter = 0;
-function getNextId() {
-  return `node_${++nodeIdCounter}`;
-}
 
 const nodeTypes: NodeTypes = {
   page: PageNode,
@@ -50,7 +46,12 @@ function FlowEditor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const nodeIdCounterRef = useRef(0);
+
+  function getNextId() {
+    return `node_${++nodeIdCounterRef.current}`;
+  }
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -175,7 +176,7 @@ function FlowEditor() {
           const num = parseInt(n.id.replace("node_", ""), 10);
           return isNaN(num) ? max : Math.max(max, num);
         }, 0);
-        nodeIdCounter = maxId;
+        nodeIdCounterRef.current = maxId;
       }
     },
     [loadFlow, setNodes, setEdges]
