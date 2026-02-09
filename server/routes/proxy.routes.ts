@@ -4,6 +4,23 @@ import { proxyService } from '../services/proxy.service.js';
 
 const router = Router();
 
+const BLOCKED_HOSTS = ['169.254.169.254', 'metadata.google.internal'];
+
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    if (BLOCKED_HOSTS.includes(parsed.hostname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * POST /api/proxy/session
  * Create a new proxy session for a target URL
@@ -19,14 +36,8 @@ router.post('/session', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'url is required' });
     }
 
-    // Validate URL scheme
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return res.status(400).json({ error: 'Only http and https URLs are allowed' });
-      }
-    } catch {
-      return res.status(400).json({ error: 'Invalid URL' });
+    if (!isAllowedUrl(url)) {
+      return res.status(400).json({ error: 'URL is not allowed (blocked scheme or host)' });
     }
 
     const session = proxyService.createSession(url, cookies);
