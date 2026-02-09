@@ -115,9 +115,9 @@ describe('URL submission', () => {
   });
 
   describe('recent URLs', () => {
-    it('shows empty state when no recent URLs exist', () => {
+    it('hides recent URLs section when no recent URLs exist', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
-      expect(screen.getByText('No recent URLs')).toBeInTheDocument();
+      expect(screen.queryByTestId('recent-urls-list')).not.toBeInTheDocument();
     });
 
     it('populates recent URLs after submission', () => {

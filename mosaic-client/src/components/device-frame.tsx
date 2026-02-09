@@ -76,11 +76,7 @@ export default function DeviceFrame({
   const handleRetry = () => {
     setError(false);
     setLoading(true);
-    // Force iframe reload by updating its key
-    const iframe = document.querySelector('iframe[data-device-frame]') as HTMLIFrameElement;
-    if (iframe) {
-      iframe.src = iframe.src;
-    }
+    setIframeKey(k => k + 1);
   };
 
   const deviceWidth = isLandscape ? device.height : device.width;

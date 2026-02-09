@@ -38,12 +38,13 @@ describe('Keyboard navigation', () => {
     expect(screen.getByTestId(`device-${devices[0].id}`)).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('selects next device on ArrowDown', () => {
+  it('does not switch devices on ArrowDown (reserved for page scroll)', () => {
     renderHome();
 
     fireEvent.keyDown(document, { key: 'ArrowDown' });
 
-    expect(screen.getByTestId(`device-${devices[1].id}`)).toHaveAttribute('aria-selected', 'true');
+    // ArrowDown should NOT change device selection — first device stays selected
+    expect(screen.getByTestId(`device-${devices[0].id}`)).toHaveAttribute('aria-selected', 'true');
   });
 
   it('selects previous device on ArrowLeft', () => {
@@ -89,8 +90,8 @@ describe('Keyboard navigation', () => {
 
     fireEvent.keyDown(document, { key: ' ' });
 
-    // Should show pinned count
-    expect(screen.getByText(/1 pinned device/)).toBeInTheDocument();
+    // Should show a pinned device chip with an unpin button
+    expect(screen.getByTestId(`quick-unpin-${devices[0].id}`)).toBeInTheDocument();
   });
 
   it('unpins device on second Space press', () => {
@@ -98,11 +99,11 @@ describe('Keyboard navigation', () => {
 
     // Pin
     fireEvent.keyDown(document, { key: ' ' });
-    expect(screen.getByText(/1 pinned device/)).toBeInTheDocument();
+    expect(screen.getByTestId(`quick-unpin-${devices[0].id}`)).toBeInTheDocument();
 
     // Unpin
     fireEvent.keyDown(document, { key: ' ' });
-    expect(screen.queryByText(/pinned device/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`quick-unpin-${devices[0].id}`)).not.toBeInTheDocument();
   });
 
   it('toggles comparison mode on C key', () => {

@@ -1,7 +1,8 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { findChromium } from './find-chromium.js';
 
 interface DeviceConfig {
   id: string;
