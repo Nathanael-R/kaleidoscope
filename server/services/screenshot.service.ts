@@ -1,6 +1,7 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { findChromium } from './find-chromium.js';
 
 interface DeviceConfig {
   id: string;
@@ -32,43 +33,6 @@ export interface ScreenshotResult {
   path: string;
   width: number;
   height: number;
-}
-
-function findChromium(): string {
-  // Check common Playwright browser cache locations
-  const homedir = process.env.HOME || '/root';
-  const paths = [
-    join(homedir, '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'),
-    join(homedir, '.cache/ms-playwright/chromium-1195/chrome-linux/chrome'),
-    join(homedir, '.cache/ms-playwright/chromium-1196/chrome-linux/chrome'),
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-  ];
-
-  // Also scan the ms-playwright dir for any chromium version
-  const playwrightDir = join(homedir, '.cache/ms-playwright');
-  try {
-    const entries = readdirSync(playwrightDir);
-    for (const entry of entries) {
-      if (entry.startsWith('chromium-')) {
-        const candidate = join(playwrightDir, entry, 'chrome-linux/chrome');
-        if (!paths.includes(candidate)) {
-          paths.unshift(candidate); // prioritize dynamically found
-        }
-      }
-    }
-  } catch {
-    // ignore scan failures
-  }
-
-  for (const p of paths) {
-    if (existsSync(p)) return p;
-  }
-
-  throw new Error(
-    'Chromium not found. Install Playwright browsers with: npx playwright install chromium'
-  );
 }
 
 class ScreenshotService {
