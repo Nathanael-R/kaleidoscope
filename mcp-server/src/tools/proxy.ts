@@ -10,7 +10,6 @@ export function registerProxyTools(server: McpServer) {
    * Creates a proxy session so the target site can be previewed in an iframe
    * even if it blocks framing. Injects auth cookies server-side.
    */
-  // @ts-expect-error MCP SDK server.tool() causes TS2589 with complex zod schemas
   server.tool(
     'preview_with_auth',
     'Preview an authenticated page through a server-side proxy. ' +
@@ -30,6 +29,7 @@ export function registerProxyTools(server: McpServer) {
         'Auth cookies to inject. Get these from the browser DevTools → Application → Cookies.'
       ),
     },
+    // @ts-expect-error TS2589: MCP SDK deep type inference with complex Zod schemas
     async ({ url, cookies }: { url: string; cookies?: Array<{ name: string; value: string }> }) => {
       try {
         // Ensure server is running
@@ -116,7 +116,6 @@ export function registerProxyTools(server: McpServer) {
    * The key tool for the fallback flow: Claude reads the codebase, generates mock data
    * matching the app's API shapes, and injects it so pages render without real auth.
    */
-  // @ts-expect-error MCP SDK server.tool() causes TS2589 with complex zod schemas
   server.tool(
     'inject_mock_data',
     'Inject mock API data into a proxy session so pages render with dummy content ' +
@@ -149,6 +148,7 @@ export function registerProxyTools(server: McpServer) {
         'Array of mock routes. Each has a URL pattern and a response to return.'
       ),
     },
+    // @ts-expect-error TS2589: MCP SDK deep type inference with complex Zod schemas
     async ({ session_id, mocks }: {
       session_id: string;
       mocks: Array<{ pattern: string; response: unknown }>;
