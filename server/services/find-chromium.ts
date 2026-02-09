@@ -76,6 +76,7 @@ export function findChromium(): string {
   if (process.env.PROGRAMFILES) {
     systemCandidates.push(join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'));
   }
+  // 32-bit Program Files on 64-bit Windows.
   if (process.env['PROGRAMFILES(X86)']) {
     systemCandidates.push(
       join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')
