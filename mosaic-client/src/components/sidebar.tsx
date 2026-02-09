@@ -26,6 +26,7 @@ interface SidebarProps {
   onReload?: () => void;
   onAuthCapture?: (cookies: AuthCookie[]) => void;
   onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
+  proxyUrl?: string | null;
 }
 
 export default function Sidebar({
@@ -41,7 +42,8 @@ export default function Sidebar({
   onViewModeToggle,
   onReload,
   onAuthCapture,
-  onProxyUrl
+  onProxyUrl,
+  proxyUrl
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
@@ -251,7 +253,7 @@ export default function Sidebar({
           <Label className="block text-sm font-medium text-gray-700 mb-3">
             Screenshots
           </Label>
-          <ScreenshotPanel currentUrl={urlInput} />
+          <ScreenshotPanel currentUrl={urlInput} proxyUrl={proxyUrl} />
         </div>
       )}
 

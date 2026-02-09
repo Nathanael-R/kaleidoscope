@@ -4,14 +4,18 @@ import { RefreshCw, Wifi, WifiOff, Check, AlertCircle } from 'lucide-react';
 import { useSocket } from '@/hooks/use-socket';
 import { cn } from '@/lib/utils';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 interface LiveReloadToggleProps {
   onReload?: () => void;
+  currentUrl?: string;
   className?: string;
 }
 
-export default function LiveReloadToggle({ onReload, className }: LiveReloadToggleProps) {
+export default function LiveReloadToggle({ onReload, currentUrl, className }: LiveReloadToggleProps) {
   const [enabled, setEnabled] = useState(false);
   const [lastReload, setLastReload] = useState<Date | null>(null);
+  const [watcherStarted, setWatcherStarted] = useState(false);
 
   const { isConnected } = useSocket({
     autoConnect: enabled,
@@ -21,6 +25,52 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
       onReload?.();
     },
   });
+
+  // Start the file watcher on the server when enabled + connected
+  useEffect(() => {
+    if (!enabled || !isConnected || watcherStarted) return;
+
+    // Determine watch path from the current URL (localhost projects)
+    // Default to cwd if we can't determine the path
+    const startWatcher = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/watcher/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: 'live-reload',
+            paths: ['src/**/*', 'public/**/*', '*.html', '*.css', '*.js', '*.ts', '*.tsx', '*.jsx'],
+          }),
+        });
+        if (res.ok) {
+          setWatcherStarted(true);
+          console.log('File watcher started on server');
+        }
+      } catch (err) {
+        console.error('Failed to start file watcher:', err);
+      }
+    };
+
+    startWatcher();
+  }, [enabled, isConnected, watcherStarted]);
+
+  // Stop the watcher when disabled
+  useEffect(() => {
+    if (enabled) return;
+    if (!watcherStarted) return;
+
+    const stopWatcher = async () => {
+      try {
+        await fetch(`${API_BASE}/api/watcher/stop/live-reload`, { method: 'DELETE' });
+        setWatcherStarted(false);
+        console.log('File watcher stopped');
+      } catch {
+        // ignore — server may already be down
+      }
+    };
+
+    stopWatcher();
+  }, [enabled, watcherStarted]);
 
   const handleToggle = () => {
     setEnabled(!enabled);

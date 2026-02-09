@@ -3,8 +3,6 @@ import type { Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
 import { ArrowLeftFromLine, Camera, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
-import type { AuthCookie } from "./auth-wizard";
-
 interface PreviewAreaProps {
   selectedDevice: Device;
   currentUrl: string;
@@ -15,7 +13,6 @@ interface PreviewAreaProps {
   viewMode: 'single' | 'comparison';
   onDevicePin?: (device: Device) => void;
   reloadTrigger?: number;
-  authCookies?: AuthCookie[];
 }
 
 import * as React from "react";
@@ -30,7 +27,6 @@ export default function PreviewArea({
   viewMode,
   onDevicePin,
   reloadTrigger = 0,
-  authCookies = []
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -141,7 +137,7 @@ export default function PreviewArea({
       const res = await fetch(`${apiUrl}/api/screenshots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: currentUrl, devices }),
+        body: JSON.stringify({ url: proxyUrl || currentUrl, devices }),
       });
       if (res.ok) {
         const data = await res.json() as { screenshots: Array<{ device: string; path: string }> };
@@ -258,7 +254,7 @@ export default function PreviewArea({
           isLandscape={isLandscape}
           scale={scale}
           reloadTrigger={reloadTrigger}
-          authCookies={authCookies}
+
         />
       ) : (
         <div className="space-y-8">
@@ -280,25 +276,9 @@ export default function PreviewArea({
                 </Button>
               )}
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-gray-500">Layout:</span>
-              <Button
-                variant={pinnedDevices.length <= 2 ? "default" : "outline"}
-                size="sm"
-                className="h-8 px-3"
-                data-testid="button-layout-rows"
-              >
-                Rows
-              </Button>
-              <Button
-                variant={pinnedDevices.length > 2 ? "default" : "outline"}
-                size="sm"
-                className="h-8 px-3"
-                data-testid="button-layout-grid"
-              >
-                Grid
-              </Button>
-            </div>
+            <span className="text-xs text-gray-500">
+              Drag to reposition
+            </span>
           </div>
 
           {pinnedDevices.length === 0 ? (
@@ -388,7 +368,7 @@ export default function PreviewArea({
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger}
-                        authCookies={authCookies}
+              
                       />
                     </div>
                   </div>

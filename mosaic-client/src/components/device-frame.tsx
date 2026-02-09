@@ -2,8 +2,6 @@ import { useState, useRef } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
-import type { AuthCookie } from "./auth-wizard";
-
 interface DeviceFrameProps {
   device: Device;
   url: string;
@@ -13,7 +11,6 @@ interface DeviceFrameProps {
   onLoad?: () => void;
   onError?: () => void;
   reloadTrigger?: number;
-  authCookies?: AuthCookie[];
 }
 
 export default function DeviceFrame({
@@ -25,15 +22,12 @@ export default function DeviceFrame({
   onLoad,
   onError,
   reloadTrigger = 0,
-  authCookies = []
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
-  // Derived state - no Effect needed (react.dev/learn/you-might-not-need-an-effect)
   const hasUrl = !!url;
-  const authApplied = authCookies.length > 0;
 
   // Adjust state during render when props change (avoids extra re-render vs useEffect)
   const prevUrlRef = useRef(url);

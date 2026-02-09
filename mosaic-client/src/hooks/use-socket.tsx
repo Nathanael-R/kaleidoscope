@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const SSE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/events';
 
 export interface SocketHookOptions {
   autoConnect?: boolean;
@@ -18,8 +17,8 @@ export function useSocket(options: SocketHookOptions = {}) {
     onReload,
   } = options;
 
-  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const sourceRef = useRef<EventSource | null>(null);
 
   // Store callbacks in refs to avoid reconnection on callback identity change
   const onConnectRef = useRef(onConnect);
@@ -32,64 +31,34 @@ export function useSocket(options: SocketHookOptions = {}) {
   useEffect(() => {
     if (!autoConnect) return;
 
-    // Create socket connection
-    const socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-    });
+    const source = new EventSource(SSE_URL);
+    sourceRef.current = source;
 
-    socketRef.current = socket;
-
-    // Connection handlers
-    socket.on('connect', () => {
-      console.log('WebSocket connected');
+    source.addEventListener('connected', () => {
+      console.log('SSE connected');
       setIsConnected(true);
       onConnectRef.current?.();
     });
 
-    socket.on('disconnect', () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-      onDisconnectRef.current?.();
-    });
-
-    // Reload event from file watcher
-    socket.on('reload', (data: { path: string; timestamp: number }) => {
+    source.addEventListener('reload', (e) => {
+      const data = JSON.parse(e.data);
       console.log('Reload triggered by:', data.path);
       onReloadRef.current?.();
     });
 
-    // Cleanup
+    source.onerror = () => {
+      console.log('SSE disconnected');
+      setIsConnected(false);
+      onDisconnectRef.current?.();
+    };
+
     return () => {
-      socket.disconnect();
+      source.close();
+      setIsConnected(false);
     };
   }, [autoConnect]);
 
-  const emit = (event: string, data?: any) => {
-    if (socketRef.current) {
-      socketRef.current.emit(event, data);
-    }
-  };
-
-  const on = (event: string, handler: (...args: any[]) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, handler);
-    }
-  };
-
-  const off = (event: string, handler?: (...args: any[]) => void) => {
-    if (socketRef.current) {
-      socketRef.current.off(event, handler);
-    }
-  };
-
   return {
-    socket: socketRef.current,
     isConnected,
-    emit,
-    on,
-    off,
   };
 }
