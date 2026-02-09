@@ -11,6 +11,7 @@ interface ScreenshotResult {
 
 interface ScreenshotPanelProps {
   currentUrl: string;
+  proxyUrl?: string | null;
 }
 
 const DEVICE_OPTIONS = [
@@ -26,7 +27,7 @@ const DEVICE_OPTIONS = [
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-export default function ScreenshotPanel({ currentUrl }: ScreenshotPanelProps) {
+export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPanelProps) {
   const [selectedDevices, setSelectedDevices] = useState<string[]>([
     "iphone-14",
     "ipad",
@@ -63,7 +64,7 @@ export default function ScreenshotPanel({ currentUrl }: ScreenshotPanelProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: currentUrl,
+          url: proxyUrl || currentUrl,
           devices: selectedDevices,
           fullPage,
         }),

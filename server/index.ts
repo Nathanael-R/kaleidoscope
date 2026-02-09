@@ -8,6 +8,7 @@ import { tunnelService } from "./services/tunnel.service.js";
 import { watcherService } from "./services/watcher.service.js";
 import { screenshotService } from "./services/screenshot.service.js";
 import { sseService } from "./services/sse.service.js";
+import { proxyService } from "./services/proxy.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,9 +91,18 @@ app.use((req, res, next) => {
     console.error(err);
   });
 
+  // Clean up expired proxy sessions every 10 minutes
+  const cleanupInterval = setInterval(() => {
+    const cleaned = proxyService.cleanExpired();
+    if (cleaned > 0) {
+      console.log(`Cleaned ${cleaned} expired proxy session(s)`);
+    }
+  }, 10 * 60 * 1000);
+
   // Centralized graceful shutdown
   const shutdown = async () => {
     console.log('Shutting down...');
+    clearInterval(cleanupInterval);
     httpServer.close();
     await Promise.allSettled([
       tunnelService.closeAllTunnels(),

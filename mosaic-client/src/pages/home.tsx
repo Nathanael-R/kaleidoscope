@@ -12,7 +12,6 @@ export default function Home() {
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
   const [reloadTrigger, setReloadTrigger] = useState(0); // Increment to trigger reload
-  const [authCookies, setAuthCookies] = useState<AuthCookie[]>([]); // Auth cookies for injection
   const [proxyUrl, setProxyUrl] = useState<string | null>(null); // Proxy URL for auth preview
 
   const handleDeviceSelect = (device: Device) => {
@@ -50,10 +49,9 @@ export default function Home() {
     setReloadTrigger(prev => prev + 1);
   };
 
-  const handleAuthCapture = (cookies: AuthCookie[]) => {
-    console.log('Auth cookies captured:', cookies);
-    setAuthCookies(cookies);
-    // Trigger reload to apply cookies
+  const handleAuthCapture = (_cookies: AuthCookie[]) => {
+    // Auth cookies are injected server-side by the proxy, not by the iframe.
+    // Trigger reload so the proxy picks up the new cookies.
     setReloadTrigger(prev => prev + 1);
   };
 
@@ -140,6 +138,7 @@ export default function Home() {
           onReload={handleReload}
           onAuthCapture={handleAuthCapture}
           onProxyUrl={handleProxyUrl}
+          proxyUrl={proxyUrl}
         />
         <div id="preview-content" className="flex-1 flex">
           <PreviewArea
@@ -151,7 +150,6 @@ export default function Home() {
             pinnedDevices={pinnedDevices}
             viewMode={viewMode}
             reloadTrigger={reloadTrigger}
-            authCookies={authCookies}
           />
         </div>
       </div>

@@ -181,14 +181,27 @@ class TunnelService {
   }
 
   /**
-   * Auto-detect port from common dev servers
+   * Auto-detect port from common dev servers by checking which ones are listening
    */
   async autoDetectPort(): Promise<number | null> {
-    const commonPorts = [3000, 5173, 8080, 4200, 5000, 8000, 3001];
+    const commonPorts = [3000, 5173, 8080, 4200, 8000, 3001];
 
-    // Simple port detection - just return first common port
-    // In a real implementation, we'd check if ports are actually listening
-    return commonPorts[0];
+    for (const port of commonPorts) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1000);
+        await fetch(`http://localhost:${port}/`, {
+          signal: controller.signal,
+          redirect: 'manual',
+        });
+        clearTimeout(timeout);
+        return port; // Got a response — something is listening
+      } catch {
+        continue; // Connection refused or timed out — port not in use
+      }
+    }
+
+    return null;
   }
 
   /**
