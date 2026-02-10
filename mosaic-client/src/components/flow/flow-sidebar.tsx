@@ -144,7 +144,7 @@ export default function FlowSidebar({
 
   if (collapsed) {
     return (
-      <aside className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4">
+      <aside className="w-12 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-4">
         <Button
           variant="ghost"
           size="sm"
@@ -156,12 +156,12 @@ export default function FlowSidebar({
         {NODE_TYPES.map((nt) => (
           <div
             key={nt.type}
-            className="w-8 h-8 flex items-center justify-center rounded cursor-grab mb-2 border border-gray-200 hover:bg-gray-50"
+            className="w-8 h-8 flex items-center justify-center rounded cursor-grab mb-2 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
             draggable
             onDragStart={(e) => onDragStart(e, nt.type)}
             title={nt.label}
           >
-            <nt.icon className="w-4 h-4 text-gray-600" />
+            <nt.icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </div>
         ))}
       </aside>
@@ -169,11 +169,11 @@ export default function FlowSidebar({
   }
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+    <aside className="w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-y-auto">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Flow Editor</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Flow Editor</h2>
           <Link href="/" className="text-xs text-blue-600 hover:underline">
             Back to Preview
           </Link>
@@ -189,8 +189,8 @@ export default function FlowSidebar({
       </div>
 
       {/* Flow Name */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <Label className="text-xs font-medium text-gray-600 mb-1 block">Flow Name</Label>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-1 block">Flow Name</Label>
         <Input
           value={flowName}
           onChange={(e) => onFlowNameChange(e.target.value)}
@@ -200,8 +200,8 @@ export default function FlowSidebar({
       </div>
 
       {/* Generate from URL */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <Label className="text-xs font-medium text-gray-600 mb-1 block">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-1 block">
           Generate from URL
         </Label>
         <div className="flex gap-1.5">
@@ -295,8 +295,8 @@ export default function FlowSidebar({
       </div>
 
       {/* Node Palette */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <Label className="text-xs font-medium text-gray-600 mb-2 block">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-2 block">
           Drag nodes onto the canvas
         </Label>
         <div className="space-y-2">
@@ -318,8 +318,8 @@ export default function FlowSidebar({
       </div>
 
       {/* Actions */}
-      <div className="px-4 py-3 border-b border-gray-200 space-y-2">
-        <Label className="text-xs font-medium text-gray-600 mb-1 block">Actions</Label>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 space-y-2">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-1 block">Actions</Label>
         <div className="grid grid-cols-2 gap-2">
           <Button variant="outline" size="sm" onClick={onSave} className="text-xs h-8">
             <Save className="w-3 h-3 mr-1" /> Save
@@ -343,21 +343,21 @@ export default function FlowSidebar({
 
       {/* Saved Flows */}
       <div className="px-4 py-3 flex-1">
-        <Label className="text-xs font-medium text-gray-600 mb-2 block">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-2 block">
           Saved Flows ({savedFlows.length})
         </Label>
         {savedFlows.length === 0 ? (
-          <p className="text-xs text-gray-400">No saved flows yet. Create one and click Save.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">No saved flows yet. Create one and click Save.</p>
         ) : (
           <div className="space-y-1.5">
             {savedFlows.map((name) => (
               <div
                 key={name}
-                className="flex items-center justify-between p-2 rounded-md bg-gray-50 hover:bg-gray-100 group"
+                className="flex items-center justify-between p-2 rounded-md bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 group"
               >
                 <button
                   onClick={() => onLoadFlow(name)}
-                  className="flex items-center gap-2 text-xs text-gray-700 hover:text-gray-900 truncate flex-1 text-left"
+                  className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 truncate flex-1 text-left"
                 >
                   <FolderOpen className="w-3 h-3 shrink-0" />
                   <span className="truncate">{name}</span>
@@ -375,7 +375,7 @@ export default function FlowSidebar({
       </div>
 
       {/* Tips */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <p className="text-[10px] text-gray-500 leading-relaxed">
           <strong>Tips:</strong> Drag nodes from the palette. Connect by dragging between handles.
           Double-click a node label to edit. Press Delete to remove selected elements.

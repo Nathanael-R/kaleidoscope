@@ -226,9 +226,9 @@ export default function DeviceFrame({
         
         {/* Device Label */}
         <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
-          <div className="bg-white px-4 py-2 rounded-lg shadow-md border border-gray-200">
-            <p className="text-sm font-medium text-gray-700">{device.name}</p>
-            <p className="text-xs text-gray-500">
+          <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{device.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {deviceWidth} × {deviceHeight}
             </p>
           </div>
