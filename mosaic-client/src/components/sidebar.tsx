@@ -48,17 +48,17 @@ function Section({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-b border-gray-100">
+    <div className="border-b border-gray-100 dark:border-gray-700">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
       >
-        <Icon className="w-3.5 h-3.5 text-gray-400" />
-        <span className="text-xs font-medium text-gray-600 flex-1">{title}</span>
+        <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 flex-1">{title}</span>
         {badge !== undefined && (
           <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{badge}</span>
         )}
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="px-4 pb-3">{children}</div>}
     </div>
@@ -137,8 +137,8 @@ export default function Sidebar({
 
   if (isCollapsed) {
     return (
-      <aside className="w-14 bg-white border-r border-gray-200 flex flex-col" role="complementary" aria-label="Device controls">
-        <div className="p-3 border-b border-gray-100 flex justify-center">
+      <aside className="w-14 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col" role="complementary" aria-label="Device controls">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-center">
           <Button
             variant="ghost"
             size="sm"
@@ -176,11 +176,11 @@ export default function Sidebar({
     <>
     {/* Mobile backdrop */}
     <div className="md:hidden fixed inset-0 top-16 bg-black/30 z-30" onClick={onToggleCollapse} />
-    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white border-r border-gray-200 flex flex-col" role="complementary" aria-label="Device controls">
+    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col" role="complementary" aria-label="Device controls">
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-900">Preview</h2>
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Preview</h2>
         <div className="flex items-center gap-1">
           <Button
             variant={viewMode === 'comparison' ? 'default' : 'ghost'}
@@ -199,9 +199,9 @@ export default function Sidebar({
       </div>
 
       {/* URL Input — always visible, compact */}
-      <div className="px-4 py-3 border-b border-gray-100">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="relative">
-          <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
           <Input
             type="url"
             placeholder="Enter URL to preview..."
@@ -234,12 +234,12 @@ export default function Sidebar({
               {recentUrls.map((recentUrl, index) => (
                 <button
                   key={`${recentUrl.url}-${recentUrl.timestamp}`}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 transition-colors group"
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleRecentUrlClick(recentUrl.url)}
                   data-testid={`recent-url-${index}`}
                 >
-                  <div className="text-xs font-medium text-gray-700 truncate">{recentUrl.domain}</div>
-                  <div className="text-[10px] text-gray-400 truncate">{recentUrl.url}</div>
+                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{recentUrl.domain}</div>
+                  <div className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{recentUrl.url}</div>
                 </button>
               ))}
             </div>
@@ -273,7 +273,7 @@ export default function Sidebar({
 
         {/* Pinned devices — only shown when there are pins */}
         {pinnedDevices.length > 0 && (
-          <div className="px-4 py-2 border-b border-gray-100">
+          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
             <div className="flex flex-wrap gap-1">
               {pinnedDevices.map((device) => (
                 <span
@@ -304,7 +304,7 @@ export default function Sidebar({
           <div className="space-y-3" role="listbox" aria-label="Device list">
             {Object.entries(devicesByCategory).map(([category, categoryDevices]) => (
               <div key={category}>
-                <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-1">
+                <h4 className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5 px-1">
                   {category}
                 </h4>
                 <div className="space-y-0.5">
@@ -331,8 +331,8 @@ export default function Sidebar({
                         >
                           <span className="text-base leading-none">{getDeviceIcon(device.icon)}</span>
                           <div className="flex-1 text-left min-w-0">
-                            <span className="text-xs font-medium text-gray-800">{device.name}</span>
-                            <span className="text-[10px] text-gray-400 ml-1.5">{device.width}x{device.height}</span>
+                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{device.name}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1.5">{device.width}x{device.height}</span>
                           </div>
                           {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                           {isPinned && !isSelected && <Pin className="w-3 h-3 text-orange-400 shrink-0" />}
@@ -369,8 +369,8 @@ export default function Sidebar({
         </div>
 
         {/* Keyboard hints — minimal footer */}
-        <div className="px-4 py-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 text-center">
+        <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700">
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
             ← → switch device &middot; Space pin &middot; C compare
           </p>
         </div>

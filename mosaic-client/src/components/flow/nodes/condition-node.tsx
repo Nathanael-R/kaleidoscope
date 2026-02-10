@@ -14,8 +14,8 @@ function ConditionNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 bg-white shadow-sm min-w-[160px] ${
-        selected ? "border-purple-500 shadow-purple-100" : "border-purple-200"
+      className={`px-4 py-3 rounded-lg border-2 bg-white dark:bg-gray-800 shadow-sm min-w-[160px] ${
+        selected ? "border-purple-500 shadow-purple-100" : "border-purple-200 dark:border-purple-700"
       }`}
       style={{ transform: "rotate(0deg)" }}
     >
@@ -35,7 +35,7 @@ function ConditionNode({ id, data, selected }: NodeProps) {
           />
         ) : (
           <span
-            className="text-sm font-medium text-gray-800 cursor-text"
+            className="text-sm font-medium text-gray-800 dark:text-gray-200 cursor-text"
             onDoubleClick={() => setEditing(true)}
           >
             {label}
@@ -56,7 +56,7 @@ function ConditionNode({ id, data, selected }: NodeProps) {
         className="!bg-red-500 !w-3 !h-3"
         style={{ left: "70%" }}
       />
-      <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+      <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-1 px-1">
         <span>Yes</span>
         <span>No</span>
       </div>

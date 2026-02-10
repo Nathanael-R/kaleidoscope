@@ -14,8 +14,8 @@ function ActionNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 bg-white shadow-sm min-w-[160px] ${
-        selected ? "border-amber-500 shadow-amber-100" : "border-amber-200"
+      className={`px-4 py-3 rounded-lg border-2 bg-white dark:bg-gray-800 shadow-sm min-w-[160px] ${
+        selected ? "border-amber-500 shadow-amber-100" : "border-amber-200 dark:border-amber-700"
       }`}
     >
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3" />
@@ -34,7 +34,7 @@ function ActionNode({ id, data, selected }: NodeProps) {
           />
         ) : (
           <span
-            className="text-sm font-medium text-gray-800 cursor-text"
+            className="text-sm font-medium text-gray-800 dark:text-gray-200 cursor-text"
             onDoubleClick={() => setEditing(true)}
           >
             {label}

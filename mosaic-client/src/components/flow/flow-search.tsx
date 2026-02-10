@@ -16,7 +16,7 @@ export default function FlowSearch({
   onFocusNode,
 }: FlowSearchProps) {
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 w-80">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 w-80">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <Input
@@ -35,21 +35,21 @@ export default function FlowSearch({
         )}
       </div>
       {query && matchedNodes.length > 0 && (
-        <div className="border-t border-gray-100 max-h-48 overflow-y-auto">
+        <div className="border-t border-gray-100 dark:border-gray-700 max-h-48 overflow-y-auto">
           {matchedNodes.map((node) => (
             <button
               key={node.id}
               onClick={() => onFocusNode(node.id)}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center justify-between"
+              className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center justify-between"
             >
-              <span className="text-gray-700 truncate">{String(node.data?.label)}</span>
-              <span className="text-gray-400 text-[10px] shrink-0 ml-2">{node.type}</span>
+              <span className="text-gray-700 dark:text-gray-300 truncate">{String(node.data?.label)}</span>
+              <span className="text-gray-400 dark:text-gray-500 text-[10px] shrink-0 ml-2">{node.type}</span>
             </button>
           ))}
         </div>
       )}
       {query && matchedNodes.length === 0 && (
-        <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">
+        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 text-xs text-gray-400 dark:text-gray-500">
           No nodes match "{query}"
         </div>
       )}

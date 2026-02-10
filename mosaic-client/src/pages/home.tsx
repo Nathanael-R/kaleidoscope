@@ -116,7 +116,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="bg-gray-50">
+    <div className="bg-gray-50 dark:bg-gray-900">
       <a href="#preview-content" className="sr-only focus:not-sr-only focus:absolute focus:top-20 focus:left-4 focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:rounded focus:shadow-lg">Skip to preview</a>
       <Header />
       <div className="flex flex-col md:flex-row h-screen pt-16">
