@@ -91,7 +91,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       {/* Device Selection */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-600">Devices</span>
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Devices</span>
           <div className="flex gap-1">
             <button
               onClick={selectAll}
@@ -116,7 +116,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
               className={`px-2 py-1 text-xs rounded-md border transition-colors ${
                 selectedDevices.includes(device.id)
                   ? "bg-blue-50 border-blue-300 text-blue-700"
-                  : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                  : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300"
               }`}
             >
               {device.name}
@@ -179,10 +179,10 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
             {results.map((result, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between p-2 bg-gray-50 rounded-md text-xs"
+                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-md text-xs"
               >
                 <div>
-                  <span className="font-medium text-gray-700">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
                     {result.device}
                   </span>
                   <span className="text-gray-400 ml-1">

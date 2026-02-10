@@ -1,4 +1,7 @@
 import type { Browser, Page } from 'playwright-core';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { getSharedBrowser } from './browser.service.js';
 
 export interface PageInfo {
@@ -7,6 +10,7 @@ export interface PageInfo {
   title: string;
   links: string[];
   error?: string;
+  screenshotUrl?: string;
 }
 
 export interface CrawlResult {
@@ -30,6 +34,21 @@ const DEFAULT_LOCALE_PREFIXES = [
   'en', 'fr', 'es', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko', 'ar',
 ];
 
+const SCREENSHOT_DIR = resolve('crawl-screenshots');
+const SCREENSHOT_WIDTH = 1280;
+const SCREENSHOT_HEIGHT = 800;
+
+function screenshotFilename(url: string): string {
+  const hash = createHash('md5').update(url).digest('hex').slice(0, 12);
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/\./g, '_');
+    return `${host}_${hash}.png`;
+  } catch {
+    return `page_${hash}.png`;
+  }
+}
+
 class CrawlService {
   async crawl(url: string, options: CrawlOptions = {}): Promise<CrawlResult> {
     const targetOrigin = new URL(url).origin;
@@ -50,6 +69,11 @@ class CrawlService {
       localePrefixBlocklist,
       proxyUrl: options.proxyUrl ?? '',
     };
+
+    // Ensure screenshot directory exists
+    if (!existsSync(SCREENSHOT_DIR)) {
+      mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    }
 
     // Check sitemap.xml first (free, instant)
     const sitemapUrls = await this.checkSitemap(targetOrigin, normalizedOptions);
@@ -127,12 +151,27 @@ class CrawlService {
       const navigationUrl = this.buildNavigationUrl(origin, normalized, options.proxyConfig);
       const publicUrl = `${origin}${normalized}`;
       page = await browser.newPage();
+
+      // Set desktop viewport for consistent screenshots
+      await page.setViewportSize({ width: SCREENSHOT_WIDTH, height: SCREENSHOT_HEIGHT });
+
       await page.goto(navigationUrl, { waitUntil: 'load', timeout: 10_000 });
 
       // Wait briefly for CSR apps to render
       await page.waitForTimeout(3000);
 
       const title = await page.title();
+
+      // Capture screenshot
+      let screenshotUrl: string | undefined;
+      try {
+        const filename = screenshotFilename(publicUrl);
+        const filepath = join(SCREENSHOT_DIR, filename);
+        await page.screenshot({ path: filepath });
+        screenshotUrl = `/api/crawl-screenshots/${filename}`;
+      } catch (screenshotError) {
+        console.error(`Screenshot failed for ${publicUrl}:`, screenshotError);
+      }
 
       // Extract all internal links from the rendered DOM
       const links = await page.evaluate((params) => {
@@ -228,6 +267,7 @@ class CrawlService {
         path: normalized,
         title: title || parsedUrl.pathname,
         links: cappedLinks,
+        screenshotUrl,
       });
 
       // Follow links at next depth level (capped per request)

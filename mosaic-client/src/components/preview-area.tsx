@@ -16,6 +16,7 @@ interface PreviewAreaProps {
 }
 
 import * as React from "react";
+import { usePreviewStore } from "@/store/preview-store";
 
 export default function PreviewArea({
   selectedDevice,
@@ -38,16 +39,7 @@ export default function PreviewArea({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
 
-  // Detect dark mode from body class
-  const [darkMode, setDarkMode] = React.useState(false);
-  React.useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setDarkMode(document.body.classList.contains("dark"));
-    });
-    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    setDarkMode(document.body.classList.contains("dark"));
-    return () => observer.disconnect();
-  }, []);
+  const { darkMode } = usePreviewStore();
 
   const getDeviceIcon = (iconName: string) => {
     const iconMap: Record<string, string> = {
@@ -196,10 +188,10 @@ export default function PreviewArea({
       {/* Preview Header */}
       <div className="mb-6 flex items-center justify-between">
         <div aria-live="polite">
-          <h2 className="text-lg font-semibold text-gray-900" data-testid="text-device-name">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" data-testid="text-device-name">
             {viewMode === 'comparison' ? `Comparing ${pinnedDevices.length} Devices` : `${selectedDevice.name} Preview`}
           </h2>
-          <p className="text-sm text-gray-600" data-testid="text-device-dimensions">
+          <p className="text-sm text-gray-600 dark:text-gray-400" data-testid="text-device-dimensions">
             {viewMode === 'comparison'
               ? `Side-by-side device comparison`
               : `${deviceWidth} × ${deviceHeight} pixels`}
@@ -257,9 +249,9 @@ export default function PreviewArea({
       ) : (
         <div className="space-y-8">
           {/* Comparison Controls */}
-          <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-4">
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Comparing {pinnedDevices.length} devices
               </span>
               {pinnedDevices.length > 0 && (
@@ -280,14 +272,14 @@ export default function PreviewArea({
           </div>
 
           {pinnedDevices.length === 0 ? (
-            <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
               <div className="text-gray-400 mb-4">
                 <Menu className="h-16 w-16 mx-auto mb-4" />
               </div>
-              <h3 className="text-lg font-medium text-gray-700 mb-2">
+              <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
                 No devices pinned for comparison
               </h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                 Pin devices using the pin icons in the sidebar or press Space while selecting a device.
               </p>
               <div className="flex justify-center space-x-2 text-xs text-gray-400">
@@ -333,13 +325,13 @@ export default function PreviewArea({
                     </div>
                     
                     {/* Device Header */}
-                    <div className="mb-4 flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                       <div className="flex items-center space-x-3">
                         <span className="text-lg">
                           {getDeviceIcon(device.icon)}
                         </span>
                         <div>
-                          <h4 className="font-medium text-gray-900">{device.name}</h4>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">{device.name}</h4>
                           <p className="text-xs text-gray-500">{device.width} × {device.height}</p>
                         </div>
                       </div>
@@ -375,7 +367,7 @@ export default function PreviewArea({
               
               {/* Instructions */}
               {pinnedDevices.length > 0 && (
-                <div className="absolute top-4 right-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2 text-sm text-gray-600">
                       <Move className="w-4 h-4" />
@@ -400,12 +392,12 @@ export default function PreviewArea({
 
       {/* Quick Actions */}
       <div className="mt-12 flex justify-center">
-        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRotate}
-            className="flex items-center text-gray-700 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
             data-testid="button-rotate"
             aria-label="Rotate device orientation"
           >
@@ -417,7 +409,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleZoomIn}
-            className="flex items-center text-gray-700 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
             data-testid="button-zoom-in"
             aria-label="Zoom in"
           >
@@ -428,7 +420,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleZoomOut}
-            className="flex items-center text-gray-700 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
             data-testid="button-zoom-out"
             aria-label="Zoom out"
           >
@@ -440,7 +432,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleResetZoom}
-            className="flex items-center text-gray-700 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
             data-testid="button-reset-zoom"
             aria-label="Fit to screen"
           >

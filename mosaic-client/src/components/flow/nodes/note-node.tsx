@@ -14,8 +14,8 @@ function NoteNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 bg-yellow-50 shadow-sm min-w-[140px] max-w-[240px] ${
-        selected ? "border-yellow-500 shadow-yellow-100" : "border-yellow-200"
+      className={`px-4 py-3 rounded-lg border-2 bg-yellow-50 dark:bg-yellow-900/30 shadow-sm min-w-[140px] max-w-[240px] ${
+        selected ? "border-yellow-500 shadow-yellow-100" : "border-yellow-200 dark:border-yellow-700"
       }`}
     >
       <div className="flex items-start gap-2">
@@ -31,7 +31,7 @@ function NoteNode({ id, data, selected }: NodeProps) {
           />
         ) : (
           <span
-            className="text-xs text-gray-700 cursor-text whitespace-pre-wrap"
+            className="text-xs text-gray-700 dark:text-gray-300 cursor-text whitespace-pre-wrap"
             onDoubleClick={() => setEditing(true)}
           >
             {label}

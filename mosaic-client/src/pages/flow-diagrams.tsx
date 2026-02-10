@@ -27,7 +27,7 @@ import NoteNode from "@/components/flow/nodes/note-node";
 import { useFlowStorage } from "@/hooks/use-flow-storage";
 import { usePreviewStore } from "@/store/preview-store";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Globe, Loader2, RefreshCw, X } from "lucide-react";
+import { ExternalLink, Globe, Loader2, RefreshCw, X, AlertTriangle } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const DEFAULT_LOCALE_PREFIXES = [
@@ -60,6 +60,7 @@ interface CrawlPageInfo {
   title: string;
   links: string[];
   error?: string;
+  screenshotUrl?: string;
 }
 
 interface CrawlResult {
@@ -191,6 +192,14 @@ function layoutPages(
 
   const rootUrl = rootPage?.url || crawlResult.startUrl;
 
+  // Build a map from path to screenshotUrl for quick lookup
+  const pathToScreenshot = new Map<string, string>();
+  for (const page of crawlResult.pages) {
+    if (page.screenshotUrl) {
+      pathToScreenshot.set(normalizePath(page.path), page.screenshotUrl);
+    }
+  }
+
   const rootId = nextId();
   nodeIdMap.set(rootPath, rootId);
   nodes.push({
@@ -201,6 +210,7 @@ function layoutPages(
       label: labelFromPath(rootPath),
       url: rootUrl,
       path: rootPath,
+      screenshotUrl: pathToScreenshot.get(rootPath),
     },
   });
 
@@ -273,6 +283,7 @@ function layoutPages(
         childCount: children.size,
         expanded,
         onToggleGroup,
+        screenshotUrl: pathToScreenshot.get(groupKey),
       },
     });
 
@@ -304,6 +315,7 @@ function layoutPages(
             url: childUrl,
             path: pathKey,
             parentGroup: groupKey,
+            screenshotUrl: pathToScreenshot.get(pathKey),
           },
         });
         edges.push({
@@ -352,8 +364,8 @@ function FlowEditor() {
   const [flowName, setFlowName] = useState("Untitled Flow");
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
-  const [selectedPage, setSelectedPage] = useState<{ url: string; label: string; path: string } | null>(null);
-  const [hoveredPage, setHoveredPage] = useState<{ url: string; label: string; path: string } | null>(null);
+  const [selectedPage, setSelectedPage] = useState<{ url: string; label: string; path: string; screenshotUrl?: string } | null>(null);
+  const [hoveredPage, setHoveredPage] = useState<{ url: string; label: string; path: string; screenshotUrl?: string } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(DEFAULT_CRAWL_OPTIONS);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -448,15 +460,21 @@ function FlowEditor() {
     }
   }, [setNodes, setEdges, reactFlowInstance, setSelectedPage, setHoveredPage, proxyUrl, crawlOptions, handleToggleGroup]);
 
-  // Auto-discover pages when the component mounts with a URL
-  useEffect(() => {
-    if (!currentUrl || hasAutoDiscoveredRef.current === currentUrl) return;
-    // Only auto-discover if canvas is empty (don't overwrite manual work)
-    if (nodes.length > 0) return;
+  // Detect when currentUrl changed to a different site (render-time, no effect needed)
+  // Following "You Might Not Need an Effect" — derive state during render
+  const prevCurrentUrlRef = useRef(currentUrl);
+  const [urlChangedPrompt, setUrlChangedPrompt] = useState<string | null>(null);
 
-    discoverPages(currentUrl, crawlOptions);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, discoverPages]);
+  if (currentUrl !== prevCurrentUrlRef.current) {
+    prevCurrentUrlRef.current = currentUrl;
+    if (currentUrl && nodes.length > 0 && hasAutoDiscoveredRef.current && hasAutoDiscoveredRef.current !== currentUrl) {
+      // URL changed and we have existing flow data — show prompt
+      setUrlChangedPrompt(currentUrl);
+    } else if (currentUrl && nodes.length === 0 && hasAutoDiscoveredRef.current !== currentUrl) {
+      // Canvas is empty and URL is new — auto-discover immediately
+      discoverPages(currentUrl, crawlOptions);
+    }
+  }
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -625,7 +643,8 @@ function FlowEditor() {
     if (!url) return;
     const label = String(node.data?.label || url);
     const path = typeof node.data?.path === "string" ? node.data.path : "";
-    setSelectedPage({ url, label, path });
+    const screenshotUrl = typeof node.data?.screenshotUrl === "string" ? node.data.screenshotUrl : undefined;
+    setSelectedPage({ url, label, path, screenshotUrl });
     setHoveredPage(null);
   }, []);
 
@@ -634,7 +653,8 @@ function FlowEditor() {
     if (!url) return;
     const label = String(node.data?.label || url);
     const path = typeof node.data?.path === "string" ? node.data.path : "";
-    setHoveredPage({ url, label, path });
+    const screenshotUrl = typeof node.data?.screenshotUrl === "string" ? node.data.screenshotUrl : undefined;
+    setHoveredPage({ url, label, path, screenshotUrl });
   }, []);
 
   const handleNodeHoverEnd = useCallback(() => {
@@ -659,7 +679,7 @@ function FlowEditor() {
   }, [nodes, searchQuery, highlightedNodes]);
 
   return (
-    <div className="bg-gray-50">
+    <div className="bg-gray-50 dark:bg-gray-900">
       <Header />
       <div className="flex h-screen pt-16">
         <FlowSidebar
@@ -677,13 +697,44 @@ function FlowEditor() {
           onCrawlOptionsChange={setCrawlOptions}
         />
         <div className="flex-1 relative" ref={reactFlowWrapper}>
+          {/* URL changed prompt — shown when user navigated away and came back with a different URL */}
+          {urlChangedPrompt && !crawling && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded-lg shadow-lg p-4 flex items-center gap-3 max-w-lg">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">URL changed</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Discover flow for <strong>{urlChangedPrompt}</strong>?</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setUrlChangedPrompt(null);
+                    handleClear();
+                    discoverPages(urlChangedPrompt, crawlOptions);
+                  }}
+                >
+                  <Globe className="w-4 h-4 mr-1" />
+                  Discover
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUrlChangedPrompt(null)}
+                >
+                  Keep
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Discover Pages banner — shows when URL is loaded but canvas is empty */}
-          {currentUrl && nodes.length === 0 && !crawling && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-4 flex items-center gap-3 max-w-lg">
+          {currentUrl && nodes.length === 0 && !crawling && !urlChangedPrompt && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 flex items-center gap-3 max-w-lg">
               <Globe className="w-5 h-5 text-blue-500 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900">Discover site pages</p>
-                <p className="text-xs text-gray-500 truncate">{currentUrl}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Discover site pages</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUrl}</p>
                 {crawlError && (
                   <p className="text-xs text-red-600 mt-1">{crawlError}</p>
                 )}
@@ -701,17 +752,17 @@ function FlowEditor() {
 
           {/* Crawling indicator */}
           {crawling && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white border border-blue-200 rounded-lg shadow-lg p-4 flex items-center gap-3">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg shadow-lg p-4 flex items-center gap-3">
               <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
               <div>
-                <p className="text-sm font-medium text-gray-900">Discovering pages...</p>
-                <p className="text-xs text-gray-500">Loading site and extracting navigation links</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Discovering pages...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Loading site and extracting navigation links</p>
               </div>
             </div>
           )}
 
           {/* Re-discover button when flow is populated */}
-          {currentUrl && nodes.length > 0 && !crawling && (
+          {currentUrl && nodes.length > 0 && !crawling && !urlChangedPrompt && (
             <div className="absolute top-4 right-4 z-10">
               <Button
                 variant="outline"
@@ -720,7 +771,7 @@ function FlowEditor() {
                   handleClear();
                   discoverPages(currentUrl, crawlOptions);
                 }}
-                className="bg-white shadow-sm"
+                className="bg-white dark:bg-gray-800 shadow-sm"
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 Re-discover
@@ -762,31 +813,34 @@ function FlowEditor() {
             </Panel>
             {hoveredPage && !selectedPage && (
               <Panel position="bottom-right">
-                <div className="w-72 h-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  <div className="px-3 py-2 border-b border-gray-100 text-[10px] font-medium text-gray-700 truncate">
+                <div className="w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
                     {hoveredPage.label}
                   </div>
-                  <iframe
-                    title={`Preview of ${hoveredPage.url}`}
-                    src={(() => {
-                      const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
-                      if (proxyBase && hoveredPage.path) {
-                        return `${proxyBase}${hoveredPage.path}`;
-                      }
-                      return hoveredPage.url;
-                    })()}
-                    className="w-full h-[calc(100%-30px)] border-0"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  />
+                  {hoveredPage.screenshotUrl ? (
+                    <img
+                      src={hoveredPage.screenshotUrl}
+                      alt={`Preview of ${hoveredPage.label}`}
+                      className="w-full h-auto object-cover max-h-48"
+                      loading="eager"
+                    />
+                  ) : (
+                    <div className="w-full h-36 flex items-center justify-center bg-gray-50 dark:bg-gray-700">
+                      <div className="text-center">
+                        <Globe className="w-6 h-6 text-gray-300 dark:text-gray-500 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500">No preview available</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Panel>
             )}
           </ReactFlow>
           {selectedPage && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white w-[90vw] h-[80vh] max-w-5xl rounded-xl shadow-2xl overflow-hidden border border-gray-200">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                  <div className="text-sm font-semibold text-gray-800 truncate">
+              <div className="bg-white dark:bg-gray-800 w-[95vw] max-w-6xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
                     {selectedPage.label}
                   </div>
                   <div className="flex items-center gap-2">
@@ -816,18 +870,37 @@ function FlowEditor() {
                     </Button>
                   </div>
                 </div>
-                <iframe
-                  title={`Preview of ${selectedPage.url}`}
-                  src={(() => {
-                    const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
-                    if (proxyBase && selectedPage.path) {
-                      return `${proxyBase}${selectedPage.path}`;
-                    }
-                    return selectedPage.url;
-                  })()}
-                  className="w-full h-[calc(100%-56px)] border-0"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
+                <div className="flex-1 overflow-auto p-4 bg-gray-50 dark:bg-gray-900 flex items-start justify-center">
+                  {selectedPage.screenshotUrl ? (
+                    <img
+                      src={selectedPage.screenshotUrl}
+                      alt={`Screenshot of ${selectedPage.label}`}
+                      className="w-full max-w-full h-auto rounded-lg shadow-md"
+                    />
+                  ) : (
+                    <div className="w-full h-64 flex items-center justify-center">
+                      <div className="text-center">
+                        <Globe className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No screenshot available for this page</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => {
+                            const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
+                            const previewUrl = proxyBase && selectedPage.path
+                              ? `${proxyBase}${selectedPage.path}`
+                              : selectedPage.url;
+                            window.open(previewUrl, "_blank", "noopener,noreferrer");
+                          }}
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Open in new tab
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
