@@ -16,8 +16,16 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
+
+export interface CrawlOptions {
+  depth: number;
+  maxLinksPerPage: number;
+  includeHash: boolean;
+  includeQuery: boolean;
+  localePrefixBlocklist: string[];
+}
 
 interface FlowSidebarProps {
   flowName: string;
@@ -29,7 +37,9 @@ interface FlowSidebarProps {
   savedFlows: string[];
   onLoadFlow: (name: string) => void;
   onDeleteFlow: (name: string) => void;
-  onGenerateFromUrl?: (url: string) => Promise<void>;
+  onGenerateFromUrl?: (url: string, options: CrawlOptions) => Promise<void>;
+  crawlOptions: CrawlOptions;
+  onCrawlOptionsChange: (options: CrawlOptions) => void;
 }
 
 const NODE_TYPES = [
@@ -81,11 +91,18 @@ export default function FlowSidebar({
   onLoadFlow,
   onDeleteFlow,
   onGenerateFromUrl,
+  crawlOptions,
+  onCrawlOptionsChange,
 }: FlowSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawling, setCrawling] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
+  const [localeInput, setLocaleInput] = useState(crawlOptions.localePrefixBlocklist.join(", "));
+
+  useEffect(() => {
+    setLocaleInput(crawlOptions.localePrefixBlocklist.join(", "));
+  }, [crawlOptions.localePrefixBlocklist]);
 
   const handleCrawl = async () => {
     if (!crawlUrl.trim() || !onGenerateFromUrl) return;
@@ -96,12 +113,28 @@ export default function FlowSidebar({
     setCrawling(true);
     setCrawlError(null);
     try {
-      await onGenerateFromUrl(finalUrl);
+      await onGenerateFromUrl(finalUrl, crawlOptions);
     } catch (err) {
       setCrawlError(err instanceof Error ? err.message : "Crawl failed");
     } finally {
       setCrawling(false);
     }
+  };
+
+  const updateOption = <K extends keyof CrawlOptions>(key: K, value: CrawlOptions[K]) => {
+    onCrawlOptionsChange({
+      ...crawlOptions,
+      [key]: value,
+    });
+  };
+
+  const handleLocaleChange = (value: string) => {
+    setLocaleInput(value);
+    const parsed = value
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+    updateOption("localePrefixBlocklist", parsed);
   };
 
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
@@ -203,6 +236,62 @@ export default function FlowSidebar({
         <p className="text-[10px] text-gray-400 mt-1">
           Enter a URL to auto-generate a site flow
         </p>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] font-medium text-gray-500">Depth</Label>
+            <Input
+              type="number"
+              min={0}
+              max={3}
+              value={crawlOptions.depth}
+              onChange={(e) => updateOption("depth", Number(e.target.value))}
+              className="h-7 w-16 text-xs"
+              disabled={crawling}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] font-medium text-gray-500">Max links/page</Label>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={crawlOptions.maxLinksPerPage}
+              onChange={(e) => updateOption("maxLinksPerPage", Number(e.target.value))}
+              className="h-7 w-16 text-xs"
+              disabled={crawling}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-[10px] text-gray-500">
+              <input
+                type="checkbox"
+                checked={crawlOptions.includeQuery}
+                onChange={(e) => updateOption("includeQuery", e.target.checked)}
+                disabled={crawling}
+              />
+              Include query
+            </label>
+            <label className="flex items-center gap-2 text-[10px] text-gray-500">
+              <input
+                type="checkbox"
+                checked={crawlOptions.includeHash}
+                onChange={(e) => updateOption("includeHash", e.target.checked)}
+                disabled={crawling}
+              />
+              Include hash
+            </label>
+          </div>
+          <div>
+            <Label className="text-[10px] font-medium text-gray-500">Locale prefixes</Label>
+            <Input
+              value={localeInput}
+              onChange={(e) => handleLocaleChange(e.target.value)}
+              placeholder="en, fr, es"
+              className="h-7 text-xs mt-1"
+              disabled={crawling}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Node Palette */}

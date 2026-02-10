@@ -26,6 +26,14 @@ describe('Flow Sidebar', () => {
     savedFlows: [] as string[],
     onLoadFlow: vi.fn(),
     onDeleteFlow: vi.fn(),
+    crawlOptions: {
+      depth: 1,
+      maxLinksPerPage: 15,
+      includeHash: true,
+      includeQuery: true,
+      localePrefixBlocklist: ['en', 'fr'],
+    },
+    onCrawlOptionsChange: vi.fn(),
   };
 
   beforeEach(() => {

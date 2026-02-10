@@ -7,6 +7,10 @@ function PageNode({ id, data, selected }: NodeProps) {
   const [label, setLabel] = useState(String(data.label || "Page"));
   const { setNodes } = useReactFlow();
 
+  const isGroup = Boolean(data?.isGroup);
+  const childCount = typeof data?.childCount === "number" ? data.childCount : 0;
+  const expanded = Boolean(data?.expanded);
+
   const commitLabel = useCallback(() => {
     setEditing(false);
     setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, label } } : n));
@@ -21,6 +25,18 @@ function PageNode({ id, data, selected }: NodeProps) {
       <Handle type="target" position={Position.Top} className="!bg-blue-500 !w-3 !h-3" />
       <div className="flex items-center gap-2">
         <Globe className="w-4 h-4 text-blue-500 shrink-0" />
+        {isGroup && childCount > 0 && (
+          <button
+            className="text-[10px] px-1.5 py-0.5 rounded border border-blue-200 text-blue-600"
+            onClick={(event) => {
+              event.stopPropagation();
+              data?.onToggleGroup?.(data?.groupKey);
+            }}
+            aria-label={expanded ? "Collapse group" : "Expand group"}
+          >
+            {expanded ? "-" : "+"} {childCount}
+          </button>
+        )}
         {editing ? (
           <input
             className="text-sm font-medium bg-transparent border-b border-blue-300 outline-none w-full"

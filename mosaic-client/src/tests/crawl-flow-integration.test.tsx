@@ -29,6 +29,14 @@ describe('Generate flow from URL', () => {
     savedFlows: [] as string[],
     onLoadFlow: vi.fn(),
     onDeleteFlow: vi.fn(),
+    crawlOptions: {
+      depth: 1,
+      maxLinksPerPage: 15,
+      includeHash: true,
+      includeQuery: true,
+      localePrefixBlocklist: ['en', 'fr'],
+    },
+    onCrawlOptionsChange: vi.fn(),
   };
 
   describe('sidebar crawl UI', () => {
@@ -68,7 +76,7 @@ describe('Generate flow from URL', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
 
       await waitFor(() => {
-        expect(onGenerateFromUrl).toHaveBeenCalledWith('https://example.com');
+        expect(onGenerateFromUrl).toHaveBeenCalledWith('https://example.com', baseProps.crawlOptions);
       });
     });
 
@@ -81,7 +89,7 @@ describe('Generate flow from URL', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
 
       await waitFor(() => {
-        expect(onGenerateFromUrl).toHaveBeenCalledWith('https://example.com');
+        expect(onGenerateFromUrl).toHaveBeenCalledWith('https://example.com', baseProps.crawlOptions);
       });
     });
 
@@ -94,7 +102,7 @@ describe('Generate flow from URL', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
 
       await waitFor(() => {
-        expect(onGenerateFromUrl).toHaveBeenCalledWith('http://localhost:3000');
+        expect(onGenerateFromUrl).toHaveBeenCalledWith('http://localhost:3000', baseProps.crawlOptions);
       });
     });
 

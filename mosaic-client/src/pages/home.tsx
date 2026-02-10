@@ -7,12 +7,11 @@ import { usePreviewStore } from "@/store/preview-store";
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]); // Default to iPhone 14
-  const { currentUrl, setCurrentUrl } = usePreviewStore();
+  const { currentUrl, setCurrentUrl, proxyUrl, setProxyUrl } = usePreviewStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<'single' | 'comparison'>('single');
   const [reloadTrigger, setReloadTrigger] = useState(0); // Increment to trigger reload
-  const [proxyUrl, setProxyUrl] = useState<string | null>(null); // Proxy URL for auth preview
 
   const handleDeviceSelect = (device: Device) => {
     setSelectedDevice(device);

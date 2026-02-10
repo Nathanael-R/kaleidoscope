@@ -22,12 +22,22 @@ beforeEach(() => {
 });
 
 // Simulate the crawl API call the way discoverPages does it
-async function callCrawlApi(url: string, depth = 1) {
+async function callCrawlApi(
+  url: string,
+  depth = 1,
+  options: {
+    proxyUrl?: string;
+    maxLinksPerPage?: number;
+    includeHash?: boolean;
+    includeQuery?: boolean;
+    localePrefixBlocklist?: string[];
+  } = {}
+) {
   const API_BASE = 'http://localhost:5000';
   const res = await fetch(`${API_BASE}/api/crawl`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, depth }),
+    body: JSON.stringify({ url, depth, ...options }),
   });
 
   if (!res.ok) {
@@ -124,6 +134,36 @@ describe('/api/crawl contract', () => {
       expect(errorPage.error).toBe('Navigation timeout');
       expect(errorPage.title).toBe('Error loading page');
     });
+
+    it('should include optional crawl parameters when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          startUrl: 'https://example.com',
+          pages: [{ url: 'https://example.com', path: '/', title: 'Example', links: [] }],
+          sitemapUrls: [],
+        }),
+      });
+
+      await callCrawlApi('https://example.com', 2, {
+        proxyUrl: 'http://localhost:5000/api/proxy/sess123/',
+        maxLinksPerPage: 25,
+        includeHash: true,
+        includeQuery: true,
+        localePrefixBlocklist: ['en', 'fr'],
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toEqual({
+        url: 'https://example.com',
+        depth: 2,
+        proxyUrl: 'http://localhost:5000/api/proxy/sess123/',
+        maxLinksPerPage: 25,
+        includeHash: true,
+        includeQuery: true,
+        localePrefixBlocklist: ['en', 'fr'],
+      });
+    });
   });
 
   describe('error handling', () => {
@@ -204,44 +244,103 @@ describe('layoutPages behavior', () => {
     let idCounter = 0;
     function nextId() { return `node_${++idCounter}`; }
 
-    const allPaths = new Set(crawlResult.pages.map(p => p.path));
+    const hostname = (() => {
+      try { return new URL(crawlResult.startUrl).hostname; } catch { return ''; }
+    })();
+
+    const normalizePath = (path: string | undefined) => {
+      if (!path) return '/';
+      if (path.startsWith('/')) return path || '/';
+      return `/${path}`;
+    };
+
+    const stripQueryHash = (path: string) => {
+      const queryIndex = path.indexOf('?');
+      const hashIndex = path.indexOf('#');
+      const cutIndex = Math.min(
+        queryIndex === -1 ? path.length : queryIndex,
+        hashIndex === -1 ? path.length : hashIndex
+      );
+      return path.slice(0, cutIndex) || '/';
+    };
+
+    const titleCase = (value: string) => {
+      return value
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
+    const labelFromPath = (pathKey: string) => {
+      const basePath = stripQueryHash(pathKey);
+      if (basePath === '/' || basePath === '') return hostname || basePath || '/';
+      const segments = basePath.split('/').filter(Boolean);
+      const lastSegment = segments[segments.length - 1] || basePath;
+      return titleCase(lastSegment);
+    };
+
+    const getGroupKey = (pathKey: string) => {
+      const basePath = stripQueryHash(pathKey);
+      if (basePath === '/') return '/';
+      const segments = basePath.split('/').filter(Boolean);
+      return segments.length > 0 ? `/${segments[0]}` : '/';
+    };
+
+    const allPaths = new Set(crawlResult.pages.map(p => normalizePath(p.path)));
     for (const sitemapUrl of crawlResult.sitemapUrls) {
-      try { allPaths.add(new URL(sitemapUrl).pathname); } catch { /* ignore */ }
+      try { allPaths.add(normalizePath(new URL(sitemapUrl).pathname)); } catch { /* ignore */ }
     }
 
     const rootPage = crawlResult.pages[0];
-    if (!rootPage) return { nodes, edges };
+    if (!rootPage && crawlResult.sitemapUrls.length === 0) return { nodes, edges };
+
+    const rootPath = rootPage
+      ? normalizePath(rootPage.path)
+      : (() => {
+          try { return normalizePath(new URL(crawlResult.startUrl).pathname); } catch { return '/'; }
+        })();
 
     const rootId = nextId();
-    nodeIdMap.set(rootPage.path, rootId);
-    nodes.push({ id: rootId, type: 'page', data: { label: rootPage.title || rootPage.path } });
+    nodeIdMap.set(rootPath, rootId);
+    nodes.push({ id: rootId, type: 'page', data: { label: labelFromPath(rootPath) } });
 
     const childPaths = new Set<string>();
-    for (const link of rootPage.links) {
-      if (link !== rootPage.path) childPaths.add(link);
+    if (rootPage) {
+      for (const link of rootPage.links) {
+        const normalized = normalizePath(link);
+        if (normalized !== rootPath) childPaths.add(normalized);
+      }
     }
     for (const page of crawlResult.pages.slice(1)) {
-      childPaths.add(page.path);
+      childPaths.add(normalizePath(page.path));
     }
     for (const path of allPaths) {
-      if (path !== rootPage.path) childPaths.add(path);
+      if (path !== rootPath) childPaths.add(path);
     }
 
-    const sortedChildren = [...childPaths].sort();
-    sortedChildren.forEach((path) => {
+    const groupedPaths = new Map<string, Set<string>>();
+    for (const pathKey of childPaths) {
+      const groupKey = getGroupKey(pathKey);
+      if (groupKey === rootPath) continue;
+      if (!groupedPaths.has(groupKey)) groupedPaths.set(groupKey, new Set());
+      groupedPaths.get(groupKey)!.add(pathKey);
+    }
+
+    const sortedGroups = [...groupedPaths.keys()].sort();
+    sortedGroups.forEach((groupKey) => {
       const nodeId = nextId();
-      nodeIdMap.set(path, nodeId);
-      const crawledPage = crawlResult.pages.find(p => p.path === path);
-      nodes.push({ id: nodeId, type: 'page', data: { label: crawledPage?.title || path } });
+      nodeIdMap.set(groupKey, nodeId);
+      nodes.push({ id: nodeId, type: 'page', data: { label: labelFromPath(groupKey) } });
       edges.push({ id: `edge_${rootId}_${nodeId}`, source: rootId, target: nodeId });
     });
 
     for (const page of crawlResult.pages.slice(1)) {
-      const sourceId = nodeIdMap.get(page.path);
+      const sourceKey = normalizePath(page.path);
+      const sourceId = nodeIdMap.get(sourceKey) || nodeIdMap.get(getGroupKey(sourceKey));
       if (!sourceId) continue;
       for (const link of page.links) {
-        if (link === page.path) continue;
-        const targetId = nodeIdMap.get(link);
+        const normalized = normalizePath(link);
+        if (normalized === normalizePath(page.path)) continue;
+        const targetId = nodeIdMap.get(normalized) || nodeIdMap.get(getGroupKey(normalized));
         if (!targetId) continue;
         const edgeId = `edge_${sourceId}_${targetId}`;
         if (!edges.some(e => e.id === edgeId)) {
@@ -264,12 +363,12 @@ describe('layoutPages behavior', () => {
 
     // Root + 2 children = 3 nodes
     expect(result.nodes).toHaveLength(3);
-    expect(result.nodes[0].data.label).toBe('Home');
+    expect(result.nodes[0].data.label).toBe('example.com');
     // 2 edges from root to each child
     expect(result.edges).toHaveLength(2);
   });
 
-  it('should use page titles as node labels, falling back to path', () => {
+  it('should use title-cased route labels', () => {
     const result = layoutPages({
       startUrl: 'https://example.com',
       pages: [
@@ -280,9 +379,24 @@ describe('layoutPages behavior', () => {
     });
 
     const labels = result.nodes.map(n => n.data.label);
-    expect(labels).toContain('Home');
-    expect(labels).toContain('About Us');
-    expect(labels).toContain('/no-title'); // fallback to path
+    expect(labels).toContain('example.com');
+    expect(labels).toContain('About');
+    expect(labels).toContain('No Title');
+  });
+
+  it('should fall back to sitemap URLs when no pages are crawled', () => {
+    const result = layoutPages({
+      startUrl: 'https://example.com',
+      pages: [],
+      sitemapUrls: ['https://example.com/blog', 'https://example.com/faq'],
+    });
+
+    // Root + 2 sitemap pages = 3 nodes
+    expect(result.nodes).toHaveLength(3);
+    const labels = result.nodes.map(n => n.data.label);
+    expect(labels).toContain('example.com');
+    expect(labels).toContain('Blog');
+    expect(labels).toContain('Faq');
   });
 
   it('should include sitemap URLs as nodes even if not crawled', () => {
@@ -297,8 +411,8 @@ describe('layoutPages behavior', () => {
     // Root + 2 sitemap pages = 3 nodes
     expect(result.nodes).toHaveLength(3);
     const labels = result.nodes.map(n => n.data.label);
-    expect(labels).toContain('/blog');
-    expect(labels).toContain('/faq');
+      expect(labels).toContain('Blog');
+      expect(labels).toContain('Faq');
   });
 
   it('should deduplicate pages that appear in both crawl and sitemap', () => {

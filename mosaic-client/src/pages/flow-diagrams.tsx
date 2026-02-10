@@ -18,7 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import Header from "@/components/header";
-import FlowSidebar from "@/components/flow/flow-sidebar";
+import FlowSidebar, { type CrawlOptions } from "@/components/flow/flow-sidebar";
 import FlowSearch from "@/components/flow/flow-search";
 import PageNode from "@/components/flow/nodes/page-node";
 import ActionNode from "@/components/flow/nodes/action-node";
@@ -27,9 +27,20 @@ import NoteNode from "@/components/flow/nodes/note-node";
 import { useFlowStorage } from "@/hooks/use-flow-storage";
 import { usePreviewStore } from "@/store/preview-store";
 import { Button } from "@/components/ui/button";
-import { Loader2, Globe, RefreshCw } from "lucide-react";
+import { ExternalLink, Globe, Loader2, RefreshCw, X } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const DEFAULT_LOCALE_PREFIXES = [
+  "en", "fr", "es", "de", "it", "pt", "nl", "ru", "zh", "ja", "ko", "ar",
+];
+
+const DEFAULT_CRAWL_OPTIONS: CrawlOptions = {
+  depth: 1,
+  maxLinksPerPage: 15,
+  includeHash: true,
+  includeQuery: true,
+  localePrefixBlocklist: DEFAULT_LOCALE_PREFIXES,
+};
 
 const nodeTypes: NodeTypes = {
   page: PageNode,
@@ -58,24 +69,107 @@ interface CrawlResult {
 }
 
 /** Layout discovered pages as a tree: root at top, children fanning out below */
-function layoutPages(crawlResult: CrawlResult): { nodes: Node[]; edges: Edge[] } {
+function layoutPages(
+  crawlResult: CrawlResult,
+  expandedGroups: Set<string>,
+  onToggleGroup: (groupKey: string) => void
+): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const nodeIdMap = new Map<string, string>(); // path -> nodeId
   let idCounter = 0;
+
+  const origin = (() => {
+    try {
+      return new URL(crawlResult.startUrl).origin;
+    } catch {
+      return "";
+    }
+  })();
+
+  const hostname = (() => {
+    try {
+      return new URL(crawlResult.startUrl).hostname;
+    } catch {
+      return "";
+    }
+  })();
+
+  const normalizePath = (path: string | undefined) => {
+    if (!path) return "/";
+    if (path.startsWith("/")) return path || "/";
+    return `/${path}`;
+  };
+
+  const stripQueryHash = (path: string) => {
+    const queryIndex = path.indexOf("?");
+    const hashIndex = path.indexOf("#");
+    const cutIndex = Math.min(
+      queryIndex === -1 ? path.length : queryIndex,
+      hashIndex === -1 ? path.length : hashIndex
+    );
+    return path.slice(0, cutIndex) || "/";
+  };
+
+  const getGroupKey = (pathKey: string) => {
+    const basePath = stripQueryHash(pathKey);
+    if (basePath === "/") return "/";
+    const segments = basePath.split("/").filter(Boolean);
+    return segments.length > 0 ? `/${segments[0]}` : "/";
+  };
+
+  const titleCase = (value: string) => {
+    return value
+      .replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const labelFromPath = (pathKey: string) => {
+    const basePath = stripQueryHash(pathKey);
+    if (basePath === "/" || basePath === "") {
+      return hostname || basePath || "/";
+    }
+    const segments = basePath.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1] || basePath;
+    return titleCase(lastSegment);
+  };
+
+  const pathToUrl = new Map<string, string>();
+  const basePathToUrl = new Map<string, string>();
+  for (const page of crawlResult.pages) {
+    const normalized = normalizePath(page.path);
+    const basePath = stripQueryHash(normalized);
+    pathToUrl.set(normalized, page.url);
+    if (!basePathToUrl.has(basePath) || normalized === basePath) {
+      basePathToUrl.set(basePath, page.url);
+    }
+  }
+  for (const sitemapUrl of crawlResult.sitemapUrls) {
+    try {
+      const parsed = new URL(sitemapUrl);
+      const normalized = normalizePath(parsed.pathname);
+      const basePath = stripQueryHash(normalized);
+      pathToUrl.set(normalized, parsed.toString());
+      if (!basePathToUrl.has(basePath)) {
+        basePathToUrl.set(basePath, parsed.toString());
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   function nextId() {
     return `node_${++idCounter}`;
   }
 
   // Build a set of all discovered paths for cross-referencing
-  const allPaths = new Set(crawlResult.pages.map(p => p.path));
+  const allPaths = new Set(crawlResult.pages.map(p => normalizePath(p.path)));
 
   // Also include sitemap paths
   for (const sitemapUrl of crawlResult.sitemapUrls) {
     try {
       const parsed = new URL(sitemapUrl);
-      allPaths.add(parsed.pathname);
+      allPaths.add(normalizePath(parsed.pathname));
     } catch {
       // ignore
     }
@@ -83,54 +177,85 @@ function layoutPages(crawlResult: CrawlResult): { nodes: Node[]; edges: Edge[] }
 
   // Create the root node (the crawl start page)
   const rootPage = crawlResult.pages[0];
-  if (!rootPage) return { nodes, edges };
+  if (!rootPage && crawlResult.sitemapUrls.length === 0) return { nodes, edges };
+
+  const rootPath = rootPage
+    ? normalizePath(rootPage.path)
+    : (() => {
+        try {
+          return normalizePath(new URL(crawlResult.startUrl).pathname);
+        } catch {
+          return "/";
+        }
+      })();
+
+  const rootUrl = rootPage?.url || crawlResult.startUrl;
 
   const rootId = nextId();
-  nodeIdMap.set(rootPage.path, rootId);
+  nodeIdMap.set(rootPath, rootId);
   nodes.push({
     id: rootId,
     type: "page",
     position: { x: 0, y: 0 },
-    data: { label: rootPage.title || rootPage.path },
+    data: {
+      label: labelFromPath(rootPath),
+      url: rootUrl,
+      path: rootPath,
+    },
   });
 
   // Collect all unique child paths (linked from the root)
   const childPaths = new Set<string>();
-  for (const link of rootPage.links) {
-    if (link !== rootPage.path) {
-      childPaths.add(link);
+  if (rootPage) {
+    for (const link of rootPage.links) {
+      const normalized = normalizePath(link);
+      if (normalized !== rootPath) {
+        childPaths.add(normalized);
+      }
     }
   }
 
   // Add pages discovered from deeper crawl levels
   for (const page of crawlResult.pages.slice(1)) {
-    childPaths.add(page.path);
+    childPaths.add(normalizePath(page.path));
   }
 
   // Add sitemap-only pages not already in childPaths
   for (const path of allPaths) {
-    if (path !== rootPage.path) {
+    if (path !== rootPath) {
       childPaths.add(path);
     }
   }
 
+  const groupedPaths = new Map<string, Set<string>>();
+  for (const pathKey of childPaths) {
+    const groupKey = getGroupKey(pathKey);
+    if (groupKey === rootPath) continue;
+    if (!groupedPaths.has(groupKey)) {
+      groupedPaths.set(groupKey, new Set());
+    }
+    groupedPaths.get(groupKey)!.add(pathKey);
+  }
+
   // Layout children in a grid below the root
-  const sortedChildren = [...childPaths].sort();
-  const cols = Math.min(sortedChildren.length, 5);
+  const sortedGroups = [...groupedPaths.keys()].sort();
+  const cols = Math.min(sortedGroups.length, 5);
   const colWidth = 250;
   const rowHeight = 150;
   const startX = -((cols - 1) * colWidth) / 2;
 
-  sortedChildren.forEach((path, i) => {
+  sortedGroups.forEach((groupKey, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
 
     const nodeId = nextId();
-    nodeIdMap.set(path, nodeId);
+    nodeIdMap.set(groupKey, nodeId);
 
-    // Find if we crawled this page (depth > 0)
-    const crawledPage = crawlResult.pages.find(p => p.path === path);
-    const label = crawledPage?.title || path;
+    const basePath = stripQueryHash(groupKey);
+    const label = labelFromPath(groupKey);
+    const url = basePathToUrl.get(basePath) || (origin ? `${origin}${basePath}` : basePath);
+    const children = groupedPaths.get(groupKey) || new Set();
+    const expanded = expandedGroups.has(groupKey);
 
     nodes.push({
       id: nodeId,
@@ -139,7 +264,16 @@ function layoutPages(crawlResult: CrawlResult): { nodes: Node[]; edges: Edge[] }
         x: startX + col * colWidth,
         y: 200 + row * rowHeight,
       },
-      data: { label },
+      data: {
+        label,
+        url,
+        path: groupKey,
+        isGroup: true,
+        groupKey,
+        childCount: children.size,
+        expanded,
+        onToggleGroup,
+      },
     });
 
     // Edge from root to this child
@@ -149,16 +283,50 @@ function layoutPages(crawlResult: CrawlResult): { nodes: Node[]; edges: Edge[] }
       target: nodeId,
       animated: true,
     });
+
+    if (expanded) {
+      const sortedChildren = [...children].sort();
+      const childStartX = startX + col * colWidth - ((sortedChildren.length - 1) * 200) / 2;
+      sortedChildren.forEach((pathKey, childIndex) => {
+        const childId = nextId();
+        nodeIdMap.set(pathKey, childId);
+        const childBase = stripQueryHash(pathKey);
+        const childUrl = pathToUrl.get(pathKey) || basePathToUrl.get(childBase) || (origin ? `${origin}${childBase}` : childBase);
+        nodes.push({
+          id: childId,
+          type: "page",
+          position: {
+            x: childStartX + childIndex * 200,
+            y: 200 + row * rowHeight + 150,
+          },
+          data: {
+            label: labelFromPath(pathKey),
+            url: childUrl,
+            path: pathKey,
+            parentGroup: groupKey,
+          },
+        });
+        edges.push({
+          id: `edge_${nodeId}_${childId}`,
+          source: nodeId,
+          target: childId,
+          animated: true,
+          style: { strokeWidth: 1, strokeDasharray: "4 4" },
+        });
+      });
+    }
   });
 
   // Add cross-links between crawled pages (depth > 0 results)
   for (const page of crawlResult.pages.slice(1)) {
-    const sourceId = nodeIdMap.get(page.path);
+    const sourceKey = normalizePath(page.path);
+    const sourceId = nodeIdMap.get(sourceKey) || nodeIdMap.get(getGroupKey(sourceKey));
     if (!sourceId) continue;
 
     for (const link of page.links) {
-      if (link === page.path) continue; // skip self-links
-      const targetId = nodeIdMap.get(link);
+      const normalized = normalizePath(link);
+      if (normalized === normalizePath(page.path)) continue; // skip self-links
+      const targetId = nodeIdMap.get(normalized) || nodeIdMap.get(getGroupKey(normalized));
       if (!targetId) continue;
 
       const edgeId = `edge_${sourceId}_${targetId}`;
@@ -184,12 +352,17 @@ function FlowEditor() {
   const [flowName, setFlowName] = useState("Untitled Flow");
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
+  const [selectedPage, setSelectedPage] = useState<{ url: string; label: string; path: string } | null>(null);
+  const [hoveredPage, setHoveredPage] = useState<{ url: string; label: string; path: string } | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(DEFAULT_CRAWL_OPTIONS);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const nodeIdCounterRef = useRef(0);
+  const lastCrawlResultRef = useRef<CrawlResult | null>(null);
 
   // Crawl state
-  const { currentUrl } = usePreviewStore();
+  const { currentUrl, proxyUrl } = usePreviewStore();
   const [crawling, setCrawling] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
   const hasAutoDiscoveredRef = useRef<string | null>(null);
@@ -198,7 +371,19 @@ function FlowEditor() {
     return `node_${++nodeIdCounterRef.current}`;
   }
 
-  const discoverPages = useCallback(async (url: string) => {
+  const handleToggleGroup = useCallback((groupKey: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const discoverPages = useCallback(async (url: string, options: CrawlOptions = crawlOptions) => {
     setCrawling(true);
     setCrawlError(null);
 
@@ -206,7 +391,15 @@ function FlowEditor() {
       const res = await fetch(`${API_BASE}/api/crawl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, depth: 1 }),
+        body: JSON.stringify({
+          url,
+          depth: options.depth,
+          maxLinksPerPage: options.maxLinksPerPage,
+          includeHash: options.includeHash,
+          includeQuery: options.includeQuery,
+          localePrefixBlocklist: options.localePrefixBlocklist,
+          proxyUrl: proxyUrl || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -221,10 +414,15 @@ function FlowEditor() {
         return;
       }
 
-      const { nodes: newNodes, edges: newEdges } = layoutPages(result);
+      const nextExpandedGroups = new Set<string>();
+      const { nodes: newNodes, edges: newEdges } = layoutPages(result, nextExpandedGroups, handleToggleGroup);
 
       setNodes(newNodes);
       setEdges(newEdges);
+      setSelectedPage(null);
+      setHoveredPage(null);
+      setExpandedGroups(nextExpandedGroups);
+      lastCrawlResultRef.current = result;
 
       // Update ID counter to avoid collisions with manual additions
       nodeIdCounterRef.current = newNodes.length;
@@ -248,7 +446,7 @@ function FlowEditor() {
     } finally {
       setCrawling(false);
     }
-  }, [setNodes, setEdges, reactFlowInstance]);
+  }, [setNodes, setEdges, reactFlowInstance, setSelectedPage, setHoveredPage, proxyUrl, crawlOptions, handleToggleGroup]);
 
   // Auto-discover pages when the component mounts with a URL
   useEffect(() => {
@@ -256,7 +454,7 @@ function FlowEditor() {
     // Only auto-discover if canvas is empty (don't overwrite manual work)
     if (nodes.length > 0) return;
 
-    discoverPages(currentUrl);
+    discoverPages(currentUrl, crawlOptions);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUrl, discoverPages]);
 
@@ -416,7 +614,44 @@ function FlowEditor() {
     setNodes([]);
     setEdges([]);
     hasAutoDiscoveredRef.current = null;
-  }, [setNodes, setEdges]);
+    setSelectedPage(null);
+    setHoveredPage(null);
+    setExpandedGroups(new Set());
+    lastCrawlResultRef.current = null;
+  }, [setNodes, setEdges, setSelectedPage, setHoveredPage]);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    const url = typeof node.data?.url === "string" ? node.data.url : "";
+    if (!url) return;
+    const label = String(node.data?.label || url);
+    const path = typeof node.data?.path === "string" ? node.data.path : "";
+    setSelectedPage({ url, label, path });
+    setHoveredPage(null);
+  }, []);
+
+  const handleNodeHover = useCallback((_event: React.MouseEvent, node: Node) => {
+    const url = typeof node.data?.url === "string" ? node.data.url : "";
+    if (!url) return;
+    const label = String(node.data?.label || url);
+    const path = typeof node.data?.path === "string" ? node.data.path : "";
+    setHoveredPage({ url, label, path });
+  }, []);
+
+  const handleNodeHoverEnd = useCallback(() => {
+    setHoveredPage(null);
+  }, []);
+
+  useEffect(() => {
+    if (!lastCrawlResultRef.current) return;
+    const { nodes: newNodes, edges: newEdges } = layoutPages(
+      lastCrawlResultRef.current,
+      expandedGroups,
+      handleToggleGroup
+    );
+    setNodes(newNodes);
+    setEdges(newEdges);
+    nodeIdCounterRef.current = newNodes.length;
+  }, [expandedGroups, handleToggleGroup, setNodes, setEdges]);
 
   const matchedNodes = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -438,6 +673,8 @@ function FlowEditor() {
           onLoadFlow={handleLoad}
           onDeleteFlow={deleteFlow}
           onGenerateFromUrl={discoverPages}
+          crawlOptions={crawlOptions}
+          onCrawlOptionsChange={setCrawlOptions}
         />
         <div className="flex-1 relative" ref={reactFlowWrapper}>
           {/* Discover Pages banner — shows when URL is loaded but canvas is empty */}
@@ -453,7 +690,7 @@ function FlowEditor() {
               </div>
               <Button
                 size="sm"
-                onClick={() => discoverPages(currentUrl)}
+                onClick={() => discoverPages(currentUrl, crawlOptions)}
                 disabled={crawling}
               >
                 <Globe className="w-4 h-4 mr-1" />
@@ -481,7 +718,7 @@ function FlowEditor() {
                 size="sm"
                 onClick={() => {
                   handleClear();
-                  discoverPages(currentUrl);
+                  discoverPages(currentUrl, crawlOptions);
                 }}
                 className="bg-white shadow-sm"
               >
@@ -500,6 +737,9 @@ function FlowEditor() {
             onInit={setReactFlowInstance}
             onDragOver={onDragOver}
             onDrop={onDrop}
+            onNodeClick={handleNodeClick}
+            onNodeMouseEnter={handleNodeHover}
+            onNodeMouseLeave={handleNodeHoverEnd}
             nodeTypes={nodeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
@@ -520,7 +760,77 @@ function FlowEditor() {
                 onFocusNode={focusNode}
               />
             </Panel>
+            {hoveredPage && !selectedPage && (
+              <Panel position="bottom-right">
+                <div className="w-72 h-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100 text-[10px] font-medium text-gray-700 truncate">
+                    {hoveredPage.label}
+                  </div>
+                  <iframe
+                    title={`Preview of ${hoveredPage.url}`}
+                    src={(() => {
+                      const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
+                      if (proxyBase && hoveredPage.path) {
+                        return `${proxyBase}${hoveredPage.path}`;
+                      }
+                      return hoveredPage.url;
+                    })()}
+                    className="w-full h-[calc(100%-30px)] border-0"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  />
+                </div>
+              </Panel>
+            )}
           </ReactFlow>
+          {selectedPage && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white w-[90vw] h-[80vh] max-w-5xl rounded-xl shadow-2xl overflow-hidden border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                  <div className="text-sm font-semibold text-gray-800 truncate">
+                    {selectedPage.label}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
+                        const previewUrl = proxyBase && selectedPage.path
+                          ? `${proxyBase}${selectedPage.path}`
+                          : selectedPage.url;
+                        window.open(previewUrl, "_blank", "noopener,noreferrer");
+                      }}
+                      aria-label="Open in new tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setSelectedPage(null)}
+                      aria-label="Close preview"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <iframe
+                  title={`Preview of ${selectedPage.url}`}
+                  src={(() => {
+                    const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
+                    if (proxyBase && selectedPage.path) {
+                      return `${proxyBase}${selectedPage.path}`;
+                    }
+                    return selectedPage.url;
+                  })()}
+                  className="w-full h-[calc(100%-56px)] border-0"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

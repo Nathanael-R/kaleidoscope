@@ -22,25 +22,35 @@ function findChromiumPath(): string | null {
   try { homeDirs.add(homedir()); } catch { /* ignore */ }
   homeDirs.add('/root');
   homeDirs.add('/home/user');
+  if (process.env.USERPROFILE) homeDirs.add(process.env.USERPROFILE);
 
   // PLAYWRIGHT_BROWSERS_PATH overrides the default cache location
   const browserPaths: string[] = [];
   if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
-    browserPaths.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH === '0') {
+      browserPaths.push(join(process.cwd(), 'node_modules', '.cache', 'ms-playwright'));
+    } else {
+      browserPaths.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+    }
   }
   for (const home of homeDirs) {
-    browserPaths.push(join(home, '.cache/ms-playwright'));
+    browserPaths.push(join(home, '.cache', 'ms-playwright'));
+    browserPaths.push(join(home, 'Library', 'Caches', 'ms-playwright'));
+    browserPaths.push(join(home, 'AppData', 'Local', 'ms-playwright'));
+  }
+  if (process.env.LOCALAPPDATA) {
+    browserPaths.push(join(process.env.LOCALAPPDATA, 'ms-playwright'));
   }
 
   // Scan each potential Playwright cache for chromium-* directories
-  const chromiumBinDirs = ['chrome-linux', 'chrome-linux64'];
+  const chromiumBinDirs = ['chrome-linux', 'chrome-linux64', 'chrome-mac', 'chrome-win', 'chrome-win64'];
   for (const dir of browserPaths) {
     try {
       const entries = readdirSync(dir);
       for (const entry of entries) {
         if (!entry.startsWith('chromium-')) continue;
         for (const binDir of chromiumBinDirs) {
-          const candidate = join(dir, entry, binDir, 'chrome');
+          const candidate = join(dir, entry, binDir, process.platform === 'win32' ? 'chrome.exe' : 'chrome');
           if (existsSync(candidate)) return candidate;
         }
       }
