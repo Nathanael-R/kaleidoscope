@@ -5,13 +5,14 @@ import { devices, getDevicesByCategory, type Device } from "@/lib/devices";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight,
-  Columns, Pin, X, Globe, Clock,
+  Columns, Pin, X, Globe, Clock, Activity,
 } from "lucide-react";
 import { useState } from "react";
 import TunnelButton from "@/components/tunnel-button";
 import LiveReloadToggle from "@/components/live-reload-toggle";
 import AuthWizard, { type AuthCookie, type ProxySession } from "@/components/auth-wizard";
 import ScreenshotPanel from "@/components/screenshot-panel";
+import PerformancePanel from "@/components/performance-panel";
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -268,6 +269,12 @@ export default function Sidebar({
         {urlInput && (
           <Section title="Screenshots" icon={Globe} defaultOpen>
             <ScreenshotPanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+          </Section>
+        )}
+
+        {urlInput && (
+          <Section title="Performance" icon={Activity}>
+            <PerformancePanel currentUrl={urlInput} proxyUrl={proxyUrl} />
           </Section>
         )}
 
