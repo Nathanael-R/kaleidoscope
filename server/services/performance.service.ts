@@ -1,5 +1,6 @@
 import type { Page } from 'playwright-core';
 import { getSharedBrowser } from './browser.service.js';
+import { mapIssuesToSource, type SourceHint } from './source-mapper.service.js';
 
 interface DeviceConfig {
   id: string;
@@ -52,6 +53,8 @@ export interface PerformanceIssue {
   value?: string;
   /** What the target should be */
   target?: string;
+  /** Source file location and suggested fix (populated when sourceDir is provided) */
+  sourceHint?: SourceHint;
 }
 
 export interface DevicePerformanceResult {
@@ -65,6 +68,8 @@ export interface DevicePerformanceResult {
 export interface PerformanceAuditRequest {
   url: string;
   devices: string[];
+  /** Optional project source directory for source-level mapping */
+  sourceDir?: string;
 }
 
 export interface PerformanceAuditResult {
@@ -462,7 +467,7 @@ function calculateScore(vitals: WebVitals, domNodeCount: number): number {
 
 class PerformanceService {
   async audit(request: PerformanceAuditRequest): Promise<PerformanceAuditResult> {
-    const { url, devices } = request;
+    const { url, devices, sourceDir } = request;
     const browser = await getSharedBrowser();
     const results: DevicePerformanceResult[] = [];
 
@@ -495,6 +500,19 @@ class PerformanceService {
           metrics.resources,
           config,
         );
+
+        // Map issues to source lines if a project directory was provided
+        if (sourceDir) {
+          try {
+            const hints = mapIssuesToSource(issues, sourceDir);
+            for (const [index, hint] of hints) {
+              issues[index].sourceHint = hint;
+            }
+          } catch (err) {
+            console.warn('Source mapping failed (non-fatal):', err);
+          }
+        }
+
         const score = calculateScore(metrics.vitals, metrics.domNodeCount);
 
         results.push({ device: config, vitals: metrics.vitals, issues, score });

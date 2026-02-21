@@ -214,4 +214,99 @@ describe('PerformancePanel', () => {
       expect(body.url).toBe('http://localhost:5000/proxy/abc123/http://localhost:3000');
     });
   });
+
+  it('sends sourceDir when provided', async () => {
+    mockFetch.mockResolvedValueOnce(makeAuditResponse());
+
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+
+    const input = screen.getByTestId('source-dir-input');
+    fireEvent.change(input, { target: { value: '/home/user/my-project/src' } });
+    fireEvent.click(screen.getByTestId('run-performance-audit'));
+
+    await waitFor(() => {
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.sourceDir).toBe('/home/user/my-project/src');
+    });
+  });
+
+  it('does not send sourceDir when empty', async () => {
+    mockFetch.mockResolvedValueOnce(makeAuditResponse());
+
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+    fireEvent.click(screen.getByTestId('run-performance-audit'));
+
+    await waitFor(() => {
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.sourceDir).toBeUndefined();
+    });
+  });
+
+  it('renders source hints when present in results', async () => {
+    const responseWithHints = {
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          url: 'http://localhost:3000',
+          timestamp: new Date().toISOString(),
+          results: [
+            {
+              device: { id: 'iphone-14', name: 'iPhone 14', width: 390, height: 844, type: 'mobile' },
+              vitals: {
+                fcp: 900, lcp: 3200, cls: 0.15, ttfb: 200,
+                domContentLoaded: 1100, loadTime: 3500,
+                totalBytes: 1800000, requestCount: 45,
+              },
+              issues: [
+                {
+                  type: 'cls',
+                  severity: 'warning',
+                  message: 'Image `img.hero` has no explicit width/height.',
+                  element: 'img.hero',
+                  sourceHint: {
+                    file: 'src/components/Hero.tsx',
+                    line: 42,
+                    code: '<img src="/hero.jpg" className="hero" />',
+                    suggestion: '<img width="auto" height="auto" src="/hero.jpg" className="hero" />  /* Add explicit width and height to prevent layout shift */',
+                  },
+                },
+              ],
+              score: 65,
+            },
+          ],
+        }),
+    };
+
+    mockFetch.mockResolvedValueOnce(responseWithHints);
+
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+    fireEvent.click(screen.getByTestId('run-performance-audit'));
+
+    // Wait for results
+    await waitFor(() => {
+      expect(screen.getByTestId('perf-device-iphone-14')).toBeDefined();
+    });
+
+    // Should show "1 fix" badge
+    expect(screen.getByText('1 fix')).toBeDefined();
+
+    // Expand to see source hint
+    fireEvent.click(screen.getByTestId('perf-device-iphone-14'));
+
+    await waitFor(() => {
+      // Should render the source hint block
+      expect(screen.getByTestId('source-hint')).toBeDefined();
+      // Should show file:line
+      expect(screen.getByText('src/components/Hero.tsx:42')).toBeDefined();
+      // Should show the current code
+      expect(screen.getByText(/<img src="\/hero.jpg"/)).toBeDefined();
+    });
+  });
+
+  it('renders source-dir helper text', () => {
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+
+    expect(screen.getByText('Add your project path to see exact source lines and suggested code fixes.')).toBeDefined();
+  });
 });
