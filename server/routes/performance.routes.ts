@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import path from 'path';
+import { existsSync } from 'fs';
 import { performanceService } from '../services/performance.service.js';
 
 const router = Router();
@@ -25,11 +27,15 @@ function isAllowedUrl(url: string): boolean {
 /**
  * POST /api/performance/audit
  * Run a performance audit across multiple device viewports.
- * Body: { url: string, devices: string[] }
+ * Body: { url: string, devices: string[], sourceDir?: string }
  */
 router.post('/audit', async (req: Request, res: Response) => {
   try {
-    const { url, devices } = req.body as { url: string; devices: string[] };
+    const { url, devices, sourceDir } = req.body as {
+      url: string;
+      devices: string[];
+      sourceDir?: string;
+    };
 
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'url is required' });
@@ -47,7 +53,20 @@ router.post('/audit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Maximum ${MAX_DEVICES_PER_REQUEST} devices per request` });
     }
 
-    const result = await performanceService.audit({ url, devices });
+    // Validate sourceDir — must be an absolute path that exists, no traversal
+    let safeSourceDir: string | undefined;
+    if (sourceDir && typeof sourceDir === 'string') {
+      const resolved = path.resolve(sourceDir);
+      if (existsSync(resolved) && !resolved.includes('..')) {
+        safeSourceDir = resolved;
+      }
+    }
+
+    const result = await performanceService.audit({
+      url,
+      devices,
+      sourceDir: safeSourceDir,
+    });
 
     res.json({
       success: true,

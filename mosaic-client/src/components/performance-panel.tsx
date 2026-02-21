@@ -1,14 +1,22 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Activity, Loader2, XCircle, ChevronDown, ChevronRight,
-  AlertTriangle, Info, Zap,
+  AlertTriangle, Info, Zap, FileCode, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
 /*  Types mirroring the server response                                */
 /* ------------------------------------------------------------------ */
+
+interface SourceHint {
+  file: string;
+  line: number;
+  code: string;
+  suggestion: string;
+}
 
 interface WebVitals {
   fcp: number | null;
@@ -28,6 +36,7 @@ interface PerformanceIssue {
   element?: string;
   value?: string;
   target?: string;
+  sourceHint?: SourceHint;
 }
 
 interface DeviceConfig {
@@ -130,8 +139,35 @@ function VitalsRow({ label, value, unit, metric }: {
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[11px] text-gray-500 dark:text-gray-400">{label}</span>
       <span className={cn("text-[11px] font-mono font-medium", metricColor(metric, value))}>
-        {value !== null ? `${value}${unit}` : "—"}
+        {value !== null ? `${value}${unit}` : "\u2014"}
       </span>
+    </div>
+  );
+}
+
+function SourceHintBlock({ hint }: { hint: SourceHint }) {
+  return (
+    <div className="mt-1.5 rounded border border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30 overflow-hidden" data-testid="source-hint">
+      <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100/50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800">
+        <FileCode className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+        <span className="text-[10px] font-mono text-blue-700 dark:text-blue-300 font-medium">
+          {hint.file}:{hint.line}
+        </span>
+      </div>
+      <div className="px-2 py-1.5 space-y-1">
+        <div>
+          <span className="text-[9px] uppercase tracking-wider text-red-500 font-semibold">Current</span>
+          <pre className="text-[10px] font-mono text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-all mt-0.5 leading-relaxed">
+            {hint.code}
+          </pre>
+        </div>
+        <div>
+          <span className="text-[9px] uppercase tracking-wider text-green-600 font-semibold">Suggested fix</span>
+          <pre className="text-[10px] font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap break-all mt-0.5 leading-relaxed">
+            {hint.suggestion}
+          </pre>
+        </div>
+      </div>
     </div>
   );
 }
@@ -141,6 +177,7 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
   const { device, vitals, issues, score } = result;
   const criticalCount = issues.filter(i => i.severity === "critical").length;
   const warningCount = issues.filter(i => i.severity === "warning").length;
+  const hintCount = issues.filter(i => i.sourceHint).length;
 
   return (
     <div className={cn("border rounded-lg overflow-hidden", scoreBg(score))}>
@@ -155,6 +192,11 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
           <div className="text-xs font-medium text-gray-800 dark:text-gray-200">{device.name}</div>
           <div className="text-[10px] text-gray-400">{device.width}x{device.height} &middot; {scoreLabel(score)}</div>
         </div>
+        {hintCount > 0 && (
+          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+            {hintCount} fix{hintCount !== 1 ? "es" : ""}
+          </span>
+        )}
         {criticalCount > 0 && (
           <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">
             {criticalCount} critical
@@ -183,7 +225,7 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
             <div className="flex items-center justify-between py-0.5">
               <span className="text-[11px] text-gray-500 dark:text-gray-400">Load Time</span>
               <span className="text-[11px] font-mono text-gray-700 dark:text-gray-300">
-                {vitals.loadTime !== null ? `${vitals.loadTime}ms` : "—"}
+                {vitals.loadTime !== null ? `${vitals.loadTime}ms` : "\u2014"}
               </span>
             </div>
             <div className="flex items-center justify-between py-0.5">
@@ -208,17 +250,22 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
               </h5>
               <div className="space-y-1.5">
                 {issues.map((issue, i) => (
-                  <div key={i} className="flex items-start gap-1.5 bg-white/50 dark:bg-gray-800/30 rounded p-1.5">
-                    {severityIcon(issue.severity)}
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed">
-                        {issue.message}
-                      </p>
-                      {issue.value && issue.target && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          Current: {issue.value} &middot; Target: {issue.target}
+                  <div key={i} className="bg-white/50 dark:bg-gray-800/30 rounded p-1.5">
+                    <div className="flex items-start gap-1.5">
+                      {severityIcon(issue.severity)}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed">
+                          {issue.message}
                         </p>
-                      )}
+                        {issue.value && issue.target && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Current: {issue.value} &middot; Target: {issue.target}
+                          </p>
+                        )}
+                        {issue.sourceHint && (
+                          <SourceHintBlock hint={issue.sourceHint} />
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -255,6 +302,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
   const [auditing, setAuditing] = useState(false);
   const [results, setResults] = useState<DevicePerformanceResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourceDir, setSourceDir] = useState("");
 
   const toggleDevice = (id: string) => {
     setSelectedDevices((prev) =>
@@ -273,13 +321,18 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
     setResults(null);
 
     try {
+      const body: Record<string, unknown> = {
+        url: proxyUrl || currentUrl,
+        devices: selectedDevices,
+      };
+      if (sourceDir.trim()) {
+        body.sourceDir = sourceDir.trim();
+      }
+
       const res = await fetch(`${API_BASE}/api/performance/audit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: proxyUrl || currentUrl,
-          devices: selectedDevices,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -300,6 +353,11 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
   const avgScore = results && results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.score, 0) / results.length)
     : null;
+
+  // Count total source hints across all results
+  const totalHints = results
+    ? results.reduce((sum, r) => sum + r.issues.filter(i => i.sourceHint).length, 0)
+    : 0;
 
   return (
     <div className="space-y-3" data-testid="performance-panel">
@@ -329,6 +387,28 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Source Directory (optional) */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1">
+          <FolderOpen className="w-3 h-3 text-gray-400" />
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Project path</span>
+          <span className="text-[10px] text-gray-400">(optional)</span>
+        </div>
+        <Input
+          type="text"
+          placeholder="/path/to/your/project/src"
+          value={sourceDir}
+          onChange={(e) => setSourceDir(e.target.value)}
+          className="h-8 text-xs font-mono"
+          data-testid="source-dir-input"
+        />
+        <p className="text-[10px] text-gray-400 mt-1">
+          {sourceDir.trim()
+            ? "Source mapping enabled \u2014 issues will link to exact lines with fix suggestions."
+            : "Add your project path to see exact source lines and suggested code fixes."}
+        </p>
       </div>
 
       {/* Run Button */}
@@ -375,6 +455,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
                 <div className="text-xs font-medium text-gray-700">Average Score</div>
                 <div className="text-[10px] text-gray-500">
                   {scoreLabel(avgScore)} &middot; {results.length} device{results.length !== 1 ? "s" : ""} tested
+                  {totalHints > 0 && ` \u00B7 ${totalHints} source fix${totalHints !== 1 ? "es" : ""} found`}
                 </div>
               </div>
             </div>
