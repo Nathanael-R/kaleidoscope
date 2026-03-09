@@ -12,7 +12,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/health", (req, res) => {
     const response: HealthResponse = {
       status: "ok",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      requestId: res.locals.requestId as string | undefined,
     };
     res.json(response);
   });

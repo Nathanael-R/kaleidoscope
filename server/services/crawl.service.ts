@@ -1,5 +1,5 @@
 import type { Browser, Page } from 'playwright-core';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getSharedBrowser } from './browser.service.js';
@@ -38,8 +38,8 @@ const SCREENSHOT_DIR = resolve('crawl-screenshots');
 const SCREENSHOT_WIDTH = 1280;
 const SCREENSHOT_HEIGHT = 800;
 
-function screenshotFilename(url: string): string {
-  const hash = createHash('md5').update(url).digest('hex').slice(0, 12);
+function screenshotFilename(url: string, sessionId: string): string {
+  const hash = createHash('sha256').update(`${url}:${sessionId}`).digest('hex').slice(0, 16);
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/\./g, '_');
@@ -75,12 +75,25 @@ class CrawlService {
       mkdirSync(SCREENSHOT_DIR, { recursive: true });
     }
 
+    const screenshotSessionId = randomBytes(8).toString('hex');
+    const screenshotSessionDir = join(SCREENSHOT_DIR, screenshotSessionId);
+    if (!existsSync(screenshotSessionDir)) {
+      mkdirSync(screenshotSessionDir, { recursive: true });
+    }
+
     // Check sitemap.xml first (free, instant)
     const sitemapUrls = await this.checkSitemap(targetOrigin, normalizedOptions);
 
     // Crawl with Playwright (handles CSR pages)
     const startPath = this.buildPathKey(url, includeQuery, includeHash);
-    const pages = await this.crawlPages(url, startPath, targetOrigin, normalizedOptions);
+    const pages = await this.crawlPages(
+      url,
+      startPath,
+      targetOrigin,
+      normalizedOptions,
+      screenshotSessionId,
+      screenshotSessionDir
+    );
 
     return { startUrl: url, pages, sitemapUrls };
   }
@@ -117,7 +130,9 @@ class CrawlService {
     startUrl: string,
     startPath: string,
     origin: string,
-    options: Required<CrawlOptions>
+    options: Required<CrawlOptions>,
+    screenshotSessionId: string,
+    screenshotSessionDir: string
   ): Promise<PageInfo[]> {
     const browser = await getSharedBrowser();
     const visited = new Set<string>();
@@ -128,6 +143,8 @@ class CrawlService {
     await this.visitPage(browser, startPath, origin, options.depth, visited, pages, {
       ...options,
       proxyConfig,
+      screenshotSessionId,
+      screenshotSessionDir,
     });
 
     return pages;
@@ -140,7 +157,11 @@ class CrawlService {
     depth: number,
     visited: Set<string>,
     pages: PageInfo[],
-    options: Required<CrawlOptions> & { proxyConfig: ProxyConfig | null }
+    options: Required<CrawlOptions> & {
+      proxyConfig: ProxyConfig | null;
+      screenshotSessionId: string;
+      screenshotSessionDir: string;
+    }
   ): Promise<void> {
     const normalized = this.normalizePathKey(pathKey);
     if (visited.has(normalized) || depth < 0) return;
@@ -165,10 +186,10 @@ class CrawlService {
       // Capture screenshot
       let screenshotUrl: string | undefined;
       try {
-        const filename = screenshotFilename(publicUrl);
-        const filepath = join(SCREENSHOT_DIR, filename);
+        const filename = screenshotFilename(publicUrl, options.screenshotSessionId);
+        const filepath = join(options.screenshotSessionDir, filename);
         await page.screenshot({ path: filepath });
-        screenshotUrl = `/api/crawl-screenshots/${filename}`;
+        screenshotUrl = `/api/crawl-screenshots/${options.screenshotSessionId}/${filename}`;
       } catch (screenshotError) {
         console.error(`Screenshot failed for ${publicUrl}:`, screenshotError);
       }

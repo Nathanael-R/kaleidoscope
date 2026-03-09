@@ -1,14 +1,27 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
+import { DEVICE_IDS } from '../../../shared/devices.js';
 
 const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
 
-const ALL_DEVICE_IDS = [
-  'iphone-14', 'samsung-s21', 'pixel-6',
-  'ipad', 'ipad-pro',
-  'macbook-air', 'desktop', 'desktop-4k',
-];
+const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
+
+async function formatToolError(action: string, error: unknown): Promise<string> {
+  const reason = error instanceof Error ? error.message : String(error);
+  try {
+    const status = await processManager.getStatus();
+    return [
+      `Error ${action}: ${reason}`,
+      '',
+      'Current service status:',
+      `  Client: ${status.client.running ? 'running' : 'stopped'} (${status.client.url})`,
+      `  Server: ${status.server.running ? 'running' : 'stopped'} (${status.server.url})`,
+    ].join('\n');
+  } catch {
+    return `Error ${action}: ${reason}`;
+  }
+}
 
 export function registerPreviewTools(server: McpServer) {
   // @ts-expect-error MCP SDK server.tool() causes TS2589 with complex zod schemas
@@ -19,7 +32,7 @@ export function registerPreviewTools(server: McpServer) {
     'Automatically starts Kaleidoscope services if not running.',
     {
       url: z.string().url().describe('The URL to preview (e.g. http://localhost:3000)'),
-      devices: z.array(z.string()).optional().describe(
+      devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
         'Optional list of device IDs to preview. Defaults to all devices. ' +
         'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k'
       ),
@@ -94,7 +107,7 @@ export function registerPreviewTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error setting up preview: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('setting up preview', error),
           }],
           isError: true,
         };
@@ -142,7 +155,7 @@ export function registerPreviewTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error checking status: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('checking status', error),
           }],
           isError: true,
         };
@@ -173,7 +186,7 @@ export function registerPreviewTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Failed to start Kaleidoscope: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('starting Kaleidoscope', error),
           }],
           isError: true,
         };
@@ -195,7 +208,7 @@ export function registerPreviewTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error stopping services: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('stopping services', error),
           }],
           isError: true,
         };

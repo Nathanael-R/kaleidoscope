@@ -40,19 +40,19 @@ test.describe('Kaleidoscope Preview', () => {
 
   test('should display all device types', async ({ page }) => {
     // Check that device selector shows all devices
-    const devices = [
-      'iPhone 14',
-      'Samsung Galaxy S21',
-      'Google Pixel 6',
-      'iPad',
-      'iPad Pro',
-      'MacBook Air',
-      'Desktop HD',
-      'Desktop 4K'
+    const deviceIds = [
+      'iphone-14',
+      'samsung-s21',
+      'pixel-6',
+      'ipad',
+      'ipad-pro',
+      'macbook-air',
+      'desktop',
+      'desktop-4k'
     ];
 
-    for (const device of devices) {
-      const deviceElement = page.locator(`text=${device}`);
+    for (const id of deviceIds) {
+      const deviceElement = page.getByTestId(`device-${id}`);
       await expect(deviceElement).toBeVisible();
     }
   });
@@ -63,11 +63,11 @@ test.describe('Device Interaction', () => {
     await page.goto('/');
 
     // Click on a device
-    const iphoneButton = page.locator('text=iPhone 14').first();
+    const iphoneButton = page.getByTestId('device-iphone-14');
     await iphoneButton.click();
 
     // Verify device is selected
-    await expect(iphoneButton).toHaveAttribute('data-selected', 'true');
+    await expect(iphoneButton).toHaveAttribute('aria-selected', 'true');
   });
 
   test('should pin multiple devices', async ({ page }) => {
@@ -82,6 +82,9 @@ test.describe('Device Interaction', () => {
     const device2 = page.locator('[data-device-id]').nth(1);
     await device2.click();
     await page.keyboard.press('Space');
+
+    // Toggle comparison mode
+    await page.keyboard.press('c');
 
     // Should show comparison view
     const comparisonView = page.locator('[data-view-mode="comparison"]');

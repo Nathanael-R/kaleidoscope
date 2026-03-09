@@ -326,6 +326,8 @@ export default function Sidebar({
                           )}
                           onClick={() => onDeviceSelect(device)}
                           data-testid={`device-${device.id}`}
+                          data-device-id={device.id}
+                          data-selected={isSelected}
                           role="option"
                           aria-selected={isSelected}
                         >

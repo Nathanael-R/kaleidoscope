@@ -40,7 +40,10 @@ export function useTunnel(port?: number) {
       }
     },
     enabled: !!currentPort,
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: (query) => {
+      const status = (query.state.data as TunnelInfo | null | undefined)?.status;
+      return status === 'active' ? 10000 : false;
+    },
   });
 
   // Create tunnel mutation

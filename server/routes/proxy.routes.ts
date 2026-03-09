@@ -1,31 +1,16 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { proxyService } from '../services/proxy.service.js';
+import { isAllowedHttpUrl, validateCookies } from '../utils/security.js';
+import { sendError } from '../utils/http.js';
 
 const router = Router();
-
-const BLOCKED_HOSTS = ['169.254.169.254', 'metadata.google.internal'];
-
-function isAllowedUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return false;
-    }
-    if (BLOCKED_HOSTS.includes(parsed.hostname)) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * POST /api/proxy/session
  * Create a new proxy session for a target URL
  */
-router.post('/session', (req: Request, res: Response) => {
+router.post('/session', async (req: Request, res: Response) => {
   try {
     const { url, cookies = [] } = req.body as {
       url: string;
@@ -33,14 +18,19 @@ router.post('/session', (req: Request, res: Response) => {
     };
 
     if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'url is required' });
+      return sendError(res, 400, 'url is required');
     }
 
-    if (!isAllowedUrl(url)) {
-      return res.status(400).json({ error: 'URL is not allowed (blocked scheme or host)' });
+    if (!(await isAllowedHttpUrl(url))) {
+      return sendError(res, 400, 'URL is not allowed (blocked scheme or host)');
     }
 
-    const session = proxyService.createSession(url, cookies);
+    const cookieValidation = validateCookies(cookies);
+    if (!cookieValidation.valid || !cookieValidation.sanitized) {
+      return sendError(res, 400, cookieValidation.reason || 'Invalid cookies');
+    }
+
+    const session = proxyService.createSession(url, cookieValidation.sanitized);
 
     res.json({
       success: true,
@@ -51,9 +41,11 @@ router.post('/session', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to create proxy session',
-    });
+    return sendError(
+      res,
+      500,
+      error instanceof Error ? error.message : 'Failed to create proxy session',
+    );
   }
 });
 
@@ -65,13 +57,14 @@ router.put('/session/:id/cookies', (req: Request, res: Response) => {
   const { id } = req.params;
   const { cookies } = req.body as { cookies: Array<{ name: string; value: string }> };
 
-  if (!cookies || !Array.isArray(cookies)) {
-    return res.status(400).json({ error: 'cookies array is required' });
+  const cookieValidation = validateCookies(cookies);
+  if (!cookieValidation.valid || !cookieValidation.sanitized) {
+    return sendError(res, 400, cookieValidation.reason || 'Invalid cookies');
   }
 
-  const updated = proxyService.updateCookies(id, cookies);
+  const updated = proxyService.updateCookies(id, cookieValidation.sanitized);
   if (!updated) {
-    return res.status(404).json({ error: 'Session not found' });
+    return sendError(res, 404, 'Session not found');
   }
 
   res.json({ success: true });
@@ -89,12 +82,12 @@ router.post('/session/:id/mock', (req: Request, res: Response) => {
   };
 
   if (!mocks || !Array.isArray(mocks)) {
-    return res.status(400).json({ error: 'mocks array is required' });
+    return sendError(res, 400, 'mocks array is required');
   }
 
   const session = proxyService.getSession(id);
   if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+    return sendError(res, 404, 'Session not found');
   }
 
   proxyService.setMockRoutes(id, mocks);
@@ -115,7 +108,7 @@ router.delete('/session/:id/mock', (req: Request, res: Response) => {
 
   const cleared = proxyService.clearMockRoutes(id);
   if (!cleared) {
-    return res.status(404).json({ error: 'Session not found' });
+    return sendError(res, 404, 'Session not found');
   }
 
   res.json({ success: true, message: 'All mock routes cleared' });
@@ -130,7 +123,7 @@ router.get('/session/:id/status', (req: Request, res: Response) => {
   const session = proxyService.getSession(id);
 
   if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+    return sendError(res, 404, 'Session not found');
   }
 
   res.json({
@@ -171,7 +164,7 @@ router.delete('/session/:id', (req: Request, res: Response) => {
   const removed = proxyService.removeSession(id);
 
   if (!removed) {
-    return res.status(404).json({ error: 'Session not found' });
+    return sendError(res, 404, 'Session not found');
   }
 
   res.json({ success: true, message: 'Session removed' });

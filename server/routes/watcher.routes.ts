@@ -4,6 +4,7 @@ import path from 'path';
 import { watcherService } from '../services/watcher.service.js';
 import type { WatcherConfig } from '../services/watcher.service.js';
 import { sseService } from '../services/sse.service.js';
+import { sendError } from '../utils/http.js';
 
 const router = Router();
 
@@ -32,14 +33,12 @@ router.post('/start', (req: Request, res: Response) => {
     const { id = 'default', paths, ignored, debounceMs } = req.body as WatcherConfig & { id?: string };
 
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
-      return res.status(400).json({
-        error: 'paths array is required'
-      });
+      return sendError(res, 400, 'paths array is required');
     }
 
     const pathError = validateWatchPaths(paths);
     if (pathError) {
-      return res.status(400).json({ error: pathError });
+      return sendError(res, 400, pathError);
     }
 
     watcherService.watch(
@@ -58,9 +57,7 @@ router.post('/start', (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error starting watcher:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to start watcher'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to start watcher');
   }
 });
 
@@ -80,9 +77,7 @@ router.delete('/stop/:id', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error stopping watcher:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to stop watcher'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to stop watcher');
   }
 });
 
@@ -114,9 +109,7 @@ router.delete('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error stopping watchers:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to stop watchers'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to stop watchers');
   }
 });
 

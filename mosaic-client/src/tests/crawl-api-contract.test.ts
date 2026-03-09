@@ -228,6 +228,7 @@ describe('layoutPages behavior', () => {
     title: string;
     links: string[];
     error?: string;
+    screenshotUrl?: string;
   }
 
   interface CrawlResult {
@@ -238,7 +239,16 @@ describe('layoutPages behavior', () => {
 
   // Re-implement the layout algorithm for testing (mirrors flow-diagrams.tsx)
   function layoutPages(crawlResult: CrawlResult) {
-    const nodes: Array<{ id: string; type: string; data: { label: string } }> = [];
+    const API_BASE = 'http://localhost:5000';
+    const API_BASE_CLEAN = API_BASE.replace(/\/$/, '');
+    const resolveScreenshotUrl = (value?: string) => {
+      if (!value) return undefined;
+      if (value.startsWith('http://') || value.startsWith('https://')) return value;
+      if (value.startsWith('/')) return `${API_BASE_CLEAN}${value}`;
+      return `${API_BASE_CLEAN}/${value}`;
+    };
+
+    const nodes: Array<{ id: string; type: string; data: { label: string; screenshotUrl?: string } }> = [];
     const edges: Array<{ id: string; source: string; target: string }> = [];
     const nodeIdMap = new Map<string, string>();
     let idCounter = 0;
@@ -299,9 +309,27 @@ describe('layoutPages behavior', () => {
           try { return normalizePath(new URL(crawlResult.startUrl).pathname); } catch { return '/'; }
         })();
 
+    const pathToScreenshot = new Map<string, string>();
+    for (const page of crawlResult.pages) {
+      if (page.screenshotUrl) {
+        const normalized = normalizePath(page.path);
+        const resolved = resolveScreenshotUrl(page.screenshotUrl);
+        if (resolved) {
+          pathToScreenshot.set(normalized, resolved);
+        }
+      }
+    }
+
     const rootId = nextId();
     nodeIdMap.set(rootPath, rootId);
-    nodes.push({ id: rootId, type: 'page', data: { label: labelFromPath(rootPath) } });
+    nodes.push({
+      id: rootId,
+      type: 'page',
+      data: {
+        label: labelFromPath(rootPath),
+        screenshotUrl: pathToScreenshot.get(rootPath),
+      },
+    });
 
     const childPaths = new Set<string>();
     if (rootPage) {
@@ -329,7 +357,14 @@ describe('layoutPages behavior', () => {
     sortedGroups.forEach((groupKey) => {
       const nodeId = nextId();
       nodeIdMap.set(groupKey, nodeId);
-      nodes.push({ id: nodeId, type: 'page', data: { label: labelFromPath(groupKey) } });
+      nodes.push({
+        id: nodeId,
+        type: 'page',
+        data: {
+          label: labelFromPath(groupKey),
+          screenshotUrl: pathToScreenshot.get(groupKey),
+        },
+      });
       edges.push({ id: `edge_${rootId}_${nodeId}`, source: rootId, target: nodeId });
     });
 
@@ -437,6 +472,26 @@ describe('layoutPages behavior', () => {
 
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
+  });
+
+  it('should prefix relative screenshot URLs with the API base', () => {
+    const result = layoutPages({
+      startUrl: 'https://example.com',
+      pages: [
+        {
+          url: 'https://example.com',
+          path: '/',
+          title: 'Home',
+          links: [],
+          screenshotUrl: '/api/crawl-screenshots/session/root.png',
+        },
+      ],
+      sitemapUrls: [],
+    });
+
+    expect(result.nodes[0].data.screenshotUrl).toBe(
+      'http://localhost:5000/api/crawl-screenshots/session/root.png'
+    );
   });
 
   it('should create cross-links between crawled child pages', () => {

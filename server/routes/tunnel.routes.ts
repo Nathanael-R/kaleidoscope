@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { tunnelService } from '../services/tunnel.service.js';
 import type { TunnelOptions } from '../services/tunnel.service.js';
+import { sendError } from '../utils/http.js';
 
 const router = Router();
 
@@ -14,15 +15,11 @@ router.post('/create', async (req: Request, res: Response) => {
     const { port, subdomain, preferredProvider } = req.body as TunnelOptions;
 
     if (!port || typeof port !== 'number') {
-      return res.status(400).json({
-        error: 'Invalid port number'
-      });
+      return sendError(res, 400, 'Invalid port number');
     }
 
     if (port < 1 || port > 65535) {
-      return res.status(400).json({
-        error: 'Port must be between 1 and 65535'
-      });
+      return sendError(res, 400, 'Port must be between 1 and 65535');
     }
 
     console.log(`Creating tunnel for port ${port}...`);
@@ -38,9 +35,7 @@ router.post('/create', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating tunnel:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to create tunnel'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to create tunnel');
   }
 });
 
@@ -52,17 +47,13 @@ router.get('/:port', (req: Request, res: Response) => {
   const port = parseInt(req.params.port, 10);
 
   if (isNaN(port)) {
-    return res.status(400).json({
-      error: 'Invalid port number'
-    });
+    return sendError(res, 400, 'Invalid port number');
   }
 
   const tunnel = tunnelService.getTunnel(port);
 
   if (!tunnel) {
-    return res.status(404).json({
-      error: 'No tunnel found for this port'
-    });
+    return sendError(res, 404, 'No tunnel found for this port');
   }
 
   res.json({
@@ -94,9 +85,7 @@ router.delete('/:port', async (req: Request, res: Response) => {
     const port = parseInt(req.params.port, 10);
 
     if (isNaN(port)) {
-      return res.status(400).json({
-        error: 'Invalid port number'
-      });
+      return sendError(res, 400, 'Invalid port number');
     }
 
     await tunnelService.closeTunnel(port);
@@ -107,9 +96,7 @@ router.delete('/:port', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error closing tunnel:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to close tunnel'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to close tunnel');
   }
 });
 
@@ -127,9 +114,7 @@ router.delete('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error closing tunnels:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to close tunnels'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to close tunnels');
   }
 });
 
@@ -142,9 +127,7 @@ router.post('/auto-detect', async (req: Request, res: Response) => {
     const port = await tunnelService.autoDetectPort();
 
     if (!port) {
-      return res.status(404).json({
-        error: 'No dev server detected on common ports'
-      });
+      return sendError(res, 404, 'No dev server detected on common ports');
     }
 
     const tunnelInfo = await tunnelService.createTunnel({ port });
@@ -156,9 +139,7 @@ router.post('/auto-detect', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error auto-detecting and creating tunnel:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to auto-detect and create tunnel'
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to auto-detect and create tunnel');
   }
 });
 
