@@ -13,8 +13,8 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": ".."
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../shared/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

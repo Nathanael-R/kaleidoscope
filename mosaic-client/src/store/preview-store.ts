@@ -10,12 +10,33 @@ interface PreviewState {
   toggleDarkMode: () => void;
 }
 
+const getStoredDarkMode = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem('kaleidoscope-dark-mode') === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const setStoredDarkMode = (value: boolean) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem('kaleidoscope-dark-mode', String(value));
+  } catch {
+    // Ignore storage errors (privacy modes, disabled storage)
+  }
+};
+
+const applyDarkModeClass = (enabled: boolean) => {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('dark', enabled);
+};
+
 // Read initial dark mode preference from localStorage and apply to DOM immediately
-const storedDark = typeof window !== 'undefined'
-  ? localStorage.getItem('kaleidoscope-dark-mode') === 'true'
-  : false;
+const storedDark = getStoredDarkMode();
 if (storedDark) {
-  document.documentElement.classList.add('dark');
+  applyDarkModeClass(true);
 }
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
@@ -25,14 +46,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   setProxyUrl: (url) => set({ proxyUrl: url }),
   darkMode: storedDark,
   setDarkMode: (dark) => {
-    localStorage.setItem('kaleidoscope-dark-mode', String(dark));
-    document.documentElement.classList.toggle('dark', dark);
+    setStoredDarkMode(dark);
+    applyDarkModeClass(dark);
     set({ darkMode: dark });
   },
   toggleDarkMode: () => {
     const next = !get().darkMode;
-    localStorage.setItem('kaleidoscope-dark-mode', String(next));
-    document.documentElement.classList.toggle('dark', next);
+    setStoredDarkMode(next);
+    applyDarkModeClass(next);
     set({ darkMode: next });
   },
 }));

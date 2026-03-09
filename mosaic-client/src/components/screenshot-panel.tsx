@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Download, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { devices } from "@/lib/devices";
 
 interface ScreenshotResult {
   device: string;
   path: string;
   width: number;
   height: number;
+  url?: string;
 }
 
 interface ScreenshotPanelProps {
@@ -14,16 +16,11 @@ interface ScreenshotPanelProps {
   proxyUrl?: string | null;
 }
 
-const DEVICE_OPTIONS = [
-  { id: "iphone-14", name: "iPhone 14", type: "mobile" },
-  { id: "samsung-s21", name: "Samsung S21", type: "mobile" },
-  { id: "pixel-6", name: "Pixel 6", type: "mobile" },
-  { id: "ipad", name: "iPad", type: "tablet" },
-  { id: "ipad-pro", name: "iPad Pro", type: "tablet" },
-  { id: "macbook-air", name: "MacBook Air", type: "desktop" },
-  { id: "desktop", name: "Desktop HD", type: "desktop" },
-  { id: "desktop-4k", name: "Desktop 4K", type: "desktop" },
-] as const;
+const DEVICE_OPTIONS = devices.map(device => ({
+  id: device.id,
+  name: device.name,
+  type: device.type,
+}));
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -37,6 +34,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
   const [results, setResults] = useState<ScreenshotResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fullPage, setFullPage] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
 
   const toggleDevice = (id: string) => {
     setSelectedDevices((prev) =>
@@ -52,12 +50,52 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     setSelectedDevices([]);
   };
 
+  const downloadScreenshots = async (screenshots: ScreenshotResult[]) => {
+    setSaveNote(null);
+    if (typeof window === "undefined") {
+      setSaveNote("Screenshots saved to ./screenshots/");
+      return;
+    }
+
+    const showDirectoryPicker = (window as { showDirectoryPicker?: () => Promise<any> }).showDirectoryPicker;
+    if (typeof showDirectoryPicker !== "function") {
+      setSaveNote("Screenshots saved to ./screenshots/");
+      return;
+    }
+
+    try {
+      const directoryHandle = await showDirectoryPicker();
+      const targets = screenshots.filter((shot) => shot.url && !shot.path.startsWith("ERROR:"));
+      await Promise.all(
+        targets.map(async (shot) => {
+          const response = await fetch(shot.url as string);
+          if (!response.ok) {
+            throw new Error(`Failed to download ${shot.url}`);
+          }
+          const blob = await response.blob();
+          const fileName = shot.path.split(/[\\/]/).pop() || "screenshot.png";
+          const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        })
+      );
+      setSaveNote("Downloaded to selected folder.");
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Failed to save screenshots");
+    }
+  };
+
   const captureScreenshots = async () => {
     if (!currentUrl || selectedDevices.length === 0) return;
 
     setCapturing(true);
     setError(null);
     setResults([]);
+    setSaveNote(null);
 
     try {
       const res = await fetch(`${API_BASE}/api/screenshots`, {
@@ -79,6 +117,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
         screenshots: ScreenshotResult[];
       };
       setResults(data.screenshots);
+      await downloadScreenshots(data.screenshots);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Screenshot capture failed");
     } finally {
@@ -196,7 +235,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
             ))}
           </div>
           <p className="text-xs text-gray-500">
-            Screenshots saved to ./screenshots/
+            {saveNote || "Screenshots saved to ./screenshots/"}
           </p>
         </div>
       )}

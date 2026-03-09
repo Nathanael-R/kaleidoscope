@@ -8,7 +8,9 @@
     "dev": "cross-env NODE_ENV=development tsx index.ts",
     "build": "esbuild index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "tsx --test **/*.test.ts",
+    "test:security": "tsx --test utils/security.test.ts"
   },
   "dependencies": {
     "chokidar": "^5.0.0",

@@ -1,8 +1,27 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
+import { DEVICE_IDS } from '../../../shared/devices.js';
 
 const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
+const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
+const DEFAULT_CAPTURE_DEVICES = ['iphone-14', 'ipad', 'desktop'];
+
+async function formatToolError(action: string, error: unknown): Promise<string> {
+  const reason = error instanceof Error ? error.message : String(error);
+  try {
+    const status = await processManager.getStatus();
+    return [
+      `Error ${action}: ${reason}`,
+      '',
+      'Current service status:',
+      `  Client: ${status.client.running ? 'running' : 'stopped'} (${status.client.url})`,
+      `  Server: ${status.server.running ? 'running' : 'stopped'} (${status.server.url})`,
+    ].join('\n');
+  } catch {
+    return `Error ${action}: ${reason}`;
+  }
+}
 
 export function registerScreenshotTools(server: McpServer) {
   server.tool(
@@ -12,7 +31,7 @@ export function registerScreenshotTools(server: McpServer) {
     'Requires Kaleidoscope server to be running.',
     {
       url: z.string().url().describe('The URL to screenshot'),
-      devices: z.array(z.string()).optional().describe(
+      devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
         'Device viewports to capture. Defaults to iphone-14, ipad, desktop. ' +
         'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k'
       ),
@@ -31,7 +50,7 @@ export function registerScreenshotTools(server: McpServer) {
           await processManager.startServer();
         }
 
-        const devicesToCapture = selectedDevices ?? ['iphone-14', 'ipad', 'desktop'];
+        const devicesToCapture = selectedDevices ?? DEFAULT_CAPTURE_DEVICES;
         const outputDir = output_dir ?? './screenshots';
 
         const screenshotRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/screenshots`, {
@@ -80,7 +99,7 @@ export function registerScreenshotTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error capturing screenshots: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('capturing screenshots', error),
           }],
           isError: true,
         };

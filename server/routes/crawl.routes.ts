@@ -1,19 +1,10 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { crawlService } from '../services/crawl.service.js';
+import { isAllowedHttpUrl } from '../utils/security.js';
+import { sendError } from '../utils/http.js';
 
 const router = Router();
-
-function isAllowedUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-    if (parsed.hostname === '169.254.169.254' || parsed.hostname === 'metadata.google.internal') return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * POST /api/crawl
@@ -43,11 +34,11 @@ router.post('/', async (req: Request, res: Response) => {
     };
 
     if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'url is required' });
+      return sendError(res, 400, 'url is required');
     }
 
-    if (!isAllowedUrl(url)) {
-      return res.status(400).json({ error: 'Invalid URL. Only http: and https: URLs are allowed.' });
+    if (!(await isAllowedHttpUrl(url))) {
+      return sendError(res, 400, 'Invalid URL. Only http: and https: URLs are allowed.');
     }
 
     // Clamp depth to prevent abuse
@@ -55,15 +46,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     let safeProxyUrl: string | undefined;
     if (typeof proxyUrl === 'string' && proxyUrl.trim()) {
-      try {
-        const parsed = new URL(proxyUrl);
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          return res.status(400).json({ error: 'proxyUrl must be http or https' });
-        }
-        safeProxyUrl = parsed.toString();
-      } catch {
-        return res.status(400).json({ error: 'proxyUrl is invalid' });
+      if (!(await isAllowedHttpUrl(proxyUrl))) {
+        return sendError(res, 400, 'proxyUrl is invalid');
       }
+      safeProxyUrl = proxyUrl;
     }
 
     const result = await crawlService.crawl(url, {
@@ -77,9 +63,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.json(result);
   } catch (error) {
     console.error('Crawl error:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Crawl failed',
-    });
+    return sendError(res, 500, error instanceof Error ? error.message : 'Crawl failed');
   }
 });
 

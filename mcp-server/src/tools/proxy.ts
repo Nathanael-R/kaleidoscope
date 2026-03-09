@@ -4,6 +4,22 @@ import { processManager } from '../process-manager.js';
 
 const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
 
+async function formatToolError(action: string, error: unknown): Promise<string> {
+  const reason = error instanceof Error ? error.message : String(error);
+  try {
+    const status = await processManager.getStatus();
+    return [
+      `Error ${action}: ${reason}`,
+      '',
+      'Current service status:',
+      `  Client: ${status.client.running ? 'running' : 'stopped'} (${status.client.url})`,
+      `  Server: ${status.server.running ? 'running' : 'stopped'} (${status.server.url})`,
+    ].join('\n');
+  } catch {
+    return `Error ${action}: ${reason}`;
+  }
+}
+
 export function registerProxyTools(server: McpServer) {
   /**
    * preview_with_auth
@@ -103,7 +119,7 @@ export function registerProxyTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error creating proxy session: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('creating proxy session', error),
           }],
           isError: true,
         };
@@ -213,7 +229,7 @@ export function registerProxyTools(server: McpServer) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Error injecting mock data: ${error instanceof Error ? error.message : String(error)}`,
+            text: await formatToolError('injecting mock data', error),
           }],
           isError: true,
         };

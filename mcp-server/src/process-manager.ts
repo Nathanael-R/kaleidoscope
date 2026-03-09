@@ -22,6 +22,41 @@ class ProcessManager {
   private serverProcess: ChildProcess | null = null;
   private clientPort = 5173;
   private serverPort = 5000;
+  private serverLogTail = '';
+  private clientLogTail = '';
+
+  private appendLogTail(target: 'server' | 'client', chunk: string): void {
+    const maxChars = 4000;
+    const current = target === 'server' ? this.serverLogTail : this.clientLogTail;
+    const next = (current + chunk).slice(-maxChars);
+    if (target === 'server') {
+      this.serverLogTail = next;
+      return;
+    }
+    this.clientLogTail = next;
+  }
+
+  private formatStartupError(
+    serviceName: 'server' | 'client',
+    port: number,
+    reason: string,
+    processRef: ChildProcess | null,
+    logTail: string,
+  ): Error {
+    const pid = processRef?.pid;
+    const exitCode = processRef?.exitCode;
+    const signal = processRef?.signalCode;
+    const diagnostics = [
+      `Failed to start Kaleidoscope ${serviceName} on port ${port}.`,
+      `Reason: ${reason}`,
+      `PID: ${pid ?? 'n/a'}`,
+      `Exit code: ${exitCode ?? 'n/a'}`,
+      `Signal: ${signal ?? 'n/a'}`,
+      logTail ? `Recent ${serviceName} logs:\n${logTail.trim()}` : `Recent ${serviceName} logs: n/a`,
+    ].join('\n');
+
+    return new Error(diagnostics);
+  }
 
   async getStatus(): Promise<KaleidoscopeStatus> {
     return {
@@ -54,21 +89,41 @@ class ProcessManager {
       return; // Already running
     }
 
+    this.serverLogTail = '';
+    let spawnErrorMessage: string | null = null;
+
     this.serverProcess = spawn('npx', ['tsx', 'index.ts'], {
       cwd: resolve(PROJECT_ROOT, 'server'),
       env: { ...process.env, PORT: String(this.serverPort), NODE_ENV: 'development' },
       stdio: 'pipe',
     });
 
+    this.serverProcess.on('error', (error: Error) => {
+      spawnErrorMessage = error.message;
+    });
+
+    this.serverProcess.stdout?.on('data', (data: Buffer) => {
+      const msg = data.toString();
+      this.appendLogTail('server', msg);
+      process.stderr.write(`[kaleidoscope-server] ${msg}`);
+    });
+
     this.serverProcess.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString();
+      this.appendLogTail('server', msg);
       if (!msg.includes('ExperimentalWarning')) {
         process.stderr.write(`[kaleidoscope-server] ${msg}`);
       }
     });
 
     // Wait for server to be ready
-    await this.waitForServer(this.serverPort, 15_000);
+    try {
+      await this.waitForServer(this.serverPort, 15_000, '/api/health');
+    } catch (error) {
+      const reason = spawnErrorMessage
+        || (error instanceof Error ? error.message : String(error));
+      throw this.formatStartupError('server', this.serverPort, reason, this.serverProcess, this.serverLogTail);
+    }
   }
 
   async startClient(): Promise<void> {
@@ -79,20 +134,40 @@ class ProcessManager {
       // not running, start it
     }
 
+    this.clientLogTail = '';
+    let spawnErrorMessage: string | null = null;
+
     this.clientProcess = spawn('npx', ['vite', '--port', String(this.clientPort)], {
       cwd: resolve(PROJECT_ROOT, 'mosaic-client'),
       env: { ...process.env },
       stdio: 'pipe',
     });
 
+    this.clientProcess.on('error', (error: Error) => {
+      spawnErrorMessage = error.message;
+    });
+
+    this.clientProcess.stdout?.on('data', (data: Buffer) => {
+      const msg = data.toString();
+      this.appendLogTail('client', msg);
+      process.stderr.write(`[kaleidoscope-client] ${msg}`);
+    });
+
     this.clientProcess.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString();
+      this.appendLogTail('client', msg);
       if (!msg.includes('ExperimentalWarning')) {
         process.stderr.write(`[kaleidoscope-client] ${msg}`);
       }
     });
 
-    await this.waitForServer(this.clientPort, 20_000);
+    try {
+      await this.waitForServer(this.clientPort, 20_000);
+    } catch (error) {
+      const reason = spawnErrorMessage
+        || (error instanceof Error ? error.message : String(error));
+      throw this.formatStartupError('client', this.clientPort, reason, this.clientProcess, this.clientLogTail);
+    }
   }
 
   async startAll(): Promise<KaleidoscopeStatus> {
@@ -112,12 +187,12 @@ class ProcessManager {
     }
   }
 
-  private waitForServer(port: number, timeoutMs: number): Promise<void> {
+  private waitForServer(port: number, timeoutMs: number, path: string = '/'): Promise<void> {
     return new Promise((resolve, reject) => {
       const start = Date.now();
       const check = async () => {
         try {
-          const res = await fetch(`http://localhost:${port}`);
+          const res = await fetch(`http://localhost:${port}${path}`);
           if (res.ok || res.status < 500) {
             resolve();
             return;

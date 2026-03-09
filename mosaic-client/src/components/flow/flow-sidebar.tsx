@@ -190,7 +190,7 @@ export default function FlowSidebar({
 
       {/* Flow Name */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-1 block">Flow Name</Label>
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1 block">Flow Name</Label>
         <Input
           value={flowName}
           onChange={(e) => onFlowNameChange(e.target.value)}
@@ -201,7 +201,7 @@ export default function FlowSidebar({
 
       {/* Generate from URL */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 mb-1 block">
+        <Label className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1 block">
           Generate from URL
         </Label>
         <div className="flex gap-1.5">

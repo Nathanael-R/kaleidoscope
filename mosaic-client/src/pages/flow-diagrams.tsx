@@ -42,6 +42,15 @@ const DEFAULT_CRAWL_OPTIONS: CrawlOptions = {
   localePrefixBlocklist: DEFAULT_LOCALE_PREFIXES,
 };
 
+const API_BASE_CLEAN = API_BASE.replace(/\/$/, "");
+
+const resolveScreenshotUrl = (value?: string) => {
+  if (!value) return undefined;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  if (value.startsWith("/")) return `${API_BASE_CLEAN}${value}`;
+  return `${API_BASE_CLEAN}/${value}`;
+};
+
 const nodeTypes: NodeTypes = {
   page: PageNode,
   action: ActionNode,
@@ -196,7 +205,7 @@ function layoutPages(
   const pathToScreenshot = new Map<string, string>();
   for (const page of crawlResult.pages) {
     if (page.screenshotUrl) {
-      pathToScreenshot.set(normalizePath(page.path), page.screenshotUrl);
+      pathToScreenshot.set(normalizePath(page.path), resolveScreenshotUrl(page.screenshotUrl) || page.screenshotUrl);
     }
   }
 
@@ -460,21 +469,32 @@ function FlowEditor() {
     }
   }, [setNodes, setEdges, reactFlowInstance, setSelectedPage, setHoveredPage, proxyUrl, crawlOptions, handleToggleGroup]);
 
-  // Detect when currentUrl changed to a different site (render-time, no effect needed)
-  // Following "You Might Not Need an Effect" — derive state during render
+  // Detect when currentUrl changes and trigger side effects safely
   const prevCurrentUrlRef = useRef(currentUrl);
   const [urlChangedPrompt, setUrlChangedPrompt] = useState<string | null>(null);
 
-  if (currentUrl !== prevCurrentUrlRef.current) {
+  const crawlOptionsRef = useRef(crawlOptions);
+  useEffect(() => {
+    crawlOptionsRef.current = crawlOptions;
+  }, [crawlOptions]);
+
+  useEffect(() => {
+    if (currentUrl === prevCurrentUrlRef.current) return;
     prevCurrentUrlRef.current = currentUrl;
-    if (currentUrl && nodes.length > 0 && hasAutoDiscoveredRef.current && hasAutoDiscoveredRef.current !== currentUrl) {
+
+    if (!currentUrl) return;
+
+    if (nodes.length > 0 && hasAutoDiscoveredRef.current && hasAutoDiscoveredRef.current !== currentUrl) {
       // URL changed and we have existing flow data — show prompt
       setUrlChangedPrompt(currentUrl);
-    } else if (currentUrl && nodes.length === 0 && hasAutoDiscoveredRef.current !== currentUrl) {
-      // Canvas is empty and URL is new — auto-discover immediately
-      discoverPages(currentUrl, crawlOptions);
+      return;
     }
-  }
+
+    if (nodes.length === 0 && hasAutoDiscoveredRef.current !== currentUrl) {
+      // Canvas is empty and URL is new — auto-discover immediately
+      discoverPages(currentUrl, crawlOptionsRef.current);
+    }
+  }, [currentUrl, nodes.length, discoverPages]);
 
   const onConnect = useCallback(
     (connection: Connection) => {

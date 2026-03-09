@@ -2,24 +2,38 @@ import type { Page } from 'playwright-core';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { getSharedBrowser, closeSharedBrowser } from './browser.service.js';
+import { DEVICES } from '../../shared/devices.js';
 
 interface DeviceConfig {
   id: string;
   name: string;
   width: number;
   height: number;
+  type: 'mobile' | 'tablet' | 'desktop';
 }
 
-const DEVICE_MAP: Record<string, DeviceConfig> = {
-  'iphone-14': { id: 'iphone-14', name: 'iPhone 14', width: 390, height: 844 },
-  'samsung-s21': { id: 'samsung-s21', name: 'Samsung Galaxy S21', width: 384, height: 854 },
-  'pixel-6': { id: 'pixel-6', name: 'Google Pixel 6', width: 411, height: 914 },
-  'ipad': { id: 'ipad', name: 'iPad', width: 768, height: 1024 },
-  'ipad-pro': { id: 'ipad-pro', name: 'iPad Pro', width: 1024, height: 1366 },
-  'macbook-air': { id: 'macbook-air', name: 'MacBook Air', width: 1440, height: 900 },
-  'desktop': { id: 'desktop', name: 'Desktop HD', width: 1920, height: 1080 },
-  'desktop-4k': { id: 'desktop-4k', name: 'Desktop 4K', width: 3840, height: 2160 },
-};
+export const SCREENSHOT_DEVICE_MAP: Record<string, DeviceConfig> = Object.fromEntries(
+  DEVICES.map(device => [
+    device.id,
+    {
+      id: device.id,
+      name: device.name,
+      width: device.width,
+      height: device.height,
+      type: device.type,
+    },
+  ])
+);
+
+export const SCREENSHOT_DEVICE_IDS = Object.keys(SCREENSHOT_DEVICE_MAP);
+
+export function isValidScreenshotDeviceId(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SCREENSHOT_DEVICE_MAP, id);
+}
+
+export function getScreenshotDevices(): DeviceConfig[] {
+  return Object.values(SCREENSHOT_DEVICE_MAP);
+}
 
 export interface ScreenshotRequest {
   url: string;
@@ -49,7 +63,7 @@ class ScreenshotService {
     const results: ScreenshotResult[] = [];
 
     for (const deviceId of devices) {
-      const config = DEVICE_MAP[deviceId];
+      const config = SCREENSHOT_DEVICE_MAP[deviceId];
       if (!config) {
         console.warn(`Unknown device: ${deviceId}, skipping`);
         continue;

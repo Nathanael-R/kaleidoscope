@@ -116,6 +116,44 @@ export default function PreviewArea({
 
   const [screenshotting, setScreenshotting] = React.useState(false);
 
+  const downloadScreenshots = async (screenshots: Array<{ url?: string; path: string }>) => {
+    if (typeof window === 'undefined') {
+      alert(`Screenshots saved to ./screenshots/`);
+      return;
+    }
+
+    const showDirectoryPicker = (window as { showDirectoryPicker?: () => Promise<any> }).showDirectoryPicker;
+    if (typeof showDirectoryPicker !== 'function') {
+      alert(`Screenshots saved to ./screenshots/`);
+      return;
+    }
+
+    try {
+      const directoryHandle = await showDirectoryPicker();
+      const targets = screenshots.filter((shot) => shot.url && !shot.path.startsWith('ERROR:'));
+      await Promise.all(
+        targets.map(async (shot) => {
+          const response = await fetch(shot.url as string);
+          if (!response.ok) {
+            throw new Error(`Failed to download ${shot.url}`);
+          }
+          const blob = await response.blob();
+          const fileName = shot.path.split(/[\\/]/).pop() || 'screenshot.png';
+          const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        })
+      );
+      alert(`Downloaded ${targets.length} screenshot(s).`);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      alert(`Screenshot save failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const handleScreenshot = async () => {
     if (!currentUrl) return;
     setScreenshotting(true);
@@ -130,8 +168,8 @@ export default function PreviewArea({
         body: JSON.stringify({ url: proxyUrl || currentUrl, devices }),
       });
       if (res.ok) {
-        const data = await res.json() as { screenshots: Array<{ device: string; path: string }> };
-        alert(`${data.screenshots.length} screenshot(s) saved to ./screenshots/`);
+        const data = await res.json() as { screenshots: Array<{ device: string; path: string; url?: string }> };
+        await downloadScreenshots(data.screenshots);
       } else {
         const err = await res.json() as { error: string };
         alert(`Screenshot failed: ${err.error}`);
@@ -170,7 +208,12 @@ export default function PreviewArea({
   const deviceHeight = isLandscape ? selectedDevice.width : selectedDevice.height;
 
   return (
-    <main role="main" className={`flex-1 p-4 md:p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}>
+    <main
+      role="main"
+      data-testid="preview-area"
+      data-view-mode={viewMode}
+      className={`flex-1 p-4 md:p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}
+    >
       {/* Floating Sidebar Toggle (when collapsed) */}
       {isSidebarCollapsed && onToggleSidebar && (
         <Button

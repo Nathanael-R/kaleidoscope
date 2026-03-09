@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
@@ -29,37 +29,43 @@ export default function DeviceFrame({
 
   const hasUrl = !!url;
 
-  // Adjust state during render when props change (avoids extra re-render vs useEffect)
   const prevUrlRef = useRef(url);
   const prevProxyUrlRef = useRef(proxyUrl);
   const prevReloadTriggerRef = useRef(reloadTrigger);
 
-  if (url !== prevUrlRef.current) {
+  useEffect(() => {
+    if (url === prevUrlRef.current) return;
+
     prevUrlRef.current = url;
     if (url) {
       setLoading(true);
       setError(false);
-    } else {
-      setLoading(false);
-      setError(false);
+      return;
     }
-  }
 
-  if (proxyUrl !== prevProxyUrlRef.current) {
+    setLoading(false);
+    setError(false);
+  }, [url]);
+
+  useEffect(() => {
+    if (proxyUrl === prevProxyUrlRef.current) return;
+
     prevProxyUrlRef.current = proxyUrl;
     if (proxyUrl && hasUrl) {
       setIframeKey(k => k + 1);
       setLoading(true);
     }
-  }
+  }, [proxyUrl, hasUrl]);
 
-  if (reloadTrigger !== prevReloadTriggerRef.current) {
+  useEffect(() => {
+    if (reloadTrigger === prevReloadTriggerRef.current) return;
+
     prevReloadTriggerRef.current = reloadTrigger;
     if (reloadTrigger > 0 && hasUrl) {
       setIframeKey(k => k + 1);
       setLoading(true);
     }
-  }
+  }, [reloadTrigger, hasUrl]);
 
   const handleIframeLoad = () => {
     setLoading(false);
