@@ -513,7 +513,7 @@ describe('layoutPages behavior', () => {
     const crossLink = result.edges.find(e => {
       const sourceName = result.nodes.find(n => n.id === e.source)?.data.label;
       const targetName = result.nodes.find(n => n.id === e.target)?.data.label;
-      return sourceName === 'About' && targetName === '/contact';
+      return sourceName === 'About' && targetName === 'Contact';
     });
     expect(crossLink).toBeDefined();
   });

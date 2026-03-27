@@ -3,26 +3,14 @@ import type { Request, Response } from 'express';
 import path from 'path';
 import { existsSync } from 'fs';
 import { performanceService } from '../services/performance.service.js';
+import { isAllowedHttpUrl } from '../utils/security.js';
+import { sendError } from '../utils/http.js';
+import { logServerError } from '../utils/logger.js';
+import { DEVICE_IDS } from '../../shared/devices.js';
 
 const router = Router();
 
 const MAX_DEVICES_PER_REQUEST = 10;
-
-function isAllowedUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return false;
-    }
-    const hostname = parsed.hostname;
-    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * POST /api/performance/audit
@@ -38,19 +26,26 @@ router.post('/audit', async (req: Request, res: Response) => {
     };
 
     if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'url is required' });
+      return sendError(res, 400, 'url is required');
     }
 
-    if (!isAllowedUrl(url)) {
-      return res.status(400).json({ error: 'Invalid URL. Only http: and https: URLs are allowed.' });
+    if (!(await isAllowedHttpUrl(url))) {
+      return sendError(res, 400, 'Invalid URL. Only http: and https: URLs are allowed.');
     }
 
     if (!devices || !Array.isArray(devices) || devices.length === 0) {
-      return res.status(400).json({ error: 'devices array is required' });
+      return sendError(res, 400, 'devices array is required');
     }
 
     if (devices.length > MAX_DEVICES_PER_REQUEST) {
-      return res.status(400).json({ error: `Maximum ${MAX_DEVICES_PER_REQUEST} devices per request` });
+      return sendError(res, 400, `Maximum ${MAX_DEVICES_PER_REQUEST} devices per request`);
+    }
+
+    const invalidDevices = devices.filter((deviceId) => !DEVICE_IDS.includes(deviceId));
+    if (invalidDevices.length > 0) {
+      return sendError(res, 400, `Invalid device IDs: ${invalidDevices.join(', ')}`, {
+        validDeviceIds: DEVICE_IDS,
+      });
     }
 
     // Validate sourceDir — must be an absolute path that exists, no traversal
@@ -73,10 +68,17 @@ router.post('/audit', async (req: Request, res: Response) => {
       ...result,
     });
   } catch (error) {
-    console.error('Performance audit error:', error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to run performance audit',
+    logServerError(error, {
+      requestId: res.locals.requestId as string | undefined,
+      path: req.path,
+      method: req.method,
     });
+
+    return sendError(
+      res,
+      500,
+      error instanceof Error ? error.message : 'Failed to run performance audit',
+    );
   }
 });
 

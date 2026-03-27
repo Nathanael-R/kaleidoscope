@@ -129,8 +129,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     <div className="space-y-4">
       {/* Device Selection */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Devices</span>
+        <div className="flex justify-end mb-2">
           <div className="flex gap-1">
             <button
               onClick={selectAll}

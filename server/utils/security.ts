@@ -7,6 +7,14 @@ const BLOCKED_HOSTS = new Set([
   'localhost',
 ]);
 
+const INSPECTABLE_LOCAL_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  '::1',
+  '[::1]',
+]);
+
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split('.').map(Number);
   if (parts.length !== 4 || parts.some(Number.isNaN)) return false;
@@ -68,6 +76,23 @@ export async function isAllowedHttpUrl(url: string): Promise<boolean> {
   }
 
   return true;
+}
+
+export function isInspectableLocalUrl(url: string): boolean {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return false;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  return INSPECTABLE_LOCAL_HOSTS.has(hostname) || hostname.endsWith('.localhost');
 }
 
 const COOKIE_NAME_REGEX = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;

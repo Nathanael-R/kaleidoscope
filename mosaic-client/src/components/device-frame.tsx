@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
+import type { InspectSelectionPayload } from "@/lib/inspect";
 interface DeviceFrameProps {
   device: Device;
   url: string;
@@ -11,6 +12,8 @@ interface DeviceFrameProps {
   onLoad?: () => void;
   onError?: () => void;
   reloadTrigger?: number;
+  inspectEnabled?: boolean;
+  onInspectSelection?: (selection: InspectSelectionPayload) => void;
 }
 
 export default function DeviceFrame({
@@ -22,16 +25,30 @@ export default function DeviceFrame({
   onLoad,
   onError,
   reloadTrigger = 0,
+  inspectEnabled = false,
+  onInspectSelection,
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
   const hasUrl = !!url;
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const prevUrlRef = useRef(url);
   const prevProxyUrlRef = useRef(proxyUrl);
   const prevReloadTriggerRef = useRef(reloadTrigger);
+
+  const postInspectState = (enabled: boolean) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'kaleidoscope-inspect',
+        type: 'KALEIDOSCOPE_INSPECT_SET_STATE',
+        enabled,
+      },
+      '*'
+    );
+  };
 
   useEffect(() => {
     if (url === prevUrlRef.current) return;
@@ -66,6 +83,50 @@ export default function DeviceFrame({
       setLoading(true);
     }
   }, [reloadTrigger, hasUrl]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
+
+      const data = event.data as {
+        source?: string;
+        type?: string;
+        payload?: InspectSelectionPayload;
+      };
+
+      if (!data || data.source !== 'kaleidoscope-inspect') {
+        return;
+      }
+
+      if (data.type === 'KALEIDOSCOPE_INSPECT_READY' || data.type === 'KALEIDOSCOPE_INSPECT_STATUS') {
+        if (inspectEnabled) {
+          postInspectState(true);
+        }
+        return;
+      }
+
+      if (data.type === 'KALEIDOSCOPE_INSPECT_RESULT' && data.payload) {
+        onInspectSelection?.(data.payload);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [inspectEnabled, onInspectSelection]);
+
+  useEffect(() => {
+    if (!hasUrl || loading) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      postInspectState(inspectEnabled);
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasUrl, inspectEnabled, loading, iframeKey]);
 
   const handleIframeLoad = () => {
     setLoading(false);
@@ -171,6 +232,12 @@ export default function DeviceFrame({
           </div>
         )}
 
+        {inspectEnabled && !loading && !error && (
+          <div className="absolute left-2 top-2 z-20 rounded-full bg-cyan-500 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white shadow-sm">
+            Inspecting
+          </div>
+        )}
+
         {/* Error State */}
         {error && !loading && (
           <div className="absolute inset-0 bg-white flex items-center justify-center z-20">
@@ -209,6 +276,7 @@ export default function DeviceFrame({
         {hasUrl && (
           <iframe
             key={iframeKey}
+            ref={iframeRef}
             data-device-frame
             src={proxyUrl || url}
             className="w-full h-full border-0 bg-white"

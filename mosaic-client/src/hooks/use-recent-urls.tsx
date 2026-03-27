@@ -54,8 +54,8 @@ export function useRecentUrls() {
         
         return trimmed;
       });
-    } catch (error) {
-      console.error('Error adding recent URL:', error);
+    } catch {
+      // Ignore malformed URLs from user input rather than logging noisy test/runtime errors.
     }
   }, []);
 

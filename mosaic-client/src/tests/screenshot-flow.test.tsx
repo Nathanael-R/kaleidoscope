@@ -33,10 +33,10 @@ describe('Screenshot capture', () => {
     it('should toggle device selection on click', () => {
       render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
 
-      const pixel = screen.getByText('Pixel 6');
+      const pixel = screen.getByText('Google Pixel 6');
       fireEvent.click(pixel);
 
-      // Pixel 6 should now be selected
+      // Google Pixel 6 should now be selected
       expect(pixel.closest('button')).toHaveClass('bg-blue-50');
     });
 
@@ -46,7 +46,7 @@ describe('Screenshot capture', () => {
       fireEvent.click(screen.getByText('All'));
 
       // All 8 device buttons should be selected
-      const allDeviceButtons = screen.getAllByText(/iPhone 14|Samsung S21|Pixel 6|iPad$|iPad Pro|MacBook Air|Desktop HD|Desktop 4K/);
+      const allDeviceButtons = screen.getAllByText(/iPhone 14|Samsung Galaxy S21|Google Pixel 6|iPad$|iPad Pro|MacBook Air|Desktop HD|Desktop 4K/);
       allDeviceButtons.forEach(btn => {
         expect(btn.closest('button')).toHaveClass('bg-blue-50');
       });

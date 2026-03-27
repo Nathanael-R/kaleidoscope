@@ -253,3 +253,11 @@ export function mapIssuesToSource(
 
   return hints;
 }
+
+export function findSourceHint(element: string, sourceDir: string, type = 'inspect'): SourceHint | null {
+  if (!element.trim()) {
+    return null;
+  }
+
+  return mapIssuesToSource([{ type, element }], sourceDir).get(0) ?? null;
+}

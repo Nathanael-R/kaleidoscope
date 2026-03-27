@@ -45,7 +45,7 @@ describe('Live Reload', () => {
       expect(callAfterToggle.autoConnect).toBe(true);
     });
 
-    it('should show "Connected" status when SSE connection succeeds', () => {
+    it('should show "Connected" status when SSE connection succeeds', async () => {
       mockUseSocket.mockReturnValue({ isConnected: true });
 
       render(<LiveReloadToggle />);
@@ -53,6 +53,13 @@ describe('Live Reload', () => {
 
       expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText('Watching for file changes...')).toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/watcher/start'),
+          expect.any(Object)
+        );
+      });
     });
 
     it('should show "Connecting..." when SSE is not yet connected', () => {
@@ -87,7 +94,7 @@ describe('Live Reload', () => {
       expect(body.paths).toContain('src/**/*');
     });
 
-    it('should call onReload callback when a file change event arrives', () => {
+    it('should call onReload callback when a file change event arrives', async () => {
       const onReload = vi.fn();
 
       // Capture the onReload callback passed to useSocket
@@ -100,15 +107,24 @@ describe('Live Reload', () => {
       render(<LiveReloadToggle onReload={onReload} />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
 
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/watcher/start'),
+          expect.any(Object)
+        );
+      });
+
       // Simulate a reload event from the server
       act(() => {
         capturedOnReload?.();
       });
 
-      expect(onReload).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(onReload).toHaveBeenCalledTimes(1);
+      });
     });
 
-    it('should show "Just now" after receiving a reload event', () => {
+    it('should show "Just now" after receiving a reload event', async () => {
       let capturedOnReload: (() => void) | undefined;
       mockUseSocket.mockImplementation((opts: any) => {
         capturedOnReload = opts.onReload;
@@ -118,11 +134,20 @@ describe('Live Reload', () => {
       render(<LiveReloadToggle />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
 
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/watcher/start'),
+          expect.any(Object)
+        );
+      });
+
       act(() => {
         capturedOnReload?.();
       });
 
-      expect(screen.getByText('Just now')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Just now')).toBeInTheDocument();
+      });
     });
   });
 
@@ -152,7 +177,7 @@ describe('Live Reload', () => {
     it('should stop the server-side file watcher when disabled', async () => {
       mockUseSocket.mockReturnValue({ isConnected: true });
 
-      const { rerender } = render(<LiveReloadToggle />);
+      render(<LiveReloadToggle />);
 
       // Enable
       fireEvent.click(screen.getByTestId('live-reload-toggle'));

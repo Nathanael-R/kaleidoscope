@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
+import type { InspectSelectionPayload } from "@/lib/inspect";
 import { cn } from "@/lib/utils";
-import { ArrowLeftFromLine, Camera, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
 interface PreviewAreaProps {
   selectedDevice: Device;
@@ -13,6 +14,11 @@ interface PreviewAreaProps {
   viewMode: 'single' | 'comparison';
   onDevicePin?: (device: Device) => void;
   reloadTrigger?: number;
+  canInspect?: boolean;
+  inspectEnabled?: boolean;
+  inspectPending?: boolean;
+  onToggleInspect?: () => void;
+  onInspectSelection?: (selection: InspectSelectionPayload) => void;
 }
 
 import * as React from "react";
@@ -28,6 +34,11 @@ export default function PreviewArea({
   viewMode,
   onDevicePin,
   reloadTrigger = 0,
+  canInspect = false,
+  inspectEnabled = false,
+  inspectPending = false,
+  onToggleInspect,
+  onInspectSelection,
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -267,6 +278,21 @@ export default function PreviewArea({
             <span className="hidden sm:inline">Screenshot</span>
           </Button>
           <Button
+            variant={inspectEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleInspect}
+            disabled={!inspectEnabled && (!canInspect || inspectPending)}
+            className="flex items-center"
+            data-testid="button-inspect"
+          >
+            {inspectPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Crosshair className="w-4 h-4 mr-2" />
+            )}
+            <span className="hidden sm:inline">{inspectEnabled ? 'Stop Inspect' : 'Inspect'}</span>
+          </Button>
+          <Button
             size="sm"
             onClick={handleFullscreen}
             className="flex items-center"
@@ -287,7 +313,8 @@ export default function PreviewArea({
           isLandscape={isLandscape}
           scale={scale}
           reloadTrigger={reloadTrigger + localReloadTrigger}
-
+          inspectEnabled={inspectEnabled}
+          onInspectSelection={onInspectSelection}
         />
       ) : (
         <div className="space-y-8">
@@ -401,7 +428,6 @@ export default function PreviewArea({
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger + localReloadTrigger}
-              
                       />
                     </div>
                   </div>

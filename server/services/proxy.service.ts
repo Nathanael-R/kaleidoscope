@@ -8,6 +8,7 @@ export interface ProxySession {
   cookies: Array<{ name: string; value: string }>;
   mockRoutes: Map<string, unknown>;
   authFailed: boolean;
+  mode: 'standard' | 'inspect';
   createdAt: Date;
 }
 
@@ -18,13 +19,22 @@ const BLOCKED_RESPONSE_HEADERS = [
   'content-security-policy-report-only',
 ];
 
+const INSPECT_RUNTIME_SNIPPET = [
+  '<script src="/api/inspect/element-source.js" data-kaleidoscope-inspect-runtime></script>',
+  '<script src="/api/inspect/bridge.js" data-kaleidoscope-inspect-runtime defer></script>',
+].join('\n');
+
 class ProxyService {
   private sessions: Map<string, ProxySession> = new Map();
 
   /**
    * Create a new proxy session for a target URL
    */
-  createSession(targetUrl: string, cookies: Array<{ name: string; value: string }> = []): ProxySession {
+  createSession(
+    targetUrl: string,
+    cookies: Array<{ name: string; value: string }> = [],
+    options: { mode?: 'standard' | 'inspect' } = {},
+  ): ProxySession {
     const id = this.generateId();
     const session: ProxySession = {
       id,
@@ -32,6 +42,7 @@ class ProxyService {
       cookies,
       mockRoutes: new Map(),
       authFailed: false,
+      mode: options.mode ?? 'standard',
       createdAt: new Date(),
     };
     this.sessions.set(id, session);
@@ -285,14 +296,17 @@ class ProxyService {
     // Add a <base> tag to handle relative URLs
     // This makes the browser resolve relative URLs against the original target
     const baseTag = `<base href="${session.targetUrl}/">`;
+    const headInjection = session.mode === 'inspect'
+      ? `${INSPECT_RUNTIME_SNIPPET}\n${baseTag}`
+      : baseTag;
 
     if (html.includes('<head>')) {
-      return html.replace('<head>', `<head>\n${baseTag}`);
+      return html.replace('<head>', `<head>\n${headInjection}`);
     } else if (html.includes('<HEAD>')) {
-      return html.replace('<HEAD>', `<HEAD>\n${baseTag}`);
+      return html.replace('<HEAD>', `<HEAD>\n${headInjection}`);
     }
 
-    return baseTag + html;
+    return `${headInjection}${html}`;
   }
 
   /**
