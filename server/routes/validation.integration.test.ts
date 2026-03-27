@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer, type Server } from 'node:http';
+import crawlRoutes from './crawl.routes.js';
 import screenshotRoutes from './screenshot.routes.js';
 import proxyRoutes from './proxy.routes.js';
+import performanceRoutes from './performance.routes.js';
+import inspectRoutes from './inspect.routes.js';
 
 let server: Server;
 let baseUrl = '';
@@ -23,7 +26,10 @@ test.before(async () => {
   });
 
   app.use('/api/screenshots', screenshotRoutes);
+  app.use('/api/crawl', crawlRoutes);
   app.use('/api/proxy', proxyRoutes);
+  app.use('/api/performance', performanceRoutes);
+  app.use('/api/inspect', inspectRoutes);
 
   server = createServer(app);
   await new Promise<void>((resolve) => {
@@ -79,5 +85,81 @@ test('POST /api/proxy/session rejects invalid cookies with normalized error payl
 
   assert.equal(status, 400);
   assert.equal(typeof body.error, 'string');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/performance/audit rejects invalid URLs with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/performance/audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'file:///etc/passwd',
+      devices: ['iphone-14'],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(typeof body.error, 'string');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/performance/audit rejects invalid device IDs with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/performance/audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'https://example.com',
+      devices: ['not-a-real-device'],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(typeof body.error, 'string');
+  assert.equal(body.requestId, 'test-request-id');
+  assert.ok(Array.isArray(body.validDeviceIds));
+  assert.ok(body.validDeviceIds.includes('iphone-14'));
+});
+
+test('POST /api/crawl rejects invalid URLs with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/crawl', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'file:///etc/passwd',
+      depth: 1,
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(typeof body.error, 'string');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/crawl rejects invalid proxy URLs with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/crawl', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'https://example.com',
+      proxyUrl: 'file:///etc/passwd',
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'proxyUrl is invalid');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/inspect/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'https://example.com',
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'Inspect mode only supports local/dev loopback URLs.');
   assert.equal(body.requestId, 'test-request-id');
 });

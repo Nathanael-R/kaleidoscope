@@ -363,8 +363,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
     <div className="space-y-3" data-testid="performance-panel">
       {/* Device Selection */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Devices</span>
+        <div className="flex justify-end mb-2">
           <div className="flex gap-1">
             <button onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">All</button>
             <span className="text-xs text-gray-400">|</span>

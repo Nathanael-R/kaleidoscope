@@ -13,6 +13,8 @@ import LiveReloadToggle from "@/components/live-reload-toggle";
 import AuthWizard, { type AuthCookie, type ProxySession } from "@/components/auth-wizard";
 import ScreenshotPanel from "@/components/screenshot-panel";
 import PerformancePanel from "@/components/performance-panel";
+import InspectPanel from "@/components/inspect-panel";
+import type { InspectResult } from "@/lib/inspect";
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -30,6 +32,14 @@ interface SidebarProps {
   onAuthCapture?: (cookies: AuthCookie[]) => void;
   onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
   proxyUrl?: string | null;
+  inspectEnabled: boolean;
+  inspectPending: boolean;
+  inspectResolving: boolean;
+  inspectResult: InspectResult | null;
+  inspectError: string | null;
+  inspectSourceDir: string;
+  onInspectSourceDirChange: (value: string) => void;
+  onToggleInspect: () => void;
 }
 
 /** Collapsible section wrapper */
@@ -69,6 +79,7 @@ function Section({
 export default function Sidebar({
   selectedDevice,
   onDeviceSelect,
+  currentUrl,
   onUrlChange,
   onLoadUrl,
   isCollapsed,
@@ -80,7 +91,15 @@ export default function Sidebar({
   onReload,
   onAuthCapture,
   onProxyUrl,
-  proxyUrl
+  proxyUrl,
+  inspectEnabled,
+  inspectPending,
+  inspectResolving,
+  inspectResult,
+  inspectError,
+  inspectSourceDir,
+  onInspectSourceDirChange,
+  onToggleInspect,
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
@@ -255,6 +274,23 @@ export default function Sidebar({
         <Section title="Live Reload" icon={Globe}>
           <LiveReloadToggle onReload={onReload} />
         </Section>
+
+        {urlInput && (
+          <Section title="Inspect" icon={Activity} defaultOpen>
+            <InspectPanel
+              currentUrl={currentUrl}
+              viewMode={viewMode}
+              enabled={inspectEnabled}
+              pending={inspectPending}
+              resolving={inspectResolving}
+              sourceDir={inspectSourceDir}
+              onSourceDirChange={onInspectSourceDirChange}
+              onToggle={onToggleInspect}
+              result={inspectResult}
+              error={inspectError}
+            />
+          </Section>
+        )}
 
         {urlInput && (
           <Section title="Authentication" icon={Globe} defaultOpen>

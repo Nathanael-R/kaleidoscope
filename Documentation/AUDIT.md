@@ -1,154 +1,106 @@
-# Kaleidoscope Codebase Audit (Independent)
+# Kaleidoscope Codebase Audit (Post-Pull Refresh)
 
 **Date:** 2026-03-09  
-**Scope:** `c:\Code\kaleidoscope` monorepo  
+**Scope:** `c:\Code\kaleidoscope` monorepo (current pulled `master`)  
 **Auditor:** GitHub Copilot (GPT-5.3-Codex)
 
 ---
 
 ## Executive Summary
 
-Kaleidoscope is a well-structured monorepo with strong product direction: responsive previews, screenshot capture, auth-aware proxying, crawl support, and MCP tooling are thoughtfully integrated.
+The recent hardening work has now been extended to the performance endpoint: URL validation, normalized error payloads, and strict device validation are aligned with the rest of the backend API.
 
-The software is solid for local/dev usage, but there are still important hardening and consistency gaps before broader or production-style deployment.
+Backend security/contract hardening is in a good state, and the remaining risk profile is primarily frontend regression stability plus minor policy clarity around performance audit `sourceDir` handling.
 
-**Overall health:** Good foundation, medium operational risk if internet-exposed without additional controls.
+**Overall health:** Good foundation with medium-low operational risk; remaining work is mostly test/consistency cleanup.
 
 ---
 
-## What Was Re-Audited
+## Verification Snapshot
 
-This report is a fresh audit of current source files, including:
+### Confirmed Passes
 
-- `server/index.ts`, `server/routes/*`, `server/services/*`
-- `mosaic-client/src/components/*`, `mosaic-client/src/pages/*`, `mosaic-client/src/hooks/*`
-- `mcp-server/src/process-manager.ts`, `mcp-server/src/tools/*`
+1. `server` TypeScript check passes (`npm run check`).
+2. `server` tests pass (`npm test`, 9/9).
+3. `server` includes request ID plumbing and normalized error helper in core path:
+	- `server/index.ts`
+	- `server/utils/http.ts`
+	- `server/routes/proxy.routes.ts`
+	- `server/routes/screenshot.routes.ts`
+	- `server/routes/crawl.routes.ts`
+	- `server/routes/performance.routes.ts`
+4. Previously failing frontend tests now pass in focused rerun:
+	- `mosaic-client/src/tests/crawl-api-contract.test.ts`
+	- `mosaic-client/src/tests/screenshot-flow.test.tsx`
+
+### Confirmed Gaps
+
+1. Full frontend suite was not re-run after the targeted fixes; only the two previously failing tests were verified.
+2. `sourceDir` policy for performance audits remains permissive and should be made explicit.
 
 ---
 
 ## Findings (Ordered by Severity)
 
-### Critical
-
-#### C1. Production CORS can fall back to wildcard
-**Location:** `server/index.ts`  
-**Evidence:** Production origin uses `process.env.CORS_ORIGIN || '*'`.  
-**Risk:** If env config is incomplete, API can be called by any origin.  
-**Recommendation:** Fail closed in production when `CORS_ORIGIN` is missing or invalid.
-
-#### C2. URL-based features have partial SSRF protection
-**Location:** `server/routes/proxy.routes.ts`, `server/routes/screenshot.routes.ts`, `server/routes/crawl.routes.ts`  
-**Evidence:** Basic scheme + metadata host blocking exists, but no complete private/loopback range handling or DNS rebinding mitigation.  
-**Risk:** Internal network access in non-local deployments.  
-**Recommendation:** Block private/loopback/link-local IPv4/IPv6, resolve DNS before allow, and reject private resolutions.
-
-#### C3. Device definition drift risk across multiple layers
-**Location:**
-- `mosaic-client/src/lib/devices.ts`
-- `server/services/screenshot.service.ts`
-- `server/routes/screenshot.routes.ts`
-- `mcp-server/src/tools/preview.ts`
-- `mosaic-client/src/components/screenshot-panel.tsx`
-
-**Risk:** Device updates require multiple edits; mismatches can cause silent behavior divergence.  
-**Recommendation:** Move to one shared source (`shared/devices.ts`) and import everywhere.
-
-### High
-
-#### H1. Device IDs are not strictly validated end-to-end
-**Location:** `mcp-server/src/tools/preview.ts`, `server/routes/screenshot.routes.ts`  
-**Evidence:** MCP tool accepts arbitrary strings; screenshot route validates array shape but not canonical IDs before service capture.  
-**Risk:** Silent partial results and hard-to-debug UX.  
-**Recommendation:** Add strict runtime validation against canonical device IDs with explicit 400 errors.
-
-#### H2. Request hardening controls are missing
-**Location:** `server/index.ts`  
-**Evidence:** Default `express.json()` / `express.urlencoded()` with no explicit size limits; no rate limiting middleware.  
-**Risk:** Resource abuse and avoidable DoS exposure.  
-**Recommendation:** Add request size limits, rate limiting, and per-endpoint caps.
-
-#### H3. Cookie payloads are accepted with minimal constraints
-**Location:** `server/routes/proxy.routes.ts`, `server/services/proxy.service.ts`  
-**Evidence:** Cookie objects are accepted and forwarded as headers with minimal input constraints.  
-**Risk:** Header abuse edge cases and oversized payload behavior.  
-**Recommendation:** Validate cookie name/value format, maximum count, and maximum size.
-
-#### H4. MCP startup failures can be opaque
-**Location:** `mcp-server/src/process-manager.ts`  
-**Evidence:** Spawn failures often surface as wait timeout only; limited structured diagnostics returned by tools.  
-**Risk:** Longer troubleshooting cycles during setup failures.  
-**Recommendation:** Capture startup stderr/exit reason and return concise actionable diagnostics in tool responses.
-
 ### Medium
 
-#### M1. Render-phase state updates in DeviceFrame
-**Location:** `mosaic-client/src/components/device-frame.tsx`  
-**Evidence:** Component updates state inside render branch using ref comparisons.  
-**Risk:** Fragile render timing under concurrent React behavior.  
-**Recommendation:** Move transition logic to `useEffect` with explicit dependencies.
+#### M1. `sourceDir` sanitization logic is insufficiently explicit
+**Location:** `server/routes/performance.routes.ts`  
+**Evidence:** Uses `path.resolve()` plus `!resolved.includes('..')`, which is ineffective after resolve normalization.  
+**Risk:** Intent is unclear and may be misinterpreted as robust traversal prevention.  
+**Recommendation:** Define explicit policy: absolute existing directory only, optional allowlist root, and no ad hoc `..` string checks.
 
-#### M2. Prop drilling concentration in Home page
-**Location:** `mosaic-client/src/pages/home.tsx`  
-**Evidence:** Home coordinates many cross-cutting states passed into Sidebar/PreviewArea.  
-**Risk:** Refactor friction and accidental coupling over time.  
-**Recommendation:** Extract shared preview state into a central store with clear domain slices.
+#### M2. Frontend tests recently regressed against expected contracts
+**Location:**
+- `mosaic-client/src/tests/crawl-api-contract.test.ts`
+- `mosaic-client/src/tests/screenshot-flow.test.tsx`
 
-#### M3. Polling strategy can be more selective
-**Location:** `mosaic-client/src/hooks/use-tunnel.tsx`  
-**Evidence:** Periodic refetch runs regardless of whether a tunnel is active.  
-**Risk:** Unnecessary network churn and rendering overhead.  
-**Recommendation:** Enable polling only while tunnel is active or while status is transitional.
+**Evidence:** Full test run reports:
+1. Missing expected cross-link edge in crawl layout.
+2. Screenshot selection test still querying `Pixel 6` while UI now shows `Google Pixel 6`.
 
-#### M4. Proxy HTML rewriting remains basic
-**Location:** `server/services/proxy.service.ts`  
-**Evidence:** Current strategy injects a `<base>` tag, but does not provide robust element-level rewriting.  
-**Risk:** Navigation/resource behavior inconsistencies on complex pages.  
-**Recommendation:** Add structured HTML rewriting where required and expand tests for tricky cases.
+**Risk:** Behavioral drift between feature evolution and test fixtures; release confidence reduced.  
+**Recommendation:** Update implementation or tests so contract/UI labels are consistent and deterministic.
 
 ---
 
-## Strengths
+## Resolved Since Prior Audit
 
-1. **Clear architecture boundaries:** server/client/MCP responsibilities are generally clean.
-2. **Good lifecycle management:** graceful shutdown and service cleanup patterns are present.
-3. **Practical feature set:** auth proxy + mock injection + screenshots + crawl is a strong differentiator.
-4. **Reasonable test baseline:** broad behavior coverage already exists across frontend workflows.
-5. **Developer ergonomics:** local startup workflow is straightforward and Docker support is present.
-
----
-
-## Prioritized Improvement Roadmap
-
-### Phase 1 (Security + Consistency)
-1. Fail-closed production CORS behavior.
-2. Add request body size limits and rate limiting.
-3. Expand SSRF protections to private/loopback/DNS-rebind checks.
-4. Centralize device definitions to one shared module.
-5. Enforce strict device ID validation in server and MCP.
-
-### Phase 2 (Reliability)
-1. Improve MCP process startup diagnostics.
-2. Add stricter cookie validation and payload bounds.
-3. Refactor render-phase state transitions in `device-frame.tsx`.
-4. Tighten async cancellation/timeout behavior in network-heavy UI actions.
-
-### Phase 3 (Maintainability + Ops)
-1. Reduce prop drilling by extracting shared preview state.
-2. Add structured logs with request IDs.
-3. Expand tests for SSRF edge cases, invalid-device paths, and MCP startup failures.
+1. Production CORS is fail-closed when `CORS_ORIGIN` is unset (`server/index.ts`).
+2. Request body limits and API rate limiting are implemented (`server/index.ts`).
+3. Shared URL and cookie validation exists for proxy/crawl/screenshot paths (`server/utils/security.ts`).
+4. Normalized API error helper and request IDs are in place (`server/utils/http.ts`, `server/index.ts`).
+5. Shared device catalog adoption has been implemented across major layers (`shared/devices.ts`).
+6. Backend security + validation tests exist and pass (`server/utils/security.test.ts`, `server/routes/validation.integration.test.ts`).
+7. Performance route now uses shared URL validation (`isAllowedHttpUrl`) and normalized errors (`sendError`) with request IDs.
+8. Performance route now validates device IDs against canonical shared IDs and exposes `validDeviceIds` on invalid input.
 
 ---
 
-## Suggested Acceptance Criteria for Next Audit Cycle
+## Priority Roadmap (Delta-Oriented)
 
-1. No production wildcard CORS fallback.
-2. SSRF test suite covers private IPv4/IPv6 + DNS rebinding scenarios.
-3. Single canonical device list consumed by all layers.
-4. Invalid device IDs rejected consistently with explicit errors.
-5. MCP startup failure messages include root cause class (spawn/port/dependency/timeout).
+### Phase 1 (Immediate)
+1. Complete.
+2. Complete.
+3. Complete.
+
+### Phase 2 (Stability)
+1. Resolve failing frontend tests and lock expected labels/contracts.
+2. Introduce performance-route-specific tests for `sourceDir` policy behavior.
+3. Convert remaining `console.error` paths in route handlers to structured logger usage.
+
+---
+
+## Acceptance Criteria for Next Audit Cycle
+
+1. Complete: all URL-entry routes (`proxy`, `crawl`, `screenshots`, `performance`) share the same SSRF validator.
+2. Complete: route errors in the hardened paths include `{ error, requestId }`.
+3. Complete: performance endpoint rejects unknown device IDs with 400 and valid ID list.
+4. In progress: run full frontend unit suite to confirm no additional regressions beyond targeted fixes.
+5. Complete: performance-route tests cover URL validation, device validation, and normalized error payload.
 
 ---
 
 ## Final Assessment
 
-Kaleidoscope is already a capable and thoughtfully engineered local developer tool. The next step is not feature breadth but **hardening and consistency**: secure defaults, validation rigor, and single-source contracts. Once those are addressed, it should scale much more confidently to team-level and hosted environments.
+The architecture and hardening direction are strong, and the recent performance-route consistency regression has been addressed. Remaining risk is focused on frontend test stability and tightening `sourceDir` policy semantics.

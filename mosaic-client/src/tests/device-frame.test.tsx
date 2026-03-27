@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import DeviceFrame from '@/components/device-frame';
 import { devices } from '@/lib/devices';
 
@@ -150,6 +150,78 @@ describe('DeviceFrame', () => {
 
       fireEvent.load(screen.getByTestId('preview-iframe'));
       expect(onLoad).toHaveBeenCalledOnce();
+    });
+
+    it('posts inspect state to the iframe when inspect mode is enabled', () => {
+      vi.useFakeTimers();
+      const postMessage = vi.fn();
+
+      render(
+        <DeviceFrame
+          device={iphone}
+          url="http://localhost:3000"
+          inspectEnabled
+        />
+      );
+
+      const iframe = screen.getByTestId('preview-iframe');
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: { postMessage },
+      });
+
+      fireEvent.load(iframe);
+      act(() => {
+        vi.runAllTimers();
+      });
+
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'kaleidoscope-inspect',
+          type: 'KALEIDOSCOPE_INSPECT_SET_STATE',
+          enabled: true,
+        }),
+        '*'
+      );
+
+      vi.useRealTimers();
+    });
+
+    it('forwards inspect result messages from the iframe', () => {
+      const onInspectSelection = vi.fn();
+      render(
+        <DeviceFrame
+          device={iphone}
+          url="http://localhost:3000"
+          inspectEnabled
+          onInspectSelection={onInspectSelection}
+        />
+      );
+
+      const iframe = screen.getByTestId('preview-iframe');
+      const frameWindow = {};
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: frameWindow,
+      });
+
+      window.dispatchEvent(new MessageEvent('message', {
+        source: frameWindow as MessageEventSource,
+        data: {
+          source: 'kaleidoscope-inspect',
+          type: 'KALEIDOSCOPE_INSPECT_RESULT',
+          payload: {
+            selector: '#save',
+            tagName: 'button',
+            text: 'Save',
+            elementSource: null,
+          },
+        },
+      }));
+
+      expect(onInspectSelection).toHaveBeenCalledWith(
+        expect.objectContaining({ selector: '#save', tagName: 'button' })
+      );
     });
   });
 });

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "chokidar": "^5.0.0",
+    "element-source": "^0.0.5",
     "express": "^4.21.2",
     "localtunnel": "^2.0.2",
     "playwright-core": "^1.58.2"
