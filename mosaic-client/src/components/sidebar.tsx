@@ -62,16 +62,18 @@ function Section({
     <div className="border-b border-gray-100 dark:border-gray-700">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-150 active:bg-gray-100 dark:active:bg-gray-600"
       >
-        <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+        <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-colors duration-150" />
         <span className="text-xs font-medium text-gray-600 dark:text-gray-300 flex-1">{title}</span>
         {badge !== undefined && (
-          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{badge}</span>
+          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full transition-colors duration-150">{badge}</span>
         )}
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
       </button>
-      {open && <div className="px-4 pb-3">{children}</div>}
+      <div className="accordion-content" data-open={open ? "true" : "false"}>
+        <div className="px-4 pb-3">{children}</div>
+      </div>
     </div>
   );
 }
@@ -157,13 +159,13 @@ export default function Sidebar({
 
   if (isCollapsed) {
     return (
-      <aside className="w-14 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col" role="complementary" aria-label="Device controls">
+      <aside className="w-14 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col animate-fade-in-up" role="complementary" aria-label="Device controls">
         <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-center">
           <Button
             variant="ghost"
             size="sm"
             onClick={onToggleCollapse}
-            className="w-8 h-8 p-0"
+            className="w-8 h-8 p-0 transition-transform duration-150 hover:scale-110 active:scale-95"
             data-testid="button-expand-sidebar"
           >
             <ChevronRight className="w-4 h-4" />
@@ -175,7 +177,7 @@ export default function Sidebar({
               key={device.id}
               variant="ghost"
               className={cn(
-                "w-9 h-9 p-0 rounded-lg border transition-all shrink-0",
+                "w-9 h-9 p-0 rounded-lg border transition-all duration-150 shrink-0 hover:scale-105 active:scale-95",
                 selectedDevice.id === device.id
                   ? "border-primary bg-primary/5"
                   : "border-transparent hover:border-gray-200"
@@ -195,8 +197,8 @@ export default function Sidebar({
   return (
     <>
     {/* Mobile backdrop */}
-    <div className="md:hidden fixed inset-0 top-16 bg-black/30 z-30" onClick={onToggleCollapse} />
-    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col" role="complementary" aria-label="Device controls">
+    <div className="md:hidden fixed inset-0 top-16 bg-black/30 z-30 animate-fade-in-up" onClick={onToggleCollapse} />
+    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col animate-slide-in-right" role="complementary" aria-label="Device controls">
 
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -206,13 +208,13 @@ export default function Sidebar({
             variant={viewMode === 'comparison' ? 'default' : 'ghost'}
             size="sm"
             onClick={onViewModeToggle}
-            className="h-7 px-2 text-xs"
+            className="h-7 px-2 text-xs transition-all duration-150 active:scale-95"
             data-testid="button-toggle-comparison"
           >
             <Columns className="w-3 h-3 mr-1" />
             Compare{pinnedDevices.length > 0 && ` (${pinnedDevices.length})`}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="w-7 h-7 p-0" data-testid="button-collapse-sidebar">
+          <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="w-7 h-7 p-0 transition-transform duration-150 hover:scale-110 active:scale-90" data-testid="button-collapse-sidebar">
             <ChevronLeft className="w-4 h-4" />
           </Button>
         </div>
@@ -221,14 +223,14 @@ export default function Sidebar({
       {/* URL Input — always visible, compact */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="relative">
-          <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+          <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-colors duration-150" />
           <Input
             type="url"
             placeholder="Enter URL to preview..."
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-            className="h-9 pl-8 pr-9 text-sm"
+            className="h-9 pl-8 pr-9 text-sm transition-shadow duration-150 focus:shadow-sm"
             data-testid="input-url"
             aria-label="Website URL to preview across devices"
           />
@@ -236,7 +238,7 @@ export default function Sidebar({
             size="sm"
             variant="ghost"
             onClick={handleUrlSubmit}
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-primary hover:text-primary/80"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-primary hover:text-primary/80 transition-transform duration-150 hover:scale-110 active:scale-90"
             data-testid="button-load-url"
           >
             <ArrowRight className="w-4 h-4" />
@@ -250,11 +252,11 @@ export default function Sidebar({
         {/* Recent URLs — only shown when there are entries */}
         {!loadingRecent && recentUrls.length > 0 && (
           <Section title="Recent" icon={Clock} badge={recentUrls.length} defaultOpen>
-            <div className="space-y-0.5" data-testid="recent-urls-list">
+            <div className="space-y-0.5 stagger-children" data-testid="recent-urls-list">
               {recentUrls.map((recentUrl, index) => (
                 <button
                   key={`${recentUrl.url}-${recentUrl.timestamp}`}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-150 group animate-fade-in-up active:scale-[0.98]"
                   onClick={() => handleRecentUrlClick(recentUrl.url)}
                   data-testid={`recent-url-${index}`}
                 >
@@ -321,12 +323,12 @@ export default function Sidebar({
               {pinnedDevices.map((device) => (
                 <span
                   key={device.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 text-[10px] rounded-full border border-orange-200"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 text-[10px] rounded-full border border-orange-200 animate-badge-pop"
                 >
                   {getDeviceIcon(device.icon)} {device.name}
                   <button
                     onClick={() => onDevicePin(device)}
-                    className="text-orange-400 hover:text-orange-600"
+                    className="text-orange-400 hover:text-orange-600 transition-colors duration-150 hover:scale-125"
                     data-testid={`quick-unpin-${device.id}`}
                   >
                     <X className="w-2.5 h-2.5" />
@@ -360,7 +362,7 @@ export default function Sidebar({
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-all h-auto justify-start",
+                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-all duration-150 h-auto justify-start active:scale-[0.97]",
                             isSelected
                               ? "border-primary bg-primary/5 shadow-sm"
                               : isPinned
@@ -374,19 +376,19 @@ export default function Sidebar({
                           role="option"
                           aria-selected={isSelected}
                         >
-                          <span className="text-base leading-none">{getDeviceIcon(device.icon)}</span>
+                          <span className="text-base leading-none transition-transform duration-150 group-hover:scale-110">{getDeviceIcon(device.icon)}</span>
                           <div className="flex-1 text-left min-w-0">
                             <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{device.name}</span>
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1.5">{device.width}x{device.height}</span>
                           </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0 animate-scale-in" />}
                           {isPinned && !isSelected && <Pin className="w-3 h-3 text-orange-400 shrink-0" />}
                         </Button>
 
                         {/* Pin on hover */}
                         {!isPinned && (
                           <button
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-100"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-150 p-1 rounded hover:bg-gray-100 hover:scale-110 active:scale-90"
                             onClick={(e) => { e.stopPropagation(); onDevicePin(device); }}
                             data-testid={`pin-${device.id}`}
                             aria-label={`Pin ${device.name}`}
@@ -396,7 +398,7 @@ export default function Sidebar({
                         )}
                         {isPinned && (
                           <button
-                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-60 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-orange-100"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-60 group-hover:opacity-100 transition-all duration-150 p-1 rounded hover:bg-orange-100 hover:scale-110 active:scale-90"
                             onClick={(e) => { e.stopPropagation(); onDevicePin(device); }}
                             data-testid={`pin-${device.id}`}
                             aria-label={`Unpin ${device.name}`}
