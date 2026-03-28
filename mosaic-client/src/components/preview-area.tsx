@@ -240,12 +240,12 @@ export default function PreviewArea({
       )}
 
       {/* Preview Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between animate-fade-in-up">
         <div aria-live="polite">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" data-testid="text-device-name">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 transition-all duration-200" data-testid="text-device-name">
             {viewMode === 'comparison' ? `Comparing ${pinnedDevices.length} Devices` : `${selectedDevice.name} Preview`}
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400" data-testid="text-device-dimensions">
+          <p className="text-sm text-gray-600 dark:text-gray-400 transition-all duration-200" data-testid="text-device-dimensions">
             {viewMode === 'comparison'
               ? `Side-by-side device comparison`
               : `${deviceWidth} × ${deviceHeight} pixels`}
@@ -256,7 +256,7 @@ export default function PreviewArea({
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            className="flex items-center"
+            className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-refresh"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -267,7 +267,7 @@ export default function PreviewArea({
             size="sm"
             onClick={handleScreenshot}
             disabled={screenshotting || !currentUrl}
-            className="flex items-center"
+            className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-screenshot"
           >
             {screenshotting ? (
@@ -282,7 +282,7 @@ export default function PreviewArea({
             size="sm"
             onClick={onToggleInspect}
             disabled={!inspectEnabled && (!canInspect || inspectPending)}
-            className="flex items-center"
+            className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-inspect"
           >
             {inspectPending ? (
@@ -295,7 +295,7 @@ export default function PreviewArea({
           <Button
             size="sm"
             onClick={handleFullscreen}
-            className="flex items-center"
+            className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-fullscreen"
           >
             <Expand className="w-4 h-4 mr-2" />
@@ -461,12 +461,12 @@ export default function PreviewArea({
 
       {/* Quick Actions */}
       <div className="mt-12 flex justify-center">
-        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center flex-wrap gap-2 md:gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 transition-shadow duration-200 hover:shadow-md">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRotate}
-            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-rotate"
             aria-label="Rotate device orientation"
           >
@@ -478,7 +478,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleZoomIn}
-            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-zoom-in"
             aria-label="Zoom in"
           >
@@ -489,7 +489,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleZoomOut}
-            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-zoom-out"
             aria-label="Zoom out"
           >
@@ -501,7 +501,7 @@ export default function PreviewArea({
             variant="ghost"
             size="sm"
             onClick={handleResetZoom}
-            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary"
+            className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-150 hover:scale-105 active:scale-95"
             data-testid="button-reset-zoom"
             aria-label="Fit to screen"
           >
@@ -514,7 +514,7 @@ export default function PreviewArea({
       {/* Scale indicator */}
       {scale !== 1 && (
         <div className="mt-4 flex justify-center">
-          <div className="bg-black/75 text-white px-3 py-1 rounded-full text-sm">
+          <div className="bg-black/75 text-white px-3 py-1 rounded-full text-sm animate-scale-in">
             {Math.round(scale * 100)}%
           </div>
         </div>
