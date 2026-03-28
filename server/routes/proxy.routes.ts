@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { proxyService } from '../services/proxy.service.js';
-import { isAllowedHttpUrl, validateCookies } from '../utils/security.js';
+import { isAllowedHttpUrl, validateCookies, validateRequestHeaders } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
 
 const router = Router();
@@ -12,9 +12,10 @@ const router = Router();
  */
 router.post('/session', async (req: Request, res: Response) => {
   try {
-    const { url, cookies = [] } = req.body as {
+    const { url, cookies = [], headers = [] } = req.body as {
       url: string;
       cookies?: Array<{ name: string; value: string }>;
+      headers?: Array<{ name: string; value: string }>;
     };
 
     if (!url || typeof url !== 'string') {
@@ -30,7 +31,14 @@ router.post('/session', async (req: Request, res: Response) => {
       return sendError(res, 400, cookieValidation.reason || 'Invalid cookies');
     }
 
-    const session = proxyService.createSession(url, cookieValidation.sanitized);
+    const headerValidation = validateRequestHeaders(headers);
+    if (!headerValidation.valid || !headerValidation.sanitized) {
+      return sendError(res, 400, headerValidation.reason || 'Invalid headers');
+    }
+
+    const session = proxyService.createSession(url, cookieValidation.sanitized, {
+      requestHeaders: headerValidation.sanitized,
+    });
 
     res.json({
       success: true,
@@ -63,6 +71,31 @@ router.put('/session/:id/cookies', (req: Request, res: Response) => {
   }
 
   const updated = proxyService.updateCookies(id, cookieValidation.sanitized);
+  if (!updated) {
+    return sendError(res, 404, 'Session not found');
+  }
+
+  res.json({ success: true });
+});
+
+router.put('/session/:id/auth', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { cookies = [], headers = [] } = req.body as {
+    cookies?: Array<{ name: string; value: string }>;
+    headers?: Array<{ name: string; value: string }>;
+  };
+
+  const cookieValidation = validateCookies(cookies);
+  if (!cookieValidation.valid || !cookieValidation.sanitized) {
+    return sendError(res, 400, cookieValidation.reason || 'Invalid cookies');
+  }
+
+  const headerValidation = validateRequestHeaders(headers);
+  if (!headerValidation.valid || !headerValidation.sanitized) {
+    return sendError(res, 400, headerValidation.reason || 'Invalid headers');
+  }
+
+  const updated = proxyService.updateAuth(id, cookieValidation.sanitized, headerValidation.sanitized);
   if (!updated) {
     return sendError(res, 404, 'Session not found');
   }
@@ -131,6 +164,7 @@ router.get('/session/:id/status', (req: Request, res: Response) => {
     targetUrl: session.targetUrl,
     authFailed: session.authFailed,
     cookieCount: session.cookies.length,
+    headerCount: session.requestHeaders.length,
     mockRouteCount: session.mockRoutes.size,
     createdAt: session.createdAt.toISOString(),
   });
@@ -148,6 +182,7 @@ router.get('/sessions', (_req: Request, res: Response) => {
       targetUrl: s.targetUrl,
       authFailed: s.authFailed,
       cookieCount: s.cookies.length,
+      headerCount: s.requestHeaders.length,
       mockRouteCount: s.mockRoutes.size,
       proxyUrl: `/api/proxy/${s.id}`,
     })),

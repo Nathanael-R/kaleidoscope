@@ -2,12 +2,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRecentUrls } from "@/hooks/use-recent-urls";
 import { devices, getDevicesByCategory, type Device } from "@/lib/devices";
+import {
+  detectPreviewTargetMode,
+  normalizePreviewUrl,
+  type PreviewTargetMode,
+} from "@/lib/url-input";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight,
   Columns, Pin, X, Globe, Clock, Activity,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TunnelButton from "@/components/tunnel-button";
 import LiveReloadToggle from "@/components/live-reload-toggle";
 import AuthWizard, { type AuthCookie, type ProxySession } from "@/components/auth-wizard";
@@ -104,6 +109,8 @@ export default function Sidebar({
   onToggleInspect,
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
+  const [urlMode, setUrlMode] = useState<PreviewTargetMode>('production');
+  const [urlError, setUrlError] = useState<string | null>(null);
   const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
 
   const devicesByCategory = getDevicesByCategory();
@@ -120,28 +127,36 @@ export default function Sidebar({
     }
   };
 
-  const currentPort = urlInput ? getPortFromUrl(urlInput) : 3000;
+  const { normalizedUrl, error: normalizedUrlError } = normalizePreviewUrl(urlInput, urlMode);
+  const previewUrl = normalizedUrlError ? null : normalizedUrl;
+  const currentPort = previewUrl ? getPortFromUrl(previewUrl) : 3000;
+
+  useEffect(() => {
+    if (!currentUrl) {
+      return;
+    }
+
+    setUrlMode(detectPreviewTargetMode(currentUrl));
+  }, [currentUrl]);
 
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) return;
 
-    let finalUrl = urlInput.trim();
-    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-      finalUrl = 'https://' + finalUrl;
+    const result = normalizePreviewUrl(urlInput, urlMode);
+    if (!result.normalizedUrl) {
+      setUrlError(result.error);
+      return;
     }
 
-    try {
-      new URL(finalUrl); // validate URL format
-
-      addRecentUrl(finalUrl);
-      onLoadUrl(finalUrl);
-      onUrlChange(finalUrl);
-    } catch (error) {
-      console.error('Invalid URL:', error);
-    }
+    setUrlError(null);
+    addRecentUrl(result.normalizedUrl);
+    onLoadUrl(result.normalizedUrl);
+    onUrlChange(result.normalizedUrl);
   };
 
   const handleRecentUrlClick = (url: string) => {
+    setUrlMode(detectPreviewTargetMode(url));
+    setUrlError(null);
     setUrlInput(url);
     onLoadUrl(url);
     onUrlChange(url);
@@ -222,13 +237,44 @@ export default function Sidebar({
 
       {/* URL Input — always visible, compact */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="mb-2 inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-900" data-testid="url-mode-tabs">
+          <button
+            type="button"
+            onClick={() => setUrlMode('production')}
+            className={cn(
+              "rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150",
+              urlMode === 'production'
+                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+            data-testid="url-mode-production"
+          >
+            Website
+          </button>
+          <button
+            type="button"
+            onClick={() => setUrlMode('local')}
+            className={cn(
+              "rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150",
+              urlMode === 'local'
+                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+            data-testid="url-mode-local"
+          >
+            Local Dev
+          </button>
+        </div>
         <div className="relative">
           <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-colors duration-150" />
           <Input
             type="url"
-            placeholder="Enter URL to preview..."
+            placeholder={urlMode === 'local' ? "localhost:3000 or just 3000" : "example.com or https://example.com"}
             value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
+            onChange={(e) => {
+              setUrlInput(e.target.value);
+              setUrlError(null);
+            }}
             onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
             className="h-9 pl-8 pr-9 text-sm transition-shadow duration-150 focus:shadow-sm"
             data-testid="input-url"
@@ -243,6 +289,23 @@ export default function Sidebar({
           >
             <ArrowRight className="w-4 h-4" />
           </Button>
+        </div>
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] text-gray-500 dark:text-gray-400" data-testid="url-mode-hint">
+            {urlMode === 'local'
+              ? 'Local Dev defaults bare entries to http:// and accepts port-only shortcuts like 3000.'
+              : 'Website mode defaults bare domains to https://. Kaleidoscope does not auto-add www.'}
+          </p>
+          {previewUrl && previewUrl !== urlInput.trim() && (
+            <p className="text-[11px] text-cyan-700 dark:text-cyan-300" data-testid="normalized-url-preview">
+              Will open {previewUrl}
+            </p>
+          )}
+          {urlError && (
+            <p className="text-[11px] text-red-600 dark:text-red-300" data-testid="url-error-message">
+              {urlError}
+            </p>
+          )}
         </div>
       </div>
 

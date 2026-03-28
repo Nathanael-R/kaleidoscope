@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isAllowedHttpUrl, isInspectableLocalUrl, validateCookies } from './security.js';
+import { isAllowedHttpUrl, isInspectableLocalUrl, validateCookies, validateRequestHeaders } from './security.js';
 
 test('isAllowedHttpUrl rejects disallowed schemes and hosts', async () => {
   assert.equal(await isAllowedHttpUrl('ftp://example.com/file.txt'), false);
@@ -47,5 +47,29 @@ test('validateCookies rejects invalid cookie names and values', () => {
   assert.equal(invalidValue.valid, false);
 
   const nonArray = validateCookies({ name: 'x', value: 'y' });
+  assert.equal(nonArray.valid, false);
+});
+
+test('validateRequestHeaders accepts safe auth-style headers', () => {
+  const result = validateRequestHeaders([
+    { name: 'Authorization', value: 'Bearer token-123' },
+    { name: 'X-API-Key', value: 'secret-key' },
+  ]);
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.sanitized, [
+    { name: 'authorization', value: 'Bearer token-123' },
+    { name: 'x-api-key', value: 'secret-key' },
+  ]);
+});
+
+test('validateRequestHeaders rejects blocked or malformed headers', () => {
+  const blockedHeader = validateRequestHeaders([{ name: 'Cookie', value: 'session=abc' }]);
+  assert.equal(blockedHeader.valid, false);
+
+  const invalidValue = validateRequestHeaders([{ name: 'Authorization', value: 'bad\nvalue' }]);
+  assert.equal(invalidValue.valid, false);
+
+  const nonArray = validateRequestHeaders({ name: 'authorization', value: 'x' });
   assert.equal(nonArray.valid, false);
 });

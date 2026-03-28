@@ -6,6 +6,7 @@ export interface ProxySession {
   id: string;
   targetUrl: string;
   cookies: Array<{ name: string; value: string }>;
+  requestHeaders: Array<{ name: string; value: string }>;
   mockRoutes: Map<string, unknown>;
   authFailed: boolean;
   mode: 'standard' | 'inspect';
@@ -33,13 +34,17 @@ class ProxyService {
   createSession(
     targetUrl: string,
     cookies: Array<{ name: string; value: string }> = [],
-    options: { mode?: 'standard' | 'inspect' } = {},
+    options: {
+      mode?: 'standard' | 'inspect';
+      requestHeaders?: Array<{ name: string; value: string }>;
+    } = {},
   ): ProxySession {
     const id = this.generateId();
     const session: ProxySession = {
       id,
       targetUrl: targetUrl.replace(/\/$/, ''), // strip trailing slash
       cookies,
+      requestHeaders: options.requestHeaders ?? [],
       mockRoutes: new Map(),
       authFailed: false,
       mode: options.mode ?? 'standard',
@@ -64,6 +69,19 @@ class ProxyService {
     if (!session) return false;
     session.cookies = cookies;
     session.authFailed = false; // reset auth failure status on new cookies
+    return true;
+  }
+
+  updateAuth(
+    sessionId: string,
+    cookies: Array<{ name: string; value: string }>,
+    requestHeaders: Array<{ name: string; value: string }>,
+  ): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    session.cookies = cookies;
+    session.requestHeaders = requestHeaders;
+    session.authFailed = false;
     return true;
   }
 
@@ -164,6 +182,9 @@ class ProxyService {
     }
     if (cookieHeader) {
       fetchHeaders['cookie'] = cookieHeader;
+    }
+    for (const header of session.requestHeaders) {
+      fetchHeaders[header.name] = header.value;
     }
 
     try {

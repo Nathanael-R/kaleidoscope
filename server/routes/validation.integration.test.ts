@@ -88,6 +88,21 @@ test('POST /api/proxy/session rejects invalid cookies with normalized error payl
   assert.equal(body.requestId, 'test-request-id');
 });
 
+test('POST /api/proxy/session rejects invalid auth headers with normalized error payload', async () => {
+  const { status, body } = await requestJson('/api/proxy/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'https://example.com',
+      headers: [{ name: 'Cookie', value: 'session=abc' }],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(typeof body.error, 'string');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
 test('POST /api/performance/audit rejects invalid URLs with normalized error payload', async () => {
   const { status, body } = await requestJson('/api/performance/audit', {
     method: 'POST',

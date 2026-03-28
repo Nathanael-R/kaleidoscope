@@ -9,7 +9,7 @@ describe('AuthWizard', () => {
   const defaultProps = {
     onAuthCapture: vi.fn(),
     onProxyUrl: vi.fn(),
-    currentUrl: 'http://localhost:3000',
+    currentUrl: 'https://example.com',
   };
 
   beforeEach(() => {
@@ -84,6 +84,37 @@ describe('AuthWizard', () => {
       // Should now have 4 inputs (2 cookies × 2 fields each)
       const inputs = screen.getAllByPlaceholderText(/Cookie (name|value)/);
       expect(inputs).toHaveLength(4);
+    });
+
+    it('enables Apply when a request header is entered in advanced mode', () => {
+      render(<AuthWizard {...defaultProps} />);
+      fireEvent.click(screen.getByTestId('auth-wizard-toggle'));
+      fireEvent.click(screen.getByText('Advanced'));
+
+      fireEvent.change(screen.getByPlaceholderText('Request header name'), {
+        target: { value: 'Authorization' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('Request header value'), {
+        target: { value: 'Bearer abc123' },
+      });
+
+      expect(screen.getByTestId('auth-apply-button')).not.toBeDisabled();
+    });
+
+    it('shows a public URL warning and disables apply for local targets', () => {
+      render(<AuthWizard {...defaultProps} currentUrl="http://localhost:3000" />);
+      fireEvent.click(screen.getByTestId('auth-wizard-toggle'));
+
+      expect(screen.getByTestId('auth-proxy-scope-warning')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByPlaceholderText('e.g., session_token'), {
+        target: { value: 'session_id' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('e.g., abc123...'), {
+        target: { value: 'my-secret-token' },
+      });
+
+      expect(screen.getByTestId('auth-apply-button')).toBeDisabled();
     });
   });
 
@@ -241,6 +272,85 @@ describe('AuthWizard', () => {
 
       await waitFor(() => {
         expect(screen.getByText('URL is not allowed')).toBeInTheDocument();
+      });
+    });
+
+    it('sends request headers when creating a proxy session', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            session: { id: 'sess-header', proxyUrl: '/api/proxy/sess-header', targetUrl: 'https://example.com' },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ authFailed: false }),
+        });
+
+      render(<AuthWizard {...defaultProps} />);
+      fireEvent.click(screen.getByTestId('auth-wizard-toggle'));
+      fireEvent.click(screen.getByText('Advanced'));
+
+      fireEvent.change(screen.getByPlaceholderText('Request header name'), {
+        target: { value: 'Authorization' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('Request header value'), {
+        target: { value: 'Bearer token-123' },
+      });
+
+      fireEvent.click(screen.getByTestId('auth-apply-button'));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      expect(requestBody.headers).toEqual([
+        { name: 'Authorization', value: 'Bearer token-123' },
+      ]);
+      expect(requestBody.cookies).toEqual([]);
+    });
+
+    it('re-checks proxy status for an active session', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            session: { id: 'sess-check', proxyUrl: '/api/proxy/sess-check', targetUrl: 'https://example.com' },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ authFailed: false }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ authFailed: true }),
+        });
+
+      render(<AuthWizard {...defaultProps} />);
+      fireEvent.click(screen.getByTestId('auth-wizard-toggle'));
+
+      fireEvent.change(screen.getByPlaceholderText('e.g., session_token'), {
+        target: { value: 'session_id' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('e.g., abc123...'), {
+        target: { value: 'secret' },
+      });
+
+      fireEvent.click(screen.getByTestId('auth-apply-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Proxy Active')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('auth-recheck-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Auth Failed - Reconfigure')).toBeInTheDocument();
       });
     });
   });

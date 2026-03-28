@@ -98,8 +98,24 @@ export function isInspectableLocalUrl(url: string): boolean {
 const COOKIE_NAME_REGEX = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
 const MAX_COOKIE_VALUE_LENGTH = 4096;
 const MAX_COOKIE_COUNT = 50;
+const HEADER_NAME_REGEX = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
+const MAX_HEADER_VALUE_LENGTH = 8192;
+const MAX_HEADER_COUNT = 20;
+const BLOCKED_REQUEST_HEADER_NAMES = new Set([
+  'accept',
+  'accept-encoding',
+  'connection',
+  'content-length',
+  'cookie',
+  'host',
+  'origin',
+  'referer',
+  'transfer-encoding',
+  'upgrade',
+]);
 
 export type CookieInput = { name: string; value: string };
+export type RequestHeaderInput = { name: string; value: string };
 
 export function validateCookies(cookies: unknown): {
   valid: boolean;
@@ -142,6 +158,57 @@ export function validateCookies(cookies: unknown): {
     }
 
     sanitized.push({ name, value });
+  }
+
+  return { valid: true, sanitized };
+}
+
+export function validateRequestHeaders(headers: unknown): {
+  valid: boolean;
+  reason?: string;
+  sanitized?: RequestHeaderInput[];
+} {
+  if (!Array.isArray(headers)) {
+    return { valid: false, reason: 'headers must be an array' };
+  }
+
+  if (headers.length > MAX_HEADER_COUNT) {
+    return { valid: false, reason: `headers exceed max count (${MAX_HEADER_COUNT})` };
+  }
+
+  const sanitized: RequestHeaderInput[] = [];
+
+  for (const header of headers) {
+    if (!header || typeof header !== 'object') {
+      return { valid: false, reason: 'each header must be an object with name and value' };
+    }
+
+    const candidate = header as Partial<RequestHeaderInput>;
+    const name = candidate.name;
+    const value = candidate.value;
+
+    if (typeof name !== 'string' || typeof value !== 'string') {
+      return { valid: false, reason: 'header name and value must be strings' };
+    }
+
+    const normalizedName = name.trim().toLowerCase();
+    if (!HEADER_NAME_REGEX.test(normalizedName)) {
+      return { valid: false, reason: `invalid header name: ${name}` };
+    }
+
+    if (BLOCKED_REQUEST_HEADER_NAMES.has(normalizedName)) {
+      return { valid: false, reason: `header is not allowed: ${name}` };
+    }
+
+    if (value.length > MAX_HEADER_VALUE_LENGTH) {
+      return { valid: false, reason: `header value too long for ${name}` };
+    }
+
+    if (value.includes('\r') || value.includes('\n')) {
+      return { valid: false, reason: `invalid header value characters for ${name}` };
+    }
+
+    sanitized.push({ name: normalizedName, value });
   }
 
   return { valid: true, sanitized };

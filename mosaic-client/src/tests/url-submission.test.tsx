@@ -29,6 +29,14 @@ describe('URL submission', () => {
     onDevicePin: vi.fn(),
     viewMode: 'single' as const,
     onViewModeToggle: vi.fn(),
+    inspectEnabled: false,
+    inspectPending: false,
+    inspectResolving: false,
+    inspectResult: null,
+    inspectError: null,
+    inspectSourceDir: '',
+    onInspectSourceDirChange: vi.fn(),
+    onToggleInspect: vi.fn(),
   };
 
   beforeEach(() => {
@@ -37,16 +45,17 @@ describe('URL submission', () => {
   });
 
   describe('protocol auto-prepend', () => {
-    it('prepends https:// to bare domain', () => {
+    it('prepends https:// to bare production domains', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
       fireEvent.change(screen.getByTestId('input-url'), {
-        target: { value: 'example.com' },
+        target: { value: 'beautifulteachers.com' },
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('https://example.com');
-      expect(defaultProps.onUrlChange).toHaveBeenCalledWith('https://example.com');
+      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('https://beautifulteachers.com');
+      expect(defaultProps.onUrlChange).toHaveBeenCalledWith('https://beautifulteachers.com');
+      expect(defaultProps.onLoadUrl).not.toHaveBeenCalledWith('https://www.beautifulteachers.com');
     });
 
     it('keeps http:// URLs unchanged', () => {
@@ -69,6 +78,31 @@ describe('URL submission', () => {
       fireEvent.click(screen.getByTestId('button-load-url'));
 
       expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('https://mysite.com/dashboard');
+    });
+
+    it('uses http:// for localhost targets in local mode', () => {
+      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
+
+      fireEvent.click(screen.getByTestId('url-mode-local'));
+      fireEvent.change(screen.getByTestId('input-url'), {
+        target: { value: 'localhost:3000' },
+      });
+      fireEvent.click(screen.getByTestId('button-load-url'));
+
+      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.onUrlChange).toHaveBeenCalledWith('http://localhost:3000');
+    });
+
+    it('turns a bare local port into a localhost URL in local mode', () => {
+      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
+
+      fireEvent.click(screen.getByTestId('url-mode-local'));
+      fireEvent.change(screen.getByTestId('input-url'), {
+        target: { value: '3000' },
+      });
+      fireEvent.click(screen.getByTestId('button-load-url'));
+
+      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
   });
 

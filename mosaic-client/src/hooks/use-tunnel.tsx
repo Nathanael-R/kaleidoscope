@@ -32,8 +32,8 @@ export function useTunnel(port?: number) {
         if (response.status === 404) return null;
         if (!response.ok) throw new Error('Failed to fetch tunnel');
 
-        const data = await response.json();
-        return data.tunnel;
+        const data = await response.json() as { tunnel?: TunnelInfo | null };
+        return data.tunnel ?? null;
       } catch (error) {
         console.error('Error fetching tunnel:', error);
         return null;
