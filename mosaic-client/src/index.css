@@ -118,3 +118,102 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ─── Microanimation keyframes ─────────────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes badge-pop {
+  0%   { opacity: 0; transform: scale(0.7); }
+  70%  { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes icon-swap {
+  0%   { opacity: 1; transform: rotate(0deg) scale(1); }
+  40%  { opacity: 0; transform: rotate(90deg) scale(0.6); }
+  60%  { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+  100% { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ─── Utility animation classes ─────────────────────────────────────────────── */
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.25s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.2s ease-out both;
+}
+
+.animate-badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-icon-swap {
+  animation: icon-swap 0.35s ease-in-out both;
+}
+
+/* Staggered entrance for list items */
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 40ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 160ms; }
+
+/* Smooth accordion height transition */
+.accordion-content {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+.accordion-content[data-open="false"] {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.accordion-content[data-open="true"] {
+  max-height: 1200px;
+  opacity: 1;
+}

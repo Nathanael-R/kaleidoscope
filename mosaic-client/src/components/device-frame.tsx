@@ -224,7 +224,7 @@ export default function DeviceFrame({
       <div className="relative h-full" style={{ height: contentHeight }}>
         {/* Loading State */}
         {loading && (
-          <div className="absolute inset-0 bg-white flex items-center justify-center z-20">
+          <div className="absolute inset-0 bg-white flex items-center justify-center z-20 animate-fade-in-up">
             <div className="text-center">
               <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto mb-4" />
               <p className="text-sm text-gray-600">Loading website...</p>
@@ -233,14 +233,14 @@ export default function DeviceFrame({
         )}
 
         {inspectEnabled && !loading && !error && (
-          <div className="absolute left-2 top-2 z-20 rounded-full bg-cyan-500 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white shadow-sm">
+          <div className="absolute left-2 top-2 z-20 rounded-full bg-cyan-500 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white shadow-sm animate-scale-in">
             Inspecting
           </div>
         )}
 
         {/* Error State */}
         {error && !loading && (
-          <div className="absolute inset-0 bg-white flex items-center justify-center z-20">
+          <div className="absolute inset-0 bg-white flex items-center justify-center z-20 animate-fade-in-up">
             <div className="text-center px-8">
               <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -250,7 +250,7 @@ export default function DeviceFrame({
                 The website may be down, doesn't allow embedding in frames (X-Frame-Options),
                 or you may need to enable tunneling for localhost URLs.
               </p>
-              <Button onClick={handleRetry} data-testid="button-retry">
+              <Button onClick={handleRetry} data-testid="button-retry" className="transition-transform duration-150 hover:scale-105 active:scale-95">
                 Try Again
               </Button>
             </div>
@@ -259,7 +259,7 @@ export default function DeviceFrame({
 
         {/* Empty State */}
         {!hasUrl && !loading && (
-          <div className="h-full bg-gray-50 flex items-center justify-center">
+          <div className="h-full bg-gray-50 flex items-center justify-center animate-fade-in-up">
             <div className="text-center px-8">
               <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-700 mb-2">
@@ -279,11 +279,11 @@ export default function DeviceFrame({
             ref={iframeRef}
             data-device-frame
             src={proxyUrl || url}
-            className="w-full h-full border-0 bg-white"
+            className="w-full h-full border-0 bg-white transition-opacity duration-300"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
-            style={{ display: loading ? 'none' : 'block' }}
+            style={{ display: loading ? 'none' : 'block', opacity: loading ? 0 : 1 }}
             data-testid="preview-iframe"
             title={`${device.name} - ${url}`}
             aria-label={`Preview of ${url} on ${device.name}${proxyUrl ? ' (via proxy)' : ''}`}
@@ -294,13 +294,13 @@ export default function DeviceFrame({
   };
 
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center animate-fade-in-up">
       <div className="relative">
         {getDeviceFrame()}
         
         {/* Device Label */}
         <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
-          <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-all duration-200">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{device.name}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {deviceWidth} × {deviceHeight}
