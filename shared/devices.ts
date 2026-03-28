@@ -1,5 +1,13 @@
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
+export type DeviceFrameShell = 'iphone' | 'android' | 'generic';
+export type DeviceTopFeature = 'dynamic-island' | 'camera-hole' | 'none';
+
+export interface DeviceFrameDefinition {
+  shell: DeviceFrameShell;
+  topFeature?: DeviceTopFeature;
+}
+
 export interface SharedDevice {
   id: string;
   name: string;
@@ -8,6 +16,7 @@ export interface SharedDevice {
   type: DeviceType;
   category: string;
   icon: string;
+  frame?: DeviceFrameDefinition;
 }
 
 export const DEVICES: ReadonlyArray<SharedDevice> = [
@@ -19,6 +28,49 @@ export const DEVICES: ReadonlyArray<SharedDevice> = [
     type: 'mobile',
     category: 'Mobile',
     icon: 'mobile-alt',
+    frame: {
+      shell: 'iphone',
+      topFeature: 'none',
+    },
+  },
+  {
+    id: 'iphone-15',
+    name: 'iPhone 15',
+    width: 393,
+    height: 852,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'iphone',
+      topFeature: 'dynamic-island',
+    },
+  },
+  {
+    id: 'iphone-16',
+    name: 'iPhone 16',
+    width: 393,
+    height: 852,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'iphone',
+      topFeature: 'dynamic-island',
+    },
+  },
+  {
+    id: 'iphone-17',
+    name: 'iPhone 17',
+    width: 402,
+    height: 874,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'iphone',
+      topFeature: 'dynamic-island',
+    },
   },
   {
     id: 'samsung-s21',
@@ -28,6 +80,49 @@ export const DEVICES: ReadonlyArray<SharedDevice> = [
     type: 'mobile',
     category: 'Mobile',
     icon: 'mobile-alt',
+    frame: {
+      shell: 'android',
+      topFeature: 'camera-hole',
+    },
+  },
+  {
+    id: 'samsung-s24',
+    name: 'Samsung Galaxy S24',
+    width: 360,
+    height: 780,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'android',
+      topFeature: 'camera-hole',
+    },
+  },
+  {
+    id: 'samsung-s24-ultra',
+    name: 'Samsung Galaxy S24 Ultra',
+    width: 412,
+    height: 915,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'android',
+      topFeature: 'camera-hole',
+    },
+  },
+  {
+    id: 'samsung-s25-ultra',
+    name: 'Samsung Galaxy S25 Ultra',
+    width: 412,
+    height: 915,
+    type: 'mobile',
+    category: 'Mobile',
+    icon: 'mobile-alt',
+    frame: {
+      shell: 'android',
+      topFeature: 'camera-hole',
+    },
   },
   {
     id: 'pixel-6',
@@ -37,6 +132,10 @@ export const DEVICES: ReadonlyArray<SharedDevice> = [
     type: 'mobile',
     category: 'Mobile',
     icon: 'mobile-alt',
+    frame: {
+      shell: 'android',
+      topFeature: 'camera-hole',
+    },
   },
   {
     id: 'ipad',

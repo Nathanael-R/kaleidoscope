@@ -1,8 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
+
+type BatteryStateManager = {
+  level: number;
+  charging: boolean;
+  addEventListener: (event: string, listener: () => void) => void;
+  removeEventListener: (event: string, listener: () => void) => void;
+};
+
+type NavigatorWithBattery = Navigator & {
+  getBattery?: () => Promise<BatteryStateManager>;
+};
+
+function formatStatusTime(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
 
 export function getDeviceFrameMetrics(device: Device, isLandscape = false) {
   const deviceWidth = isLandscape ? device.height : device.width;
@@ -46,6 +64,11 @@ export default function DeviceFrame({
   const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [dynamicIslandPinned, setDynamicIslandPinned] = useState(false);
+  const [dynamicIslandHovered, setDynamicIslandHovered] = useState(false);
+  const [statusTime, setStatusTime] = useState(() => formatStatusTime(new Date()));
+  const [batteryLevel, setBatteryLevel] = useState(1);
+  const [batteryCharging, setBatteryCharging] = useState(false);
 
   const hasUrl = !!url;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -53,6 +76,22 @@ export default function DeviceFrame({
   const prevUrlRef = useRef(url);
   const prevProxyUrlRef = useRef(proxyUrl);
   const prevReloadTriggerRef = useRef(reloadTrigger);
+  const topFeature = device.frame?.topFeature ?? 'none';
+  const dynamicIslandEnabled = device.type === 'mobile' && topFeature === 'dynamic-island';
+  const dynamicIslandExpanded = dynamicIslandEnabled && (dynamicIslandPinned || dynamicIslandHovered);
+
+  const activeHostLabel = useMemo(() => {
+    const candidateUrl = proxyUrl || url;
+    if (!candidateUrl) {
+      return 'Live Preview';
+    }
+
+    try {
+      return new URL(candidateUrl).hostname.replace(/^www\./, '');
+    } catch {
+      return 'Live Preview';
+    }
+  }, [proxyUrl, url]);
 
   const postInspectState = (enabled: boolean) => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -88,6 +127,71 @@ export default function DeviceFrame({
     setLoading(false);
     setError(false);
   }, [url]);
+
+  useEffect(() => {
+    setDynamicIslandPinned(false);
+    setDynamicIslandHovered(false);
+  }, [device.id, topFeature]);
+
+  useEffect(() => {
+    const updateTime = () => {
+      setStatusTime(formatStatusTime(new Date()));
+    };
+
+    updateTime();
+    const intervalId = window.setInterval(updateTime, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const navigatorWithBattery = navigator as NavigatorWithBattery;
+    if (typeof navigatorWithBattery.getBattery !== 'function') {
+      return;
+    }
+
+    let cancelled = false;
+    let manager: BatteryStateManager | null = null;
+
+    const syncBatteryState = () => {
+      if (!manager || cancelled) {
+        return;
+      }
+
+      setBatteryLevel(manager.level);
+      setBatteryCharging(manager.charging);
+    };
+
+    const onBatteryChange = () => {
+      syncBatteryState();
+    };
+
+    navigatorWithBattery
+      .getBattery()
+      .then((batteryManager) => {
+        if (cancelled) {
+          return;
+        }
+
+        manager = batteryManager;
+        syncBatteryState();
+        manager.addEventListener('levelchange', onBatteryChange);
+        manager.addEventListener('chargingchange', onBatteryChange);
+      })
+      .catch(() => {
+        // Some browsers disable this API; fallback state remains at default.
+      });
+
+    return () => {
+      cancelled = true;
+      if (!manager) {
+        return;
+      }
+
+      manager.removeEventListener('levelchange', onBatteryChange);
+      manager.removeEventListener('chargingchange', onBatteryChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (proxyUrl === prevProxyUrlRef.current) return;
@@ -172,39 +276,124 @@ export default function DeviceFrame({
     setIframeKey(k => k + 1);
   };
 
+  const handleDynamicIslandToggle = () => {
+    if (!dynamicIslandEnabled) {
+      return;
+    }
+
+    setDynamicIslandPinned((previous) => !previous);
+  };
+
+  const renderStatusBar = () => {
+    if (device.type !== 'mobile') {
+      return null;
+    }
+
+    const safeLevel = Math.max(0.05, Math.min(1, batteryLevel));
+    const batteryFillWidth = `${Math.round(safeLevel * 100)}%`;
+
+    return (
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-12 bg-transparent px-4 pt-2 text-white"
+        data-testid="device-status-bar"
+      >
+        <div className="relative flex h-full items-start justify-between text-xs font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
+          <span data-testid="device-status-time" className="tracking-[0.02em]">
+            {statusTime}
+          </span>
+
+          {topFeature === 'dynamic-island' && (
+            <button
+              type="button"
+              className={`pointer-events-auto absolute left-1/2 top-0 -translate-x-1/2 rounded-full bg-black shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all duration-300 ease-out ${dynamicIslandExpanded ? 'h-9 w-52' : 'h-7 w-28'}`}
+              onMouseEnter={() => setDynamicIslandHovered(true)}
+              onMouseLeave={() => setDynamicIslandHovered(false)}
+              onClick={handleDynamicIslandToggle}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleDynamicIslandToggle();
+                }
+              }}
+              data-testid="device-top-feature"
+              data-feature-type="dynamic-island"
+              data-expanded={dynamicIslandExpanded ? 'true' : 'false'}
+              aria-label={dynamicIslandExpanded ? 'Collapse Dynamic Island' : 'Expand Dynamic Island'}
+            >
+              {dynamicIslandExpanded && (
+                <span className="flex h-full items-center gap-2 px-3 text-[10px] font-medium text-white">
+                  <span className="h-2 w-2 rounded-full bg-lime-400" />
+                  <span className="truncate">{activeHostLabel}</span>
+                  <span className="ml-auto text-[9px] uppercase tracking-[0.12em] text-white/70">Live</span>
+                </span>
+              )}
+            </button>
+          )}
+
+          {topFeature === 'camera-hole' && (
+            <div
+              className="absolute left-1/2 top-1 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black shadow-[0_0_0_1.5px_rgba(255,255,255,0.65)]"
+              data-testid="device-top-feature"
+              data-feature-type="camera-hole"
+              aria-hidden="true"
+            />
+          )}
+
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            <div className="flex items-end gap-0.5">
+              <span className="w-0.5 rounded-sm bg-white/75" style={{ height: 3 }} />
+              <span className="w-0.5 rounded-sm bg-white/75" style={{ height: 5 }} />
+              <span className="w-0.5 rounded-sm bg-white/85" style={{ height: 7 }} />
+              <span className="w-0.5 rounded-sm bg-white" style={{ height: 9 }} />
+            </div>
+            <div className="flex items-center">
+              <div className="h-3 w-5.5 rounded-[3px] border border-white/90 p-px">
+                <div className="h-full rounded-[2px] bg-white/95 transition-[width] duration-300" style={{ width: batteryFillWidth }} />
+              </div>
+              <div className="ml-px h-1.5 w-0.5 rounded-r-sm bg-white/90" />
+              {batteryCharging && <span className="ml-1 text-[10px] leading-none">+</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const { deviceWidth, deviceHeight, frameWidth, frameHeight } = getDeviceFrameMetrics(device, isLandscape);
   const scaledFrameWidth = frameWidth * scale;
   const scaledFrameHeight = frameHeight * scale;
+  const mobileShell = device.frame?.shell ?? 'generic';
 
   const getDeviceFrame = () => {
     if (device.type === 'mobile') {
+      const isIphoneShell = mobileShell === 'iphone';
+
       return (
         <div 
-          className="relative bg-black rounded-[3rem] shadow-2xl"
+          className={isIphoneShell ? "relative rounded-[3rem] bg-black shadow-2xl" : "relative rounded-[2.5rem] bg-zinc-900 shadow-2xl"}
           style={{
             width: frameWidth,
             height: frameHeight,
-            padding: 24
+            padding: isIphoneShell ? 24 : 18
           }}
         >
           {/* Screen */}
-          <div className="relative bg-white rounded-[2.5rem] overflow-hidden h-full">
-            {/* Status Bar for mobile */}
-            <div className="bg-white h-11 flex items-center justify-between px-6 text-black text-sm font-medium relative z-10">
-              <span>9:41</span>
-              <div className="flex items-center space-x-1">
-                <div className="w-4 h-2 border border-black rounded-sm">
-                  <div className="w-3 h-1 bg-green-500 rounded-sm mt-0.5 ml-0.5"></div>
-                </div>
-              </div>
-            </div>
+          <div className={isIphoneShell ? "relative h-full overflow-hidden rounded-[2.5rem] bg-white" : "relative h-full overflow-hidden rounded-4xl bg-white"}>
             {renderContent()}
+            {renderStatusBar()}
           </div>
           {/* Home indicator */}
-          <div 
-            className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white rounded-full"
-            style={{ width: 128, height: 4 }}
-          ></div>
+          {isIphoneShell ? (
+            <div 
+              className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white rounded-full"
+              style={{ width: 128, height: 4 }}
+            ></div>
+          ) : (
+            <div
+              className="absolute bottom-3 left-1/2 h-1.5 w-24 -translate-x-1/2 rounded-full bg-zinc-700"
+              aria-hidden="true"
+            />
+          )}
         </div>
       );
     } else if (device.type === 'tablet') {
@@ -241,7 +430,7 @@ export default function DeviceFrame({
   };
 
   const renderContent = () => {
-    const contentHeight = device.type === 'mobile' ? 'calc(100% - 44px)' : '100%';
+    const contentHeight = '100%';
     
     return (
       <div className="relative h-full" style={{ height: contentHeight }}>

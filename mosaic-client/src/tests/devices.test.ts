@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { devices, getDeviceById, getDevicesByCategory } from '@/lib/devices';
 
 describe('Device Configuration', () => {
-  it('has at least 8 devices defined', () => {
-    expect(devices.length).toBeGreaterThanOrEqual(8);
+  it('has at least 14 devices defined', () => {
+    expect(devices.length).toBeGreaterThanOrEqual(14);
   });
 
   it('every device has required fields', () => {
@@ -15,6 +15,10 @@ describe('Device Configuration', () => {
       expect(['mobile', 'tablet', 'desktop']).toContain(device.type);
       expect(device.category).toBeTruthy();
       expect(device.icon).toBeTruthy();
+
+      if (device.type === 'mobile') {
+        expect(device.frame?.shell).toBeTruthy();
+      }
     }
   });
 
@@ -30,6 +34,22 @@ describe('Device Configuration', () => {
     expect(iphone).toBeDefined();
     expect(iphone!.name).toBe('iPhone 14');
     expect(iphone!.width).toBe(390);
+  });
+
+  it('includes newer iPhone models with Dynamic Island metadata', () => {
+    const iphone17 = getDeviceById('iphone-17');
+
+    expect(iphone17).toBeDefined();
+    expect(iphone17!.height).toBe(874);
+    expect(iphone17!.frame?.topFeature).toBe('dynamic-island');
+  });
+
+  it('includes newer Samsung models with camera-hole metadata', () => {
+    const galaxy = getDeviceById('samsung-s24-ultra');
+
+    expect(galaxy).toBeDefined();
+    expect(galaxy!.width).toBe(412);
+    expect(galaxy!.frame?.topFeature).toBe('camera-hole');
   });
 
   it('getDeviceById returns undefined for unknown id', () => {

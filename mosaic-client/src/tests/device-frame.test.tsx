@@ -4,6 +4,8 @@ import DeviceFrame from '@/components/device-frame';
 import { devices } from '@/lib/devices';
 
 const iphone = devices.find(d => d.id === 'iphone-14')!;
+const iphone16 = devices.find(d => d.id === 'iphone-16')!;
+const samsungS24Ultra = devices.find(d => d.id === 'samsung-s24-ultra')!;
 const desktop = devices.find(d => d.id === 'desktop')!;
 
 describe('DeviceFrame', () => {
@@ -123,6 +125,66 @@ describe('DeviceFrame', () => {
       render(<DeviceFrame device={iphone} url="http://localhost:3000" />);
       expect(screen.getByText('390 × 844')).toBeInTheDocument();
     });
+
+    it('renders Dynamic Island chrome for newer iPhones', () => {
+      render(<DeviceFrame device={iphone16} url="http://localhost:3000" />);
+
+      expect(screen.getByTestId('device-top-feature')).toHaveAttribute('data-feature-type', 'dynamic-island');
+    });
+
+    it('renders punch-hole chrome for newer Samsung devices', () => {
+      render(<DeviceFrame device={samsungS24Ultra} url="http://localhost:3000" />);
+
+      expect(screen.getByTestId('device-top-feature')).toHaveAttribute('data-feature-type', 'camera-hole');
+    });
+  });
+
+  describe('mobile status chrome', () => {
+    it('uses a transparent status bar and updates the clock over time', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-28T10:00:00.000Z'));
+
+      try {
+        render(<DeviceFrame device={iphone16} url="http://localhost:3000" />);
+
+        const statusBar = screen.getByTestId('device-status-bar');
+        expect(statusBar).toHaveClass('bg-transparent');
+
+        const initialTime = screen.getByTestId('device-status-time').textContent;
+
+        vi.setSystemTime(new Date('2026-03-28T10:01:05.000Z'));
+        act(() => {
+          vi.advanceTimersByTime(31000);
+        });
+
+        expect(screen.getByTestId('device-status-time').textContent).not.toBe(initialTime);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('expands Dynamic Island on hover and click', () => {
+      render(<DeviceFrame device={iphone16} url="http://localhost:3000" />);
+
+      const dynamicIsland = screen.getByTestId('device-top-feature');
+      expect(dynamicIsland).toHaveAttribute('data-feature-type', 'dynamic-island');
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'false');
+
+      fireEvent.mouseEnter(dynamicIsland);
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'true');
+
+      fireEvent.mouseLeave(dynamicIsland);
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'false');
+
+      fireEvent.click(dynamicIsland);
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'true');
+
+      fireEvent.mouseLeave(dynamicIsland);
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'true');
+
+      fireEvent.click(dynamicIsland);
+      expect(dynamicIsland).toHaveAttribute('data-expanded', 'false');
+    });
   });
 
   describe('reload behavior', () => {
@@ -172,7 +234,7 @@ describe('DeviceFrame', () => {
 
       fireEvent.load(iframe);
       act(() => {
-        vi.runAllTimers();
+        vi.advanceTimersByTime(60);
       });
 
       expect(postMessage).toHaveBeenCalledWith(

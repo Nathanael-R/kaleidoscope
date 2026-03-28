@@ -1,4 +1,4 @@
-import { DEVICES } from '../../../shared/devices';
+import { DEVICES, type DeviceFrameDefinition } from '../../../shared/devices';
 
 export interface Device {
   id: string;
@@ -8,6 +8,7 @@ export interface Device {
   type: 'mobile' | 'tablet' | 'desktop';
   category: string;
   icon: string;
+  frame?: DeviceFrameDefinition;
 }
 
 export const devices: Device[] = DEVICES.map(device => ({ ...device }));

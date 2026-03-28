@@ -60,7 +60,13 @@ test.describe('Kaleidoscope Preview', () => {
     // Check that device selector shows all devices
     const deviceIds = [
       'iphone-14',
+      'iphone-15',
+      'iphone-16',
+      'iphone-17',
       'samsung-s21',
+      'samsung-s24',
+      'samsung-s24-ultra',
+      'samsung-s25-ultra',
       'pixel-6',
       'ipad',
       'ipad-pro',
