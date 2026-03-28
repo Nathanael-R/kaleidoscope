@@ -301,7 +301,7 @@ describe('Device preview flow', () => {
   });
 
   describe('sidebar toggle', () => {
-    it('should show floating expand button when sidebar is collapsed', () => {
+    it('should not render a floating expand button in the preview area', () => {
       render(
         <PreviewArea
           selectedDevice={iphone}
@@ -310,20 +310,6 @@ describe('Device preview flow', () => {
           viewMode="single"
           isSidebarCollapsed={true}
           onToggleSidebar={vi.fn()}
-        />
-      );
-
-      expect(screen.getByTestId('button-expand-sidebar-floating')).toBeInTheDocument();
-    });
-
-    it('should not show floating button when sidebar is expanded', () => {
-      render(
-        <PreviewArea
-          selectedDevice={iphone}
-          currentUrl="http://localhost:3000"
-          pinnedDevices={[]}
-          viewMode="single"
-          isSidebarCollapsed={false}
         />
       );
 

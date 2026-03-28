@@ -1,12 +1,30 @@
 import { test, expect } from '@playwright/test';
 
+async function expectNoDocumentVerticalOverflow(page: import('@playwright/test').Page) {
+  const overflow = await page.evaluate(() => {
+    const scroller = document.scrollingElement ?? document.documentElement;
+    return {
+      scrollHeight: scroller.scrollHeight,
+      clientHeight: scroller.clientHeight,
+    };
+  });
+
+  expect(overflow.scrollHeight - overflow.clientHeight).toBeLessThanOrEqual(1);
+}
+
 test.describe('Kaleidoscope Preview', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
   });
 
   test('should load home page', async ({ page }) => {
     await expect(page).toHaveTitle(/Kaleidoscope/i);
+  });
+
+  test('should avoid document-level vertical overflow on the preview workspace', async ({ page }) => {
+    await expect(page.getByTestId('preview-area')).toBeVisible();
+    await expectNoDocumentVerticalOverflow(page);
   });
 
   test('should display device frames', async ({ page }) => {
@@ -59,8 +77,47 @@ test.describe('Kaleidoscope Preview', () => {
 });
 
 test.describe('Device Interaction', () => {
+  test('should scroll the loaded site inside the device mockup', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('button-load-url').click();
+
+    const iframeElement = page.getByTestId('preview-iframe');
+    await expect(iframeElement).toBeVisible();
+
+    const frame = await (await iframeElement.elementHandle())?.contentFrame();
+    if (!frame) {
+      throw new Error('Expected preview iframe content frame');
+    }
+
+    await frame.waitForLoadState('domcontentloaded');
+
+    const before = await frame.evaluate(() => ({
+      scrollY: window.scrollY,
+      scrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+    }));
+
+    expect(before.scrollHeight).toBeGreaterThan(before.innerHeight);
+
+    const box = await iframeElement.boundingBox();
+    if (!box) {
+      throw new Error('Expected preview iframe bounding box');
+    }
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 1400);
+    await page.waitForTimeout(300);
+
+    const after = await frame.evaluate(() => window.scrollY);
+    expect(after).toBeGreaterThan(before.scrollY);
+  });
+
   test('should switch between devices', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
     // Click on a device
     const iphoneButton = page.getByTestId('device-iphone-14');
@@ -72,6 +129,7 @@ test.describe('Device Interaction', () => {
 
   test('should pin multiple devices', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
     // Pin first device
     const device1 = page.locator('[data-device-id]').first();
@@ -89,5 +147,13 @@ test.describe('Device Interaction', () => {
     // Should show comparison view
     const comparisonView = page.locator('[data-view-mode="comparison"]');
     await expect(comparisonView).toBeVisible();
+  });
+
+  test('should avoid document-level vertical overflow on the flow workspace', async ({ page }) => {
+    await page.goto('/flows');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText('Flow Editor')).toBeVisible();
+    await expectNoDocumentVerticalOverflow(page);
   });
 });

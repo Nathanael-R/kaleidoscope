@@ -84,3 +84,13 @@ test('inspect proxy injects the runtime scripts into proxied HTML', async () => 
   assert.match(html, /\/api\/inspect\/bridge\.js/);
   assert.match(html, new RegExp(`<base href="${targetBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\/">`));
 });
+
+test('inspect bridge rebases history mutations onto the proxy origin', async () => {
+  const response = await fetch(`${apiBaseUrl}/api/inspect/bridge.js`);
+  const script = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(script, /wrapHistoryMethod\('pushState'\)/);
+  assert.match(script, /wrapHistoryMethod\('replaceState'\)/);
+  assert.match(script, /new URL\(String\(value\), window\.location\.href\)/);
+});

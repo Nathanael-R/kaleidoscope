@@ -26,7 +26,7 @@ describe('useRecentUrls', () => {
 
   it('initializes from localStorage synchronously (no loading flash)', () => {
     // Pre-populate localStorage
-    store['devicePreview_recentUrls'] = JSON.stringify([
+    store['devicePreview_recentUrls_production'] = JSON.stringify([
       { url: 'https://example.com', domain: 'example.com', timestamp: 1000 },
     ]);
 
@@ -95,7 +95,7 @@ describe('useRecentUrls', () => {
     });
 
     expect(result.current.data).toEqual([]);
-    expect(localStorageMock.removeItem).toHaveBeenCalledWith('devicePreview_recentUrls');
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith('devicePreview_recentUrls_production');
   });
 
   it('handles invalid URLs gracefully', () => {
@@ -107,5 +107,39 @@ describe('useRecentUrls', () => {
 
     // Should not crash, URL just won't be added (URL constructor throws)
     expect(result.current.data).toHaveLength(0);
+  });
+
+  it('keeps local and production history separate', () => {
+    const { result: production } = renderHook(() => useRecentUrls('production'));
+    const { result: local } = renderHook(() => useRecentUrls('local'));
+
+    act(() => {
+      production.current.addRecentUrl('https://example.com');
+      local.current.addRecentUrl('http://localhost:3000');
+    });
+
+    expect(production.current.data).toHaveLength(1);
+    expect(production.current.data[0].url).toBe('https://example.com');
+    expect(local.current.data).toHaveLength(1);
+    expect(local.current.data[0].url).toBe('http://localhost:3000');
+    expect(store['devicePreview_recentUrls_production']).toContain('https://example.com');
+    expect(store['devicePreview_recentUrls_local']).toContain('http://localhost:3000');
+  });
+
+  it('migrates legacy mixed history into the current mode bucket', () => {
+    store['devicePreview_recentUrls'] = JSON.stringify([
+      { url: 'https://example.com', domain: 'example.com', timestamp: 2000 },
+      { url: 'http://localhost:3000', domain: 'localhost', timestamp: 1000 },
+    ]);
+
+    const { result: production } = renderHook(() => useRecentUrls('production'));
+    const { result: local } = renderHook(() => useRecentUrls('local'));
+
+    expect(production.current.data).toHaveLength(1);
+    expect(production.current.data[0].url).toBe('https://example.com');
+    expect(local.current.data).toHaveLength(1);
+    expect(local.current.data[0].url).toBe('http://localhost:3000');
+    expect(store['devicePreview_recentUrls_production']).toContain('https://example.com');
+    expect(store['devicePreview_recentUrls_local']).toContain('http://localhost:3000');
   });
 });

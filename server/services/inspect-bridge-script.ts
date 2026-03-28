@@ -20,6 +20,44 @@ export const inspectBridgeScript = String.raw`(() => {
   let enabled = false;
   let hovered = null;
 
+  const normalizeHistoryUrl = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return value;
+    }
+
+    try {
+      const parsed = new URL(String(value), window.location.href);
+      if (parsed.origin === window.location.origin) {
+        return parsed.pathname + parsed.search + parsed.hash;
+      }
+
+      return parsed.pathname + parsed.search + parsed.hash;
+    } catch {
+      return value;
+    }
+  };
+
+  const wrapHistoryMethod = (methodName) => {
+    const original = window.history[methodName];
+    if (typeof original !== 'function') {
+      return;
+    }
+
+    window.history[methodName] = function patchedHistoryMethod(state, unused, url) {
+      const nextUrl = normalizeHistoryUrl(url);
+
+      try {
+        return original.call(this, state, unused, nextUrl);
+      } catch (error) {
+        if (!(error instanceof DOMException) || error.name !== 'SecurityError' || nextUrl === url) {
+          throw error;
+        }
+
+        return original.call(this, state, unused, normalizeHistoryUrl(nextUrl));
+      }
+    };
+  };
+
   const ensureStyle = () => {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -211,6 +249,8 @@ export const inspectBridgeScript = String.raw`(() => {
   }, true);
 
   ensureStyle();
+  wrapHistoryMethod('pushState');
+  wrapHistoryMethod('replaceState');
   document.addEventListener('mousemove', handlePointerMove, true);
   document.addEventListener('click', handleClick, true);
 

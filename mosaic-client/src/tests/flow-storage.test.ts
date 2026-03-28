@@ -23,7 +23,17 @@ const localStorageMock = (() => {
 Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
 const sampleNodes: Node[] = [
-  { id: "node_1", type: "page", position: { x: 100, y: 100 }, data: { label: "Homepage" } },
+  {
+    id: "node_1",
+    type: "page",
+    position: { x: 100, y: 100 },
+    data: {
+      label: "Homepage",
+      reviewStatus: "issue",
+      issueSeverity: "critical",
+      reviewNote: "Hero CTA is clipped on mobile.",
+    },
+  },
   { id: "node_2", type: "action", position: { x: 200, y: 200 }, data: { label: "Login" } },
 ];
 
@@ -55,6 +65,8 @@ describe("useFlowStorage", () => {
     expect(loaded!.nodes).toHaveLength(2);
     expect(loaded!.edges).toHaveLength(1);
     expect(loaded!.nodes[0].data.label).toBe("Homepage");
+    expect(loaded!.nodes[0].data.reviewStatus).toBe("issue");
+    expect(loaded!.nodes[0].data.issueSeverity).toBe("critical");
   });
 
   it("returns null for non-existent flow", () => {

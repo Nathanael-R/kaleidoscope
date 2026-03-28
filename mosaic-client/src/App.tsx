@@ -7,8 +7,7 @@ import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/error-boundary";
 import Ahome from "./pages/a-home";
 
-const Home = lazy(() => import("@/pages/home"));
-const FlowDiagrams = lazy(() => import("@/pages/flow-diagrams"));
+const Workspace = lazy(() => import("@/pages/workspace"));
 
 function LoadingFallback() {
   return (
@@ -25,8 +24,8 @@ function Router() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/flows" component={FlowDiagrams} />
+        <Route path="/" component={Workspace} />
+        <Route path="/flows" component={Workspace} />
         <Route component={Ahome} />
       </Switch>
     </Suspense>

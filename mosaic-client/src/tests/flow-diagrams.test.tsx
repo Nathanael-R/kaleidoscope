@@ -226,6 +226,15 @@ describe('Flow Search', () => {
     onQueryChange: vi.fn(),
     matchedNodes: [] as Node[],
     onFocusNode: vi.fn(),
+    reviewFilter: 'all' as const,
+    onReviewFilterChange: vi.fn(),
+    reviewSummary: {
+      all: 3,
+      untouched: 1,
+      reviewed: 1,
+      issues: 1,
+      approved: 0,
+    },
   };
 
   beforeEach(() => {
@@ -253,8 +262,7 @@ describe('Flow Search', () => {
     it('should show clear button when query is not empty', () => {
       render(<FlowSearch {...defaultSearchProps} query="login" />);
 
-      // Clear button exists
-      const clearBtn = screen.getByRole('button');
+      const clearBtn = screen.getByRole('button', { name: 'Clear search' });
       expect(clearBtn).toBeInTheDocument();
     });
 
@@ -262,9 +270,29 @@ describe('Flow Search', () => {
       const onQueryChange = vi.fn();
       render(<FlowSearch {...defaultSearchProps} query="login" onQueryChange={onQueryChange} />);
 
-      fireEvent.click(screen.getByRole('button'));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
 
       expect(onQueryChange).toHaveBeenCalledWith('');
+    });
+  });
+
+  describe('review filters', () => {
+    it('should show review filter counts', () => {
+      render(<FlowSearch {...defaultSearchProps} />);
+
+      expect(screen.getByRole('button', { name: /All/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Issues/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Needs Review/i })).toBeInTheDocument();
+      expect(screen.getByText('Reviewed 1 nodes so far.')).toBeInTheDocument();
+    });
+
+    it('should call onReviewFilterChange when a filter is clicked', () => {
+      const onReviewFilterChange = vi.fn();
+      render(<FlowSearch {...defaultSearchProps} onReviewFilterChange={onReviewFilterChange} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Issues/i }));
+
+      expect(onReviewFilterChange).toHaveBeenCalledWith('issues');
     });
   });
 

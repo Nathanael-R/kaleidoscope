@@ -3,7 +3,7 @@ import type { Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
 import { cn } from "@/lib/utils";
 import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
-import DeviceFrame from "./device-frame";
+import DeviceFrame, { getDeviceFrameMetrics } from "./device-frame";
 interface PreviewAreaProps {
   selectedDevice: Device;
   currentUrl: string;
@@ -24,12 +24,14 @@ interface PreviewAreaProps {
 import * as React from "react";
 import { usePreviewStore } from "@/store/preview-store";
 
+type DirectoryPickerWindow = Window & typeof globalThis & {
+  showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+};
+
 export default function PreviewArea({
   selectedDevice,
   currentUrl,
   proxyUrl,
-  isSidebarCollapsed = false,
-  onToggleSidebar,
   pinnedDevices,
   viewMode,
   onDevicePin,
@@ -48,7 +50,9 @@ export default function PreviewArea({
     offset: { x: 0, y: 0 }
   });
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const singlePreviewRef = React.useRef<HTMLDivElement>(null);
   const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
+  const [singlePreviewBounds, setSinglePreviewBounds] = React.useState({ width: 0, height: 0 });
 
   const { darkMode } = usePreviewStore();
 
@@ -133,7 +137,7 @@ export default function PreviewArea({
       return;
     }
 
-    const showDirectoryPicker = (window as { showDirectoryPicker?: () => Promise<any> }).showDirectoryPicker;
+    const showDirectoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
     if (typeof showDirectoryPicker !== 'function') {
       alert(`Screenshots saved to ./screenshots/`);
       return;
@@ -215,30 +219,73 @@ export default function PreviewArea({
     setScale(1);
   };
 
-  const deviceWidth = isLandscape ? selectedDevice.height : selectedDevice.width;
-  const deviceHeight = isLandscape ? selectedDevice.width : selectedDevice.height;
+  const { deviceWidth, deviceHeight, frameWidth, frameHeight } = React.useMemo(
+    () => getDeviceFrameMetrics(selectedDevice, isLandscape),
+    [isLandscape, selectedDevice]
+  );
+
+  React.useEffect(() => {
+    if (viewMode !== 'single') {
+      return;
+    }
+
+    const node = singlePreviewRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateBounds = () => {
+      const rect = node.getBoundingClientRect();
+      setSinglePreviewBounds((previous) => {
+        if (previous.width === rect.width && previous.height === rect.height) {
+          return previous;
+        }
+
+        return {
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+    };
+
+    updateBounds();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateBounds);
+      return () => window.removeEventListener('resize', updateBounds);
+    }
+
+    const observer = new ResizeObserver(() => updateBounds());
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [frameHeight, frameWidth, viewMode]);
+
+  const fitScale = React.useMemo(() => {
+    if (viewMode !== 'single' || singlePreviewBounds.width === 0) {
+      return 1;
+    }
+
+    const availableWidth = Math.max(singlePreviewBounds.width - 32, 0);
+    const widthScale = availableWidth / frameWidth;
+    const nextScale = Math.min(widthScale, 1);
+
+    if (!Number.isFinite(nextScale) || nextScale <= 0) {
+      return 1;
+    }
+
+    return Math.max(0.35, nextScale);
+  }, [frameWidth, singlePreviewBounds.width, viewMode]);
+
+  const effectiveSingleScale = React.useMemo(() => fitScale * scale, [fitScale, scale]);
 
   return (
     <main
       role="main"
       data-testid="preview-area"
       data-view-mode={viewMode}
-      className={`flex-1 p-4 md:p-8 overflow-auto relative ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}
+      className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4 md:p-8 ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}
     >
-      {/* Floating Sidebar Toggle (when collapsed) */}
-      {isSidebarCollapsed && onToggleSidebar && (
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onToggleSidebar}
-          className="fixed top-20 left-4 z-50 shadow-lg"
-          data-testid="button-expand-sidebar-floating"
-        >
-          <Menu className="w-4 h-4 mr-2" />
-          Devices
-        </Button>
-      )}
-
       {/* Preview Header */}
       <div className="mb-6 flex items-center justify-between animate-fade-in-up">
         <div aria-live="polite">
@@ -306,16 +353,27 @@ export default function PreviewArea({
 
       {/* Device Preview Frame(s) */}
       {viewMode === 'single' ? (
-        <DeviceFrame
-          device={selectedDevice}
-          url={currentUrl}
-          proxyUrl={proxyUrl}
-          isLandscape={isLandscape}
-          scale={scale}
-          reloadTrigger={reloadTrigger + localReloadTrigger}
-          inspectEnabled={inspectEnabled}
-          onInspectSelection={onInspectSelection}
-        />
+        <div ref={singlePreviewRef} className="w-full min-w-0 pb-6 pt-2" data-testid="single-preview-stage">
+          <div
+            className={cn(
+              "flex min-h-112 w-full min-w-0 justify-center rounded-4xl border p-4 md:p-6 lg:p-8",
+              darkMode
+                ? "border-gray-800 bg-gray-950/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                : "border-gray-200 bg-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+            )}
+          >
+            <DeviceFrame
+              device={selectedDevice}
+              url={currentUrl}
+              proxyUrl={proxyUrl}
+              isLandscape={isLandscape}
+              scale={effectiveSingleScale}
+              reloadTrigger={reloadTrigger + localReloadTrigger}
+              inspectEnabled={inspectEnabled}
+              onInspectSelection={onInspectSelection}
+            />
+          </div>
+        </div>
       ) : (
         <div className="space-y-8">
           {/* Comparison Controls */}

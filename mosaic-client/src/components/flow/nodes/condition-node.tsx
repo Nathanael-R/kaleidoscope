@@ -1,11 +1,19 @@
 import { memo, useState, useCallback } from "react";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import { GitBranch } from "lucide-react";
+import {
+  getFlowIssueSeverityLabel,
+  getFlowReviewStatusLabel,
+  getFlowSeverityBadgeClassName,
+  getFlowStatusBadgeClassName,
+  normalizeFlowNodeData,
+} from "@/lib/flow-review";
 
 function ConditionNode({ id, data, selected }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(String(data.label || "Condition?"));
   const { setNodes } = useReactFlow();
+  const nodeData = normalizeFlowNodeData(data);
 
   const commitLabel = useCallback(() => {
     setEditing(false);
@@ -39,6 +47,16 @@ function ConditionNode({ id, data, selected }: NodeProps) {
             onDoubleClick={() => setEditing(true)}
           >
             {label}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${getFlowStatusBadgeClassName(nodeData.reviewStatus || "untouched")}`}>
+          {getFlowReviewStatusLabel(nodeData.reviewStatus || "untouched")}
+        </span>
+        {nodeData.reviewStatus === "issue" && (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${getFlowSeverityBadgeClassName(nodeData.issueSeverity || "info")}`}>
+            {getFlowIssueSeverityLabel(nodeData.issueSeverity || "info")}
           </span>
         )}
       </div>

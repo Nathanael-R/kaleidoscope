@@ -111,7 +111,12 @@ export default function Sidebar({
   const [urlInput, setUrlInput] = useState("");
   const [urlMode, setUrlMode] = useState<PreviewTargetMode>('production');
   const [urlError, setUrlError] = useState<string | null>(null);
-  const { data: recentUrls = [], isLoading: loadingRecent, addRecentUrl } = useRecentUrls();
+  const {
+    data: recentUrls = [],
+    isLoading: loadingRecent,
+    addRecentUrl,
+    refreshRecentUrls,
+  } = useRecentUrls(urlMode);
 
   const devicesByCategory = getDevicesByCategory();
 
@@ -130,6 +135,8 @@ export default function Sidebar({
   const { normalizedUrl, error: normalizedUrlError } = normalizePreviewUrl(urlInput, urlMode);
   const previewUrl = normalizedUrlError ? null : normalizedUrl;
   const currentPort = previewUrl ? getPortFromUrl(previewUrl) : 3000;
+  const [showCollapsedContent, setShowCollapsedContent] = useState(isCollapsed);
+  const [showExpandedContent, setShowExpandedContent] = useState(!isCollapsed);
 
   useEffect(() => {
     if (!currentUrl) {
@@ -138,6 +145,28 @@ export default function Sidebar({
 
     setUrlMode(detectPreviewTargetMode(currentUrl));
   }, [currentUrl]);
+
+  useEffect(() => {
+    refreshRecentUrls();
+  }, [refreshRecentUrls, urlMode]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (isCollapsed) {
+        setShowExpandedContent(false);
+      } else {
+        setShowCollapsedContent(false);
+      }
+    }, 220);
+
+    if (isCollapsed) {
+      setShowCollapsedContent(true);
+    } else {
+      setShowExpandedContent(true);
+    }
+
+    return () => window.clearTimeout(timer);
+  }, [isCollapsed]);
 
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) return;
@@ -172,27 +201,51 @@ export default function Sidebar({
     return iconMap[iconName] || '📱';
   };
 
-  if (isCollapsed) {
-    return (
-      <aside className="w-14 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col animate-fade-in-up" role="complementary" aria-label="Device controls">
-        <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-center">
+  return (
+    <>
+    {!isCollapsed && (
+      <div
+        className="md:hidden fixed inset-0 top-16 z-30 bg-black/30 animate-fade-in-up"
+        onClick={onToggleCollapse}
+      />
+    )}
+    <aside
+      className={cn(
+        "overflow-hidden border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800",
+        "transition-[width,transform,box-shadow] duration-300 ease-out",
+        isCollapsed
+          ? "relative z-20 h-full w-14"
+          : "fixed inset-x-0 bottom-0 top-16 z-40 shadow-xl md:relative md:inset-auto md:h-full md:w-80 md:shadow-none",
+      )}
+      role="complementary"
+      aria-label="Device controls"
+    >
+      {showCollapsedContent && (
+      <div
+        className={cn(
+          "absolute inset-0 flex flex-col transition-[opacity,transform] duration-200 ease-out",
+          isCollapsed ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-4 opacity-0",
+        )}
+        aria-hidden={!isCollapsed}
+      >
+        <div className="flex justify-center border-b border-gray-100 p-3 dark:border-gray-700">
           <Button
             variant="ghost"
             size="sm"
             onClick={onToggleCollapse}
-            className="w-8 h-8 p-0 transition-transform duration-150 hover:scale-110 active:scale-95"
+            className="h-8 w-8 p-0 transition-transform duration-150 hover:scale-110 active:scale-95"
             data-testid="button-expand-sidebar"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
-        <div className="flex-1 py-2 flex flex-col items-center gap-1 overflow-y-auto">
+        <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
           {devices.map((device) => (
             <Button
               key={device.id}
               variant="ghost"
               className={cn(
-                "w-9 h-9 p-0 rounded-lg border transition-all duration-150 shrink-0 hover:scale-105 active:scale-95",
+                "h-9 w-9 shrink-0 rounded-lg border p-0 transition-all duration-150 hover:scale-105 active:scale-95",
                 selectedDevice.id === device.id
                   ? "border-primary bg-primary/5"
                   : "border-transparent hover:border-gray-200"
@@ -205,15 +258,17 @@ export default function Sidebar({
             </Button>
           ))}
         </div>
-      </aside>
-    );
-  }
+      </div>
+      )}
 
-  return (
-    <>
-    {/* Mobile backdrop */}
-    <div className="md:hidden fixed inset-0 top-16 bg-black/30 z-30 animate-fade-in-up" onClick={onToggleCollapse} />
-    <aside className="w-full md:w-80 fixed md:relative z-40 md:z-auto inset-0 md:inset-auto top-16 md:top-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col animate-slide-in-right" role="complementary" aria-label="Device controls">
+      {showExpandedContent && (
+      <div
+        className={cn(
+          "absolute inset-0 flex flex-col transition-[opacity,transform] duration-250 ease-out",
+          isCollapsed ? "pointer-events-none translate-x-4 opacity-0" : "translate-x-0 opacity-100",
+        )}
+        aria-hidden={isCollapsed}
+      >
 
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -485,6 +540,8 @@ export default function Sidebar({
           </p>
         </div>
       </div>
+      </div>
+      )}
     </aside>
     </>
   );

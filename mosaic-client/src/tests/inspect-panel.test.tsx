@@ -30,6 +30,14 @@ describe('InspectPanel', () => {
     expect(screen.getByText(/only available in single device view/i)).toBeInTheDocument();
   });
 
+  it('explains that project path is only a fallback', () => {
+    render(<InspectPanel {...defaultProps} />);
+
+    expect(screen.getByText(/start inspect mode directly from the loaded local url/i)).toBeInTheDocument();
+    expect(screen.getByTestId('inspect-source-dir-help')).toHaveTextContent(/leave this empty unless kaleidoscope cannot map/i);
+    expect(screen.getByTestId('inspect-toggle')).toBeEnabled();
+  });
+
   it('renders exact result details when a source is resolved', () => {
     render(
       <InspectPanel

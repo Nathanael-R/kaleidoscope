@@ -1,8 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
+
+export function getDeviceFrameMetrics(device: Device, isLandscape = false) {
+  const deviceWidth = isLandscape ? device.height : device.width;
+  const deviceHeight = isLandscape ? device.width : device.height;
+  const frameWidth = deviceWidth + (device.type === 'mobile' ? 48 : device.type === 'tablet' ? 60 : 80);
+  const frameHeight = deviceHeight + (device.type === 'mobile' ? 96 : device.type === 'tablet' ? 80 : 60);
+
+  return {
+    deviceWidth,
+    deviceHeight,
+    frameWidth,
+    frameHeight,
+  };
+}
+
 interface DeviceFrameProps {
   device: Device;
   url: string;
@@ -49,6 +64,16 @@ export default function DeviceFrame({
       '*'
     );
   };
+
+  const focusIframe = useCallback(() => {
+    iframeRef.current?.focus();
+
+    try {
+      iframeRef.current?.contentWindow?.focus();
+    } catch {
+      // Cross-origin frames can reject direct focus access in some browsers.
+    }
+  }, []);
 
   useEffect(() => {
     if (url === prevUrlRef.current) return;
@@ -131,6 +156,7 @@ export default function DeviceFrame({
   const handleIframeLoad = () => {
     setLoading(false);
     setError(false);
+    focusIframe();
     onLoad?.();
   };
 
@@ -146,12 +172,9 @@ export default function DeviceFrame({
     setIframeKey(k => k + 1);
   };
 
-  const deviceWidth = isLandscape ? device.height : device.width;
-  const deviceHeight = isLandscape ? device.width : device.height;
-  
-  // Calculate frame dimensions (add padding for device chrome)
-  const frameWidth = deviceWidth + (device.type === 'mobile' ? 48 : device.type === 'tablet' ? 60 : 80);
-  const frameHeight = deviceHeight + (device.type === 'mobile' ? 96 : device.type === 'tablet' ? 80 : 60);
+  const { deviceWidth, deviceHeight, frameWidth, frameHeight } = getDeviceFrameMetrics(device, isLandscape);
+  const scaledFrameWidth = frameWidth * scale;
+  const scaledFrameHeight = frameHeight * scale;
 
   const getDeviceFrame = () => {
     if (device.type === 'mobile') {
@@ -159,9 +182,9 @@ export default function DeviceFrame({
         <div 
           className="relative bg-black rounded-[3rem] shadow-2xl"
           style={{
-            width: frameWidth * scale,
-            height: frameHeight * scale,
-            padding: 24 * scale
+            width: frameWidth,
+            height: frameHeight,
+            padding: 24
           }}
         >
           {/* Screen */}
@@ -180,7 +203,7 @@ export default function DeviceFrame({
           {/* Home indicator */}
           <div 
             className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white rounded-full"
-            style={{ width: 128 * scale, height: 4 * scale }}
+            style={{ width: 128, height: 4 }}
           ></div>
         </div>
       );
@@ -189,9 +212,9 @@ export default function DeviceFrame({
         <div 
           className="relative bg-gray-800 rounded-3xl shadow-2xl"
           style={{
-            width: frameWidth * scale,
-            height: frameHeight * scale,
-            padding: 30 * scale
+            width: frameWidth,
+            height: frameHeight,
+            padding: 30
           }}
         >
           <div className="relative bg-white rounded-2xl overflow-hidden h-full">
@@ -204,9 +227,9 @@ export default function DeviceFrame({
         <div 
           className="relative bg-gray-900 rounded-lg shadow-2xl"
           style={{
-            width: frameWidth * scale,
-            height: frameHeight * scale,
-            padding: 20 * scale
+            width: frameWidth,
+            height: frameHeight,
+            padding: 20
           }}
         >
           <div className="relative bg-white rounded-lg overflow-hidden h-full">
@@ -281,10 +304,14 @@ export default function DeviceFrame({
             src={proxyUrl || url}
             className="w-full h-full border-0 bg-white transition-opacity duration-300"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            scrolling="yes"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
+            onMouseEnter={focusIframe}
+            onPointerDown={focusIframe}
             style={{ display: loading ? 'none' : 'block', opacity: loading ? 0 : 1 }}
             data-testid="preview-iframe"
+            tabIndex={0}
             title={`${device.name} - ${url}`}
             aria-label={`Preview of ${url} on ${device.name}${proxyUrl ? ' (via proxy)' : ''}`}
           />
@@ -294,12 +321,22 @@ export default function DeviceFrame({
   };
 
   return (
-    <div className="flex justify-center animate-fade-in-up">
-      <div className="relative">
-        {getDeviceFrame()}
-        
-        {/* Device Label */}
-        <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
+    <div className="flex w-full justify-center animate-fade-in-up">
+      <div className="flex flex-col items-center" style={{ width: scaledFrameWidth }}>
+        <div className="flex items-start justify-center" style={{ width: scaledFrameWidth, height: scaledFrameHeight }}>
+          <div
+            style={{
+              width: frameWidth,
+              height: frameHeight,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center',
+            }}
+          >
+            {getDeviceFrame()}
+          </div>
+        </div>
+
+        <div className="mt-4">
           <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-all duration-200">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{device.name}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">

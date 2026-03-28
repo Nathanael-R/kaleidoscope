@@ -1,11 +1,19 @@
 import { memo, useState, useCallback } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { StickyNote } from "lucide-react";
+import {
+  getFlowIssueSeverityLabel,
+  getFlowReviewStatusLabel,
+  getFlowSeverityBadgeClassName,
+  getFlowStatusBadgeClassName,
+  normalizeFlowNodeData,
+} from "@/lib/flow-review";
 
 function NoteNode({ id, data, selected }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(String(data.label || "Note"));
   const { setNodes } = useReactFlow();
+  const nodeData = normalizeFlowNodeData(data);
 
   const commitLabel = useCallback(() => {
     setEditing(false);
@@ -14,7 +22,7 @@ function NoteNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 bg-yellow-50 dark:bg-yellow-900/30 shadow-sm min-w-[140px] max-w-[240px] ${
+      className={`px-4 py-3 rounded-lg border-2 bg-yellow-50 dark:bg-yellow-900/30 shadow-sm min-w-35 max-w-60 ${
         selected ? "border-yellow-500 shadow-yellow-100" : "border-yellow-200 dark:border-yellow-700"
       }`}
     >
@@ -35,6 +43,16 @@ function NoteNode({ id, data, selected }: NodeProps) {
             onDoubleClick={() => setEditing(true)}
           >
             {label}
+          </span>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${getFlowStatusBadgeClassName(nodeData.reviewStatus || "untouched")}`}>
+          {getFlowReviewStatusLabel(nodeData.reviewStatus || "untouched")}
+        </span>
+        {nodeData.reviewStatus === "issue" && (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${getFlowSeverityBadgeClassName(nodeData.issueSeverity || "info")}`}>
+            {getFlowIssueSeverityLabel(nodeData.issueSeverity || "info")}
           </span>
         )}
       </div>

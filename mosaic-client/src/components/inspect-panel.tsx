@@ -63,7 +63,7 @@ export default function InspectPanel({
   return (
     <div className="space-y-3" data-testid="inspect-panel">
       <div className="rounded-md border border-cyan-200 bg-cyan-50/60 p-2 text-[11px] text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/20 dark:text-cyan-300">
-        Exact runtime source works best for local dev builds. Adding a project path enables Kaleidoscope&apos;s heuristic fallback when runtime metadata is missing.
+        Start inspect mode directly from the loaded local URL. Project path is only used as a fallback when runtime source metadata is missing.
       </div>
 
       <div>
@@ -74,12 +74,15 @@ export default function InspectPanel({
         </div>
         <Input
           type="text"
-          placeholder="/path/to/project/src"
+          placeholder="Optional: /path/to/project/src"
           value={sourceDir}
           onChange={(event) => onSourceDirChange(event.target.value)}
           className="h-8 text-xs font-mono"
           data-testid="inspect-source-dir-input"
         />
+        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400" data-testid="inspect-source-dir-help">
+          Leave this empty unless Kaleidoscope cannot map the selected element back to source on its own.
+        </p>
       </div>
 
       <Button

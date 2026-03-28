@@ -249,14 +249,8 @@ describe('PreviewArea', () => {
   });
 
   describe('sidebar toggle', () => {
-    it('shows floating sidebar button when sidebar is collapsed', () => {
+    it('does not render a floating sidebar button in the preview area', () => {
       render(<PreviewArea {...defaultProps} isSidebarCollapsed={true} onToggleSidebar={vi.fn()} />);
-
-      expect(screen.getByTestId('button-expand-sidebar-floating')).toBeInTheDocument();
-    });
-
-    it('hides floating sidebar button when sidebar is open', () => {
-      render(<PreviewArea {...defaultProps} isSidebarCollapsed={false} />);
 
       expect(screen.queryByTestId('button-expand-sidebar-floating')).not.toBeInTheDocument();
     });

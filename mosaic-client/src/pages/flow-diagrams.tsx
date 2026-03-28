@@ -13,8 +13,8 @@ import {
   type Edge,
   type NodeTypes,
   type ReactFlowInstance,
-  ReactFlowProvider,
 } from "@xyflow/react";
+import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import Header from "@/components/header";
@@ -28,6 +28,23 @@ import { useFlowStorage } from "@/hooks/use-flow-storage";
 import { usePreviewStore } from "@/store/preview-store";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Globe, Loader2, RefreshCw, X, AlertTriangle } from "lucide-react";
+import { useLocation } from "wouter";
+import {
+  FLOW_ISSUE_SEVERITIES,
+  FLOW_REVIEW_STATUSES,
+  buildFlowPreviewUrl,
+  getFlowIssueSeverityLabel,
+  getFlowNodeTypeLabel,
+  getFlowReviewStatusLabel,
+  getFlowSeverityButtonClassName,
+  getFlowStatusButtonClassName,
+  hydrateFlowNode,
+  matchesFlowReviewFilter,
+  normalizeFlowNodeData,
+  summarizeFlowNodes,
+  type FlowNodeData,
+  type FlowReviewFilter,
+} from "@/lib/flow-review";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const DEFAULT_LOCALE_PREFIXES = [
@@ -76,6 +93,13 @@ interface CrawlResult {
   startUrl: string;
   pages: CrawlPageInfo[];
   sitemapUrls: string[];
+}
+
+interface FlowPagePreview {
+  url: string;
+  label: string;
+  path: string;
+  screenshotUrl?: string;
 }
 
 /** Layout discovered pages as a tree: root at top, children fanning out below */
@@ -372,18 +396,20 @@ function FlowEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [flowName, setFlowName] = useState("Untitled Flow");
   const [searchQuery, setSearchQuery] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<FlowReviewFilter>("all");
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
-  const [selectedPage, setSelectedPage] = useState<{ url: string; label: string; path: string; screenshotUrl?: string } | null>(null);
-  const [hoveredPage, setHoveredPage] = useState<{ url: string; label: string; path: string; screenshotUrl?: string } | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredPage, setHoveredPage] = useState<FlowPagePreview | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(DEFAULT_CRAWL_OPTIONS);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const nodeIdCounterRef = useRef(0);
   const lastCrawlResultRef = useRef<CrawlResult | null>(null);
+  const [, navigate] = useLocation();
 
   // Crawl state
-  const { currentUrl, proxyUrl } = usePreviewStore();
+  const { currentUrl, proxyUrl, setCurrentUrl, setProxyUrl } = usePreviewStore();
   const [crawling, setCrawling] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
   const hasAutoDiscoveredRef = useRef<string | null>(null);
@@ -403,6 +429,67 @@ function FlowEditor() {
       return next;
     });
   }, []);
+
+  const hydrateNodes = useCallback(
+    (flowNodes: Node[]) => flowNodes.map((node) => hydrateFlowNode(node, handleToggleGroup)),
+    [handleToggleGroup]
+  );
+
+  const getPagePreview = useCallback((node: Node): FlowPagePreview | null => {
+    const data = normalizeFlowNodeData(node.data);
+    const url = typeof data.url === "string" ? data.url : "";
+
+    if (!url) {
+      return null;
+    }
+
+    return {
+      url,
+      label: String(data.label || url),
+      path: typeof data.path === "string" ? data.path : "",
+      screenshotUrl: typeof data.screenshotUrl === "string" ? data.screenshotUrl : undefined,
+    };
+  }, []);
+
+  const updateNodeData = useCallback(
+    (nodeId: string, updates: Partial<FlowNodeData>) => {
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...normalizeFlowNodeData(node.data), ...updates } }
+            : node
+        )
+      );
+    },
+    [setNodes]
+  );
+
+  const openNodeInPreview = useCallback(
+    (node: Node) => {
+      const preview = getPagePreview(node);
+      if (!preview) {
+        return;
+      }
+
+      setCurrentUrl(preview.url);
+      setProxyUrl(buildFlowPreviewUrl(proxyUrl, preview.path));
+      navigate("/");
+    },
+    [getPagePreview, navigate, proxyUrl, setCurrentUrl, setProxyUrl]
+  );
+
+  const openNodeInNewTab = useCallback(
+    (node: Node) => {
+      const preview = getPagePreview(node);
+      if (!preview) {
+        return;
+      }
+
+      const previewUrl = buildFlowPreviewUrl(proxyUrl, preview.path) || preview.url;
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    },
+    [getPagePreview, proxyUrl]
+  );
 
   const discoverPages = useCallback(async (url: string, options: CrawlOptions = crawlOptions) => {
     setCrawling(true);
@@ -437,16 +524,17 @@ function FlowEditor() {
 
       const nextExpandedGroups = new Set<string>();
       const { nodes: newNodes, edges: newEdges } = layoutPages(result, nextExpandedGroups, handleToggleGroup);
+      const hydratedNodes = hydrateNodes(newNodes);
 
-      setNodes(newNodes);
+      setNodes(hydratedNodes);
       setEdges(newEdges);
-      setSelectedPage(null);
+      setSelectedNodeId(null);
       setHoveredPage(null);
       setExpandedGroups(nextExpandedGroups);
       lastCrawlResultRef.current = result;
 
       // Update ID counter to avoid collisions with manual additions
-      nodeIdCounterRef.current = newNodes.length;
+      nodeIdCounterRef.current = hydratedNodes.length;
 
       // Set flow name from the URL
       try {
@@ -467,7 +555,7 @@ function FlowEditor() {
     } finally {
       setCrawling(false);
     }
-  }, [setNodes, setEdges, reactFlowInstance, setSelectedPage, setHoveredPage, proxyUrl, crawlOptions, handleToggleGroup]);
+  }, [setNodes, setEdges, reactFlowInstance, proxyUrl, crawlOptions, handleToggleGroup, hydrateNodes]);
 
   // Detect when currentUrl changes and trigger side effects safely
   const prevCurrentUrlRef = useRef(currentUrl);
@@ -531,12 +619,17 @@ function FlowEditor() {
         id: getNextId(),
         type,
         position,
-        data: { label: labelMap[type] || "Node" },
+        data: {
+          label: labelMap[type] || "Node",
+          reviewStatus: "untouched",
+          issueSeverity: "info",
+          reviewNote: "",
+        },
       };
 
-      setNodes((nds) => [...nds, newNode]);
+      setNodes((nds) => [...nds, hydrateFlowNode(newNode, handleToggleGroup)]);
     },
-    [reactFlowInstance, setNodes]
+    [handleToggleGroup, reactFlowInstance, setNodes]
   );
 
   // Search / spotlight
@@ -574,33 +667,42 @@ function FlowEditor() {
     [nodes, reactFlowInstance]
   );
 
+  const visibleNodeIds = useMemo(() => {
+    return new Set(nodes.filter((node) => matchesFlowReviewFilter(node, reviewFilter)).map((node) => node.id));
+  }, [nodes, reviewFilter]);
+
   // Apply highlight styling
   const styledNodes = useMemo(() => {
-    if (highlightedNodes.size === 0) return nodes;
     return nodes.map((node) => ({
       ...node,
+      hidden: !visibleNodeIds.has(node.id),
       style: {
         ...node.style,
-        opacity: highlightedNodes.has(node.id) ? 1 : 0.25,
+        opacity:
+          highlightedNodes.size === 0 || highlightedNodes.has(node.id)
+            ? 1
+            : 0.25,
         transition: "opacity 0.3s",
       },
     }));
-  }, [nodes, highlightedNodes]);
+  }, [nodes, highlightedNodes, visibleNodeIds]);
 
   const styledEdges = useMemo(() => {
-    if (highlightedNodes.size === 0) return edges;
     return edges.map((edge) => ({
       ...edge,
+      hidden: !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target),
       style: {
         ...edge.style,
         opacity:
-          highlightedNodes.has(edge.source) || highlightedNodes.has(edge.target)
+          highlightedNodes.size === 0 || highlightedNodes.has(edge.source) || highlightedNodes.has(edge.target)
             ? 1
             : 0.15,
         transition: "opacity 0.3s",
       },
     }));
-  }, [edges, highlightedNodes]);
+  }, [edges, highlightedNodes, visibleNodeIds]);
+
+  const reviewSummary = useMemo(() => summarizeFlowNodes(nodes), [nodes]);
 
   // Save / load
   const handleSave = useCallback(() => {
@@ -611,9 +713,12 @@ function FlowEditor() {
     (name: string) => {
       const flow = loadFlow(name);
       if (flow) {
-        setNodes(flow.nodes);
+        const hydratedNodes = hydrateNodes(flow.nodes);
+        setNodes(hydratedNodes);
         setEdges(flow.edges);
         setFlowName(name);
+        setSelectedNodeId(null);
+        setHoveredPage(null);
         const maxId = flow.nodes.reduce((max, n) => {
           const num = parseInt(n.id.replace("node_", ""), 10);
           return isNaN(num) ? max : Math.max(max, num);
@@ -621,7 +726,7 @@ function FlowEditor() {
         nodeIdCounterRef.current = maxId;
       }
     },
-    [loadFlow, setNodes, setEdges]
+    [hydrateNodes, loadFlow, setNodes, setEdges]
   );
 
   const handleExport = useCallback(() => {
@@ -652,30 +757,25 @@ function FlowEditor() {
     setNodes([]);
     setEdges([]);
     hasAutoDiscoveredRef.current = null;
-    setSelectedPage(null);
+    setSelectedNodeId(null);
     setHoveredPage(null);
     setExpandedGroups(new Set());
     lastCrawlResultRef.current = null;
-  }, [setNodes, setEdges, setSelectedPage, setHoveredPage]);
+  }, [setNodes, setEdges]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    const url = typeof node.data?.url === "string" ? node.data.url : "";
-    if (!url) return;
-    const label = String(node.data?.label || url);
-    const path = typeof node.data?.path === "string" ? node.data.path : "";
-    const screenshotUrl = typeof node.data?.screenshotUrl === "string" ? node.data.screenshotUrl : undefined;
-    setSelectedPage({ url, label, path, screenshotUrl });
+    setSelectedNodeId(node.id);
     setHoveredPage(null);
   }, []);
 
   const handleNodeHover = useCallback((_event: React.MouseEvent, node: Node) => {
-    const url = typeof node.data?.url === "string" ? node.data.url : "";
-    if (!url) return;
-    const label = String(node.data?.label || url);
-    const path = typeof node.data?.path === "string" ? node.data.path : "";
-    const screenshotUrl = typeof node.data?.screenshotUrl === "string" ? node.data.screenshotUrl : undefined;
-    setHoveredPage({ url, label, path, screenshotUrl });
-  }, []);
+    const preview = getPagePreview(node);
+    if (!preview) {
+      return;
+    }
+
+    setHoveredPage(preview);
+  }, [getPagePreview]);
 
   const handleNodeHoverEnd = useCallback(() => {
     setHoveredPage(null);
@@ -688,20 +788,55 @@ function FlowEditor() {
       expandedGroups,
       handleToggleGroup
     );
-    setNodes(newNodes);
+    const hydratedNodes = hydrateNodes(newNodes);
+    setNodes(hydratedNodes);
     setEdges(newEdges);
-    nodeIdCounterRef.current = newNodes.length;
-  }, [expandedGroups, handleToggleGroup, setNodes, setEdges]);
+    nodeIdCounterRef.current = hydratedNodes.length;
+  }, [expandedGroups, handleToggleGroup, hydrateNodes, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (!selectedNodeId) {
+      return;
+    }
+
+    const selectedNode = nodes.find((node) => node.id === selectedNodeId);
+    if (!selectedNode || !matchesFlowReviewFilter(selectedNode, reviewFilter)) {
+      setSelectedNodeId(null);
+    }
+  }, [nodes, reviewFilter, selectedNodeId]);
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) {
+      return null;
+    }
+
+    return nodes.find((node) => node.id === selectedNodeId) ?? null;
+  }, [nodes, selectedNodeId]);
+
+  const selectedNodeData = useMemo(() => {
+    return selectedNode ? normalizeFlowNodeData(selectedNode.data) : null;
+  }, [selectedNode]);
+
+  const selectedNodePreviewUrl = useMemo(() => {
+    if (!selectedNode) {
+      return "";
+    }
+
+    const preview = getPagePreview(selectedNode);
+    if (!preview) {
+      return "";
+    }
+
+    return buildFlowPreviewUrl(proxyUrl, preview.path) || preview.url;
+  }, [getPagePreview, proxyUrl, selectedNode]);
 
   const matchedNodes = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    return nodes.filter((n) => highlightedNodes.has(n.id));
-  }, [nodes, searchQuery, highlightedNodes]);
+    return nodes.filter((n) => highlightedNodes.has(n.id) && visibleNodeIds.has(n.id));
+  }, [nodes, searchQuery, highlightedNodes, visibleNodeIds]);
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900">
-      <Header />
-      <div className="flex h-screen pt-16">
+    <div className="flex flex-1 min-h-0 bg-gray-50 dark:bg-gray-900">
         <FlowSidebar
           flowName={flowName}
           onFlowNameChange={setFlowName}
@@ -829,9 +964,12 @@ function FlowEditor() {
                 onQueryChange={handleSearch}
                 matchedNodes={matchedNodes}
                 onFocusNode={focusNode}
+                reviewFilter={reviewFilter}
+                onReviewFilterChange={setReviewFilter}
+                reviewSummary={reviewSummary}
               />
             </Panel>
-            {hoveredPage && !selectedPage && (
+            {hoveredPage && !selectedNode && (
               <Panel position="bottom-right">
                 <div className="w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
                   <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
@@ -856,84 +994,178 @@ function FlowEditor() {
               </Panel>
             )}
           </ReactFlow>
-          {selectedPage && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white dark:bg-gray-800 w-[95vw] max-w-6xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                    {selectedPage.label}
+          {selectedNode && selectedNodeData && (
+            <aside className="absolute right-4 top-16 bottom-4 z-20 w-[92vw] max-w-sm rounded-2xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 animate-slide-in-right">
+              <div className="flex h-full flex-col">
+                <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-4 dark:border-gray-700">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                      {getFlowNodeTypeLabel(selectedNode.type)}
+                    </p>
+                    <h3 className="mt-1 truncate text-base font-semibold text-gray-900 dark:text-gray-100">
+                      {String(selectedNodeData.label || "Untitled node")}
+                    </h3>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-medium ${getFlowStatusButtonClassName(selectedNodeData.reviewStatus || "untouched", true)}`}>
+                        {getFlowReviewStatusLabel(selectedNodeData.reviewStatus || "untouched")}
+                      </span>
+                      {selectedNodeData.reviewStatus === "issue" && (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-medium ${getFlowSeverityButtonClassName(selectedNodeData.issueSeverity || "info", true)}`}>
+                          {getFlowIssueSeverityLabel(selectedNodeData.issueSeverity || "info")}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
-                        const previewUrl = proxyBase && selectedPage.path
-                          ? `${proxyBase}${selectedPage.path}`
-                          : selectedPage.url;
-                        window.open(previewUrl, "_blank", "noopener,noreferrer");
-                      }}
-                      aria-label="Open in new tab"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setSelectedPage(null)}
-                      aria-label="Close preview"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setSelectedNodeId(null)}
+                    aria-label="Close review panel"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-                <div className="flex-1 overflow-auto p-4 bg-gray-50 dark:bg-gray-900 flex items-start justify-center">
-                  {selectedPage.screenshotUrl ? (
-                    <img
-                      src={selectedPage.screenshotUrl}
-                      alt={`Screenshot of ${selectedPage.label}`}
-                      className="w-full max-w-full h-auto rounded-lg shadow-md"
+
+                <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+                  <section>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Review status</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {FLOW_REVIEW_STATUSES.map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => updateNodeData(selectedNode.id, { reviewStatus: status })}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${getFlowStatusButtonClassName(status, status === selectedNodeData.reviewStatus)}`}
+                        >
+                          {getFlowReviewStatusLabel(status)}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  {selectedNodeData.reviewStatus === "issue" && (
+                    <section>
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Issue severity</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {FLOW_ISSUE_SEVERITIES.map((severity) => (
+                          <button
+                            key={severity}
+                            onClick={() => updateNodeData(selectedNode.id, { issueSeverity: severity })}
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${getFlowSeverityButtonClassName(severity, severity === selectedNodeData.issueSeverity)}`}
+                          >
+                            {getFlowIssueSeverityLabel(severity)}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  <section>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Review note</p>
+                    <textarea
+                      value={selectedNodeData.reviewNote || ""}
+                      onChange={(event) => updateNodeData(selectedNode.id, { reviewNote: event.target.value })}
+                      placeholder="Capture why this node matters, what broke, or what still needs review."
+                      rows={4}
+                      className="mt-2 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-400 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-gray-500"
                     />
-                  ) : (
-                    <div className="w-full h-64 flex items-center justify-center">
-                      <div className="text-center">
-                        <Globe className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No screenshot available for this page</p>
+                  </section>
+
+                  {(selectedNodeData.path || selectedNodeData.url) && (
+                    <section className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
+                      {selectedNodeData.path && (
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Path</p>
+                          <p className="mt-1 break-all text-xs text-gray-700 dark:text-gray-300">{selectedNodeData.path}</p>
+                        </div>
+                      )}
+                      {selectedNodeData.url && (
+                        <div className={selectedNodeData.path ? "mt-3" : ""}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">URL</p>
+                          <p className="mt-1 break-all text-xs text-gray-700 dark:text-gray-300">{selectedNodeData.url}</p>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {selectedNode.type === "page" && (
+                    <section>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Page context</p>
+                        {selectedNodePreviewUrl && (
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500">Bridges back into preview</p>
+                        )}
+                      </div>
+                      <div className="mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60">
+                        {selectedNodeData.screenshotUrl ? (
+                          <img
+                            src={selectedNodeData.screenshotUrl}
+                            alt={`Screenshot of ${String(selectedNodeData.label || "page")}`}
+                            className="h-44 w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-44 items-center justify-center">
+                            <div className="text-center">
+                              <Globe className="mx-auto mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
+                              <p className="text-xs text-gray-500 dark:text-gray-400">No screenshot captured for this page yet.</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => openNodeInPreview(selectedNode)}
+                          disabled={!selectedNodePreviewUrl}
+                        >
+                          <Globe className="w-4 h-4 mr-1" />
+                          Open in Preview
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="mt-3"
-                          onClick={() => {
-                            const proxyBase = proxyUrl ? proxyUrl.replace(/\/$/, "") : "";
-                            const previewUrl = proxyBase && selectedPage.path
-                              ? `${proxyBase}${selectedPage.path}`
-                              : selectedPage.url;
-                            window.open(previewUrl, "_blank", "noopener,noreferrer");
-                          }}
+                          onClick={() => openNodeInNewTab(selectedNode)}
+                          disabled={!selectedNodePreviewUrl}
                         >
                           <ExternalLink className="w-4 h-4 mr-1" />
-                          Open in new tab
+                          Open in New Tab
                         </Button>
                       </div>
-                    </div>
+                    </section>
                   )}
                 </div>
               </div>
-            </div>
+            </aside>
           )}
         </div>
-      </div>
+    </div>
+  );
+}
+
+interface FlowWorkspacePaneProps {
+  embedded?: boolean;
+}
+
+export function FlowWorkspacePane({ embedded = false }: FlowWorkspacePaneProps) {
+  const content = (
+    <ReactFlowProvider>
+      <FlowEditor />
+    </ReactFlowProvider>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-1 min-h-0">{content}</div>;
+  }
+
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+      <Header />
+      <div className="flex flex-1 min-h-0">{content}</div>
     </div>
   );
 }
 
 export default function FlowDiagrams() {
-  return (
-    <ReactFlowProvider>
-      <FlowEditor />
-    </ReactFlowProvider>
-  );
+  return <FlowWorkspacePane />;
 }
