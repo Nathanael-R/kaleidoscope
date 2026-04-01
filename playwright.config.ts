@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const FRONTEND_PORT = process.env.PLAYWRIGHT_FRONTEND_PORT ?? '4173';
+const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -9,7 +12,7 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: FRONTEND_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -31,8 +34,8 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'cd mosaic-client && npm run dev',
-      url: 'http://localhost:5173',
+      command: `cd mosaic-client && npx vite --host 0.0.0.0 --port ${FRONTEND_PORT} --strictPort`,
+      url: FRONTEND_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },

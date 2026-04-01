@@ -5,9 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:client": "cd mosaic-client && npm run dev",
+    "dev:client": "node scripts/run-client-dev.mjs",
     "dev:server": "cd server && npm run dev",
-    "dev:all": "concurrently \"npm run dev:client\" \"npm run dev:server\" --names \"client,server\" --prefix-colors \"cyan,magenta\"",
+    "dev:all": "node scripts/run-dev-all.mjs",
     "postinstall": "npx playwright install chromium || true",
     "install:all": "npm install && cd mosaic-client && npm install && cd ../server && npm install && cd ../mcp-server && npm install && cd ../examples/sample-site && npm install && cd ../auth-demo && npm install",
     "test": "npm run test:unit && npm run test:e2e",

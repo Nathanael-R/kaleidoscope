@@ -42,11 +42,12 @@ export function registerPreviewTools(server: McpServer) {
     },
     async ({ url, devices: selectedDevices, tunnel }) => {
       try {
-        // Ensure Kaleidoscope server is running
-        const serverReachable = await processManager.isServerReachable();
-        if (!serverReachable) {
-          await processManager.startAll();
+        const status = await processManager.startAll();
+        if (!status.client.url) {
+          throw new Error('Kaleidoscope client URL is unavailable after startup.');
         }
+
+        const clientUrl = status.client.url;
 
         // Check health
         const healthRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/health`);
@@ -61,7 +62,7 @@ export function registerPreviewTools(server: McpServer) {
 
         const results: string[] = [];
         results.push(`Preview ready for: ${url}`);
-        results.push(`Kaleidoscope UI: http://localhost:5173`);
+        results.push(`Kaleidoscope UI: ${clientUrl}`);
         results.push('');
 
         // Create tunnel if requested
@@ -95,7 +96,7 @@ export function registerPreviewTools(server: McpServer) {
           results.push(`  - ${deviceId}`);
         }
         results.push('');
-        results.push('Open Kaleidoscope at http://localhost:5173 and enter the URL to see previews across all devices.');
+        results.push(`Open Kaleidoscope at ${clientUrl} and enter the URL to see previews across all devices.`);
 
         return {
           content: [{

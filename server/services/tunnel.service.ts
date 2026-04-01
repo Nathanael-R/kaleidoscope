@@ -185,7 +185,7 @@ class TunnelService {
    * Auto-detect port from common dev servers by checking which ones are listening
    */
   async autoDetectPort(): Promise<number | null> {
-    const commonPorts = [3000, 5173, 8080, 4200, 8000, 3001];
+    const commonPorts = [3000, 5173, 5174, 4173, 8080, 4200, 8000, 3001];
 
     for (const port of commonPorts) {
       try {

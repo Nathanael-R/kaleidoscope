@@ -1,9 +1,17 @@
+import { createServer } from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
+const DEFAULT_CLIENT_PORTS = [5173, 5174, 4173];
+const KALEIDOSCOPE_CLIENT_TITLE = '<title>Kaleidoscope</title>';
+const KALEIDOSCOPE_CLIENT_ROOT = '<div id="root"></div>';
+
+export function isKaleidoscopeClientHtml(html: string): boolean {
+  return html.includes(KALEIDOSCOPE_CLIENT_TITLE) && html.includes(KALEIDOSCOPE_CLIENT_ROOT);
+}
 
 export interface ServiceStatus {
   running: boolean;
@@ -20,10 +28,116 @@ export interface KaleidoscopeStatus {
 class ProcessManager {
   private clientProcess: ChildProcess | null = null;
   private serverProcess: ChildProcess | null = null;
-  private clientPort = 5173;
+  private clientPort = this.getPreferredClientPorts()[0] ?? 5173;
   private serverPort = 5000;
   private serverLogTail = '';
   private clientLogTail = '';
+
+  private getPreferredClientPorts(): number[] {
+    const envPort = Number.parseInt(process.env.KALEIDOSCOPE_CLIENT_PORT ?? '', 10);
+    const ports = Number.isInteger(envPort) && envPort > 0 && envPort <= 65535
+      ? [envPort, ...DEFAULT_CLIENT_PORTS]
+      : [...DEFAULT_CLIENT_PORTS];
+
+    return Array.from(new Set(ports));
+  }
+
+  private async isReachable(port: number, path: string = '/'): Promise<boolean> {
+    try {
+      const res = await fetch(`http://localhost:${port}${path}`);
+      return res.ok || res.status < 500;
+    } catch {
+      return false;
+    }
+  }
+
+  private async isKaleidoscopeClientReachable(port: number): Promise<boolean> {
+    try {
+      const res = await fetch(`http://localhost:${port}/`);
+      if (!res.ok) {
+        return false;
+      }
+
+      const contentType = res.headers.get('content-type')?.toLowerCase() ?? '';
+      if (!contentType.includes('text/html')) {
+        return false;
+      }
+
+      const html = await res.text();
+      return isKaleidoscopeClientHtml(html);
+    } catch {
+      return false;
+    }
+  }
+
+  private async findReachableClientPort(): Promise<number | null> {
+    const ports = Array.from(new Set([this.clientPort, ...this.getPreferredClientPorts()]));
+
+    for (const port of ports) {
+      if (await this.isKaleidoscopeClientReachable(port)) {
+        return port;
+      }
+    }
+
+    return null;
+  }
+
+  private isPortAvailable(port: number): Promise<boolean> {
+    return new Promise((resolveAvailability) => {
+      const tester = createServer();
+
+      tester.once('error', () => {
+        resolveAvailability(false);
+      });
+
+      tester.once('listening', () => {
+        tester.close(() => resolveAvailability(true));
+      });
+
+      tester.listen(port);
+    });
+  }
+
+  private getEphemeralPort(): Promise<number> {
+    return new Promise((resolvePort, reject) => {
+      const tester = createServer();
+
+      tester.once('error', reject);
+      tester.once('listening', () => {
+        const address = tester.address();
+        if (!address || typeof address === 'string') {
+          tester.close(() => reject(new Error('Failed to allocate a client port.')));
+          return;
+        }
+
+        tester.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolvePort(address.port);
+        });
+      });
+
+      tester.listen(0);
+    });
+  }
+
+  private async resolveClientPort(): Promise<number> {
+    const reachablePort = await this.findReachableClientPort();
+    if (reachablePort !== null) {
+      return reachablePort;
+    }
+
+    for (const port of this.getPreferredClientPorts()) {
+      if (await this.isPortAvailable(port)) {
+        return port;
+      }
+    }
+
+    return this.getEphemeralPort();
+  }
 
   private appendLogTail(target: 'server' | 'client', chunk: string): void {
     const maxChars = 4000;
@@ -59,12 +173,15 @@ class ProcessManager {
   }
 
   async getStatus(): Promise<KaleidoscopeStatus> {
+    const reachableClientPort = await this.findReachableClientPort();
+    const clientPort = reachableClientPort ?? this.clientPort;
+
     return {
       client: {
-        running: this.clientProcess !== null && this.clientProcess.exitCode === null,
+        running: (this.clientProcess !== null && this.clientProcess.exitCode === null) || reachableClientPort !== null,
         pid: this.clientProcess?.pid,
-        port: this.clientPort,
-        url: `http://localhost:${this.clientPort}`,
+        port: clientPort,
+        url: `http://localhost:${clientPort}`,
       },
       server: {
         running: this.serverProcess !== null && this.serverProcess.exitCode === null,
@@ -127,17 +244,17 @@ class ProcessManager {
   }
 
   async startClient(): Promise<void> {
-    try {
-      const res = await fetch(`http://localhost:${this.clientPort}`);
-      if (res.ok) return; // Already running
-    } catch {
-      // not running, start it
+    const reachableClientPort = await this.findReachableClientPort();
+    if (reachableClientPort !== null) {
+      this.clientPort = reachableClientPort;
+      return;
     }
 
+    this.clientPort = await this.resolveClientPort();
     this.clientLogTail = '';
     let spawnErrorMessage: string | null = null;
 
-    this.clientProcess = spawn('npx', ['vite', '--port', String(this.clientPort)], {
+    this.clientProcess = spawn('npx', ['vite', '--host', '0.0.0.0', '--port', String(this.clientPort), '--strictPort'], {
       cwd: resolve(PROJECT_ROOT, 'mosaic-client'),
       env: { ...process.env },
       stdio: 'pipe',
