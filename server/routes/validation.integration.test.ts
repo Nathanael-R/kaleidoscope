@@ -7,6 +7,7 @@ import screenshotRoutes from './screenshot.routes.js';
 import proxyRoutes from './proxy.routes.js';
 import performanceRoutes from './performance.routes.js';
 import inspectRoutes from './inspect.routes.js';
+import { crawlService } from '../services/crawl.service.js';
 
 let server: Server;
 let baseUrl = '';
@@ -73,6 +74,36 @@ test('POST /api/screenshots rejects invalid device IDs with normalized error pay
   assert.ok(body.validDeviceIds.includes('iphone-14'));
 });
 
+test('POST /api/screenshots accepts localhost URLs before device validation', async () => {
+  const { status, body } = await requestJson('/api/screenshots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://localhost:3000',
+      devices: ['invalid-device-id'],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.match(body.error, /Invalid device IDs/);
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/screenshots accepts loopback proxy URLs before device validation', async () => {
+  const { status, body } = await requestJson('/api/screenshots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://127.0.0.1:5000/api/proxy/sess123/',
+      devices: ['invalid-device-id'],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.match(body.error, /Invalid device IDs/);
+  assert.equal(body.requestId, 'test-request-id');
+});
+
 test('POST /api/proxy/session rejects invalid cookies with normalized error payload', async () => {
   const { status, body } = await requestJson('/api/proxy/session', {
     method: 'POST',
@@ -101,65 +132,6 @@ test('POST /api/proxy/session rejects invalid auth headers with normalized error
   assert.equal(status, 400);
   assert.equal(typeof body.error, 'string');
   assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/proxy/session allows linked loopback sessions when explicitly requested', async () => {
-  const { status, body } = await requestJson('/api/proxy/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'http://localhost:3000',
-      mode: 'linked',
-      allowLoopback: true,
-    }),
-  });
-
-  assert.equal(status, 200);
-  assert.equal(body.success, true);
-  assert.equal(typeof body.session?.proxyUrl, 'string');
-});
-
-test('POST /api/proxy/session explains why linked private hosts are blocked', async () => {
-  const { status, body } = await requestJson('/api/proxy/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'http://192.168.1.8:3000',
-      mode: 'linked',
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.match(body.error, /Linked actions blocked private host "192\.168\.1\.8"/);
-  assert.match(body.error, /KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192\.168\.1\.8:3000/);
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/proxy/session allows linked private hosts from the development allowlist', async () => {
-  const previousAllowlist = process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST;
-
-  process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST = '192.168.0.104:5173';
-
-  try {
-    const { status, body } = await requestJson('/api/proxy/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: 'http://192.168.1.8:3000',
-        mode: 'linked',
-      }),
-    });
-
-    assert.equal(status, 200);
-    assert.equal(body.success, true);
-    assert.equal(typeof body.session?.proxyUrl, 'string');
-  } finally {
-    if (previousAllowlist === undefined) {
-      delete process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST;
-    } else {
-      process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST = previousAllowlist;
-    }
-  }
 });
 
 test('POST /api/performance/audit rejects invalid URLs with normalized error payload', async () => {
@@ -207,6 +179,50 @@ test('POST /api/crawl rejects invalid URLs with normalized error payload', async
   assert.equal(status, 400);
   assert.equal(typeof body.error, 'string');
   assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/crawl accepts localhost start URLs before proxy validation', async () => {
+  const { status, body } = await requestJson('/api/crawl', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://localhost:5173',
+      proxyUrl: 'file:///etc/passwd',
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'proxyUrl is invalid');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/crawl accepts loopback proxy URLs before downstream crawl execution', async () => {
+  const originalCrawl = crawlService.crawl;
+  crawlService.crawl = async () => ({
+    startUrl: 'https://example.com',
+    pages: [],
+    sitemapUrls: [],
+  });
+
+  try {
+    const { status, body } = await requestJson('/api/crawl', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: 'https://example.com',
+        proxyUrl: 'http://127.0.0.1:5000/api/proxy/sess123/',
+      }),
+    });
+
+    assert.equal(status, 200);
+    assert.deepEqual(body, {
+      startUrl: 'https://example.com',
+      pages: [],
+      sitemapUrls: [],
+    });
+  } finally {
+    crawlService.crawl = originalCrawl;
+  }
 });
 
 test('POST /api/crawl rejects invalid proxy URLs with normalized error payload', async () => {

@@ -172,6 +172,78 @@
   100% { background-position: 200% 0; }
 }
 
+@keyframes fullscreen-enter {
+  0% {
+    opacity: 0.82;
+    transform: scale(0.985);
+    filter: saturate(0.92) blur(0px);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.01);
+    filter: saturate(1.02) blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: saturate(1) blur(0px);
+  }
+}
+
+@keyframes fullscreen-exit {
+  0% {
+    opacity: 1;
+    transform: scale(1.008);
+    filter: saturate(1.04) blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: saturate(1) blur(0px);
+  }
+}
+
+@keyframes fullscreen-stage-enter {
+  0% {
+    transform: translateY(18px) scale(0.97);
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+  55% {
+    transform: translateY(-4px) scale(1.008);
+    box-shadow: 0 24px 80px rgba(34, 211, 238, 0.14);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  }
+}
+
+@keyframes fullscreen-stage-exit {
+  0% {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(15, 23, 42, 0);
+  }
+}
+
+@keyframes fullscreen-button-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+  40% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 8px rgba(34, 211, 238, 0.12);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+}
+
 /* ─── Utility animation classes ─────────────────────────────────────────────── */
 
 .animate-fade-in-up {
@@ -192,6 +264,26 @@
 
 .animate-icon-swap {
   animation: icon-swap 0.35s ease-in-out both;
+}
+
+.animate-fullscreen-enter {
+  animation: fullscreen-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fullscreen-exit {
+  animation: fullscreen-exit 0.32s ease-out both;
+}
+
+.animate-fullscreen-stage-enter {
+  animation: fullscreen-stage-enter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fullscreen-stage-exit {
+  animation: fullscreen-stage-exit 0.34s ease-out both;
+}
+
+.animate-fullscreen-button-pulse {
+  animation: fullscreen-button-pulse 0.38s ease-out both;
 }
 
 /* Staggered entrance for list items */

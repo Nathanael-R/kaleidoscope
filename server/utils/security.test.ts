@@ -26,6 +26,12 @@ test('isAllowedHttpUrl allows valid public URLs', async () => {
   assert.equal(await isAllowedHttpUrl('http://example.org/path?q=1'), true);
 });
 
+test('isAllowedHttpUrl can allow loopback URLs when explicitly requested', async () => {
+  assert.equal(await isAllowedHttpUrl('http://localhost:3000', { allowLoopback: true }), true);
+  assert.equal(await isAllowedHttpUrl('http://127.0.0.1:5000/api/proxy/sess123/', { allowLoopback: true }), true);
+  assert.equal(await isAllowedHttpUrl('http://192.168.1.8', { allowLoopback: true }), false);
+});
+
 test('isInspectableLocalUrl only allows loopback and localhost targets', () => {
   assert.equal(isInspectableLocalUrl('http://localhost:3000'), true);
   assert.equal(isInspectableLocalUrl('https://127.0.0.1:5173/app'), true);
@@ -33,27 +39,6 @@ test('isInspectableLocalUrl only allows loopback and localhost targets', () => {
   assert.equal(isInspectableLocalUrl('http://studio.localhost:4000'), true);
   assert.equal(isInspectableLocalUrl('https://example.com'), false);
   assert.equal(isInspectableLocalUrl('http://192.168.1.10:3000'), false);
-});
-
-test('validateProxyTargetUrl explains blocked private linked host', async () => {
-  const result = await validateProxyTargetUrl('http://192.168.1.8:3000', {
-    mode: 'linked',
-    nodeEnv: 'development',
-  });
-
-  assert.equal(result.allowed, false);
-  assert.match(result.reason, /Linked actions blocked private host "192\.168\.1\.8"/);
-  assert.match(result.reason, /KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192\.168\.1\.8:3000/);
-});
-
-test('validateProxyTargetUrl allows allowlisted linked private host in development', async () => {
-  const result = await validateProxyTargetUrl('http://192.168.1.8:3000', {
-    mode: 'linked',
-    nodeEnv: 'development',
-    linkedDevAllowlist: '192.168.1.8:3000',
-  });
-
-  assert.equal(result.allowed, true);
 });
 
 test('validateCookies accepts valid cookie list', () => {

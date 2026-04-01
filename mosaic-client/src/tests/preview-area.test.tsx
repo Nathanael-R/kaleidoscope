@@ -1,11 +1,36 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import PreviewArea from '@/components/preview-area';
 import { devices } from '@/lib/devices';
 
 const iphone = devices.find(d => d.id === 'iphone-14')!;
 const ipad = devices.find(d => d.id === 'ipad')!;
 const desktop = devices.find(d => d.id === 'desktop')!;
+
+let fullscreenElement: Element | null = null;
+const requestFullscreenMock = vi.fn(async function (this: Element) {
+  fullscreenElement = this;
+  document.dispatchEvent(new Event('fullscreenchange'));
+});
+const exitFullscreenMock = vi.fn(async () => {
+  fullscreenElement = null;
+  document.dispatchEvent(new Event('fullscreenchange'));
+});
+
+Object.defineProperty(document, 'fullscreenElement', {
+  configurable: true,
+  get: () => fullscreenElement,
+});
+
+Object.defineProperty(document, 'exitFullscreen', {
+  configurable: true,
+  value: exitFullscreenMock,
+});
+
+Object.defineProperty(document.documentElement, 'requestFullscreen', {
+  configurable: true,
+  value: requestFullscreenMock,
+});
 
 describe('PreviewArea', () => {
   const defaultProps = {
@@ -14,6 +39,17 @@ describe('PreviewArea', () => {
     pinnedDevices: [] as typeof devices,
     viewMode: 'single' as const,
   };
+
+  beforeEach(() => {
+    fullscreenElement = null;
+    requestFullscreenMock.mockClear();
+    exitFullscreenMock.mockClear();
+  });
+
+  afterEach(() => {
+    fullscreenElement = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+  });
 
   describe('single mode', () => {
     it('shows selected device name in header', () => {
@@ -203,23 +239,6 @@ describe('PreviewArea', () => {
 
       expect(screen.getByText('Drag devices to reposition')).toBeInTheDocument();
     });
-
-    it('renders a linked actions toggle for multi-device comparison', () => {
-      const onToggleLinkedActions = vi.fn();
-
-      render(
-        <PreviewArea
-          {...defaultProps}
-          viewMode="comparison"
-          pinnedDevices={[iphone, ipad]}
-          onToggleLinkedActions={onToggleLinkedActions}
-        />
-      );
-
-      fireEvent.click(screen.getByTestId('button-toggle-linked-actions'));
-
-      expect(onToggleLinkedActions).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe('toolbar controls', () => {
@@ -283,6 +302,30 @@ describe('PreviewArea', () => {
       // Scale indicator should disappear (back to 100%)
       expect(screen.queryByText('120%')).not.toBeInTheDocument();
       expect(screen.queryByText('100%')).not.toBeInTheDocument();
+    });
+
+    it('toggles fullscreen button label and action', async () => {
+      render(<PreviewArea {...defaultProps} />);
+
+      const button = screen.getByTestId('button-fullscreen');
+      expect(button).toHaveTextContent('Fullscreen');
+      expect(button).toHaveAttribute('aria-label', 'Enter fullscreen');
+
+      await act(async () => {
+        fireEvent.click(button);
+      });
+
+      expect(requestFullscreenMock).toHaveBeenCalledOnce();
+      expect(await screen.findByText('Exit Fullscreen')).toBeInTheDocument();
+      expect(button).toHaveAttribute('aria-label', 'Exit fullscreen');
+
+      await act(async () => {
+        fireEvent.click(button);
+      });
+
+      expect(exitFullscreenMock).toHaveBeenCalledOnce();
+      expect(await screen.findByText('Fullscreen')).toBeInTheDocument();
+      expect(button).toHaveAttribute('aria-label', 'Enter fullscreen');
     });
   });
 

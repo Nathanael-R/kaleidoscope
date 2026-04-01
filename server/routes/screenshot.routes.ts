@@ -35,7 +35,7 @@ router.post('/', async (req: Request, res: Response) => {
       return sendError(res, 400, 'url is required');
     }
 
-    if (!(await isAllowedHttpUrl(url))) {
+    if (!(await isAllowedHttpUrl(url, { allowLoopback: true }))) {
       return sendError(res, 400, 'Invalid URL. Only http: and https: URLs are allowed.');
     }
 

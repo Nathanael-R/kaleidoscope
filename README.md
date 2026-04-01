@@ -375,27 +375,6 @@ npm run docker:build       # Rebuild images
 - Your own localhost sites won't have this restriction
 - For production sites, you can't bypass this (it's a security feature)
 
-### "Linked actions blocked private host"
-
-**Problem**: Linked actions need a proxy session so Kaleidoscope can inject the sync bridge, and private hosts are blocked by default.
-
-**Solutions**:
-- Prefer `localhost` or `127.0.0.1` when possible.
-- For a trusted private dev host, allow it explicitly before starting the server.
-
-```powershell
-$env:KALEIDOSCOPE_LINKED_DEV_ALLOWLIST="192.168.1.8:3000"
-npm run dev:server
-```
-
-```bash
-export KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192.168.1.8:3000
-npm run dev:server
-```
-
-- Multiple hosts can be comma-separated: `192.168.1.8:3000,host.docker.internal:5173`.
-- This allowlist is intended for development only.
-
 ### "High memory usage"
 
 **Problem**: Browser using too much RAM with 8 iframes.

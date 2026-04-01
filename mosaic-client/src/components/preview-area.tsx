@@ -3,12 +3,8 @@ import { Button } from "@/components/ui/button";
 import { devices, type Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
 import { cn } from "@/lib/utils";
-import { ArrowLeftFromLine, Camera, Crosshair, Expand, Link2, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
-import DeviceFrame, {
-  getDeviceFrameMetrics,
-  type DeviceFrameLinkedController,
-  type LinkedActionCommand,
-} from "./device-frame";
+import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import DeviceFrame, { getDeviceFrameMetrics } from "./device-frame";
 
 interface PreviewAreaProps {
   selectedDevice: Device;
@@ -26,10 +22,6 @@ interface PreviewAreaProps {
   onToggleInspect?: () => void;
   onInspectSelection?: (selection: InspectSelectionPayload) => void;
   onCanvasDeviceDrop?: (device: Device) => void;
-  linkedActionsEnabled?: boolean;
-  linkedActionsPending?: boolean;
-  linkedActionsError?: string | null;
-  onToggleLinkedActions?: () => void;
 }
 
 import { usePreviewStore } from "@/store/preview-store";
@@ -52,10 +44,6 @@ export default function PreviewArea({
   onToggleInspect,
   onInspectSelection,
   onCanvasDeviceDrop,
-  linkedActionsEnabled = false,
-  linkedActionsPending = false,
-  linkedActionsError,
-  onToggleLinkedActions,
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -66,10 +54,12 @@ export default function PreviewArea({
   });
   const containerRef = React.useRef<HTMLDivElement>(null);
   const singlePreviewRef = React.useRef<HTMLDivElement>(null);
-  const linkedControllersRef = React.useRef(new Map<string, DeviceFrameLinkedController>());
   const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
   const [singlePreviewBounds, setSinglePreviewBounds] = React.useState({ width: 0, height: 0 });
   const [isCanvasDropActive, setIsCanvasDropActive] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [fullscreenTransition, setFullscreenTransition] = React.useState<'entering' | 'exiting' | null>(null);
+  const fullscreenAnimationTimeoutRef = React.useRef<number | null>(null);
 
   const { darkMode } = usePreviewStore();
 
@@ -88,35 +78,6 @@ export default function PreviewArea({
       onDevicePin(device);
     }
   };
-
-  const registerLinkedController = React.useCallback(
-    (deviceId: string, controller: DeviceFrameLinkedController) => {
-      linkedControllersRef.current.set(deviceId, controller);
-      controller.setLinkedActionsEnabled(linkedActionsEnabled);
-
-      return () => {
-        linkedControllersRef.current.delete(deviceId);
-      };
-    },
-    [linkedActionsEnabled]
-  );
-
-  const handleLinkedAction = React.useCallback(
-    (sourceDeviceId: string, action: LinkedActionCommand) => {
-      if (!linkedActionsEnabled) {
-        return;
-      }
-
-      linkedControllersRef.current.forEach((controller, deviceId) => {
-        if (deviceId === sourceDeviceId) {
-          return;
-        }
-
-        controller.applyLinkedAction(action);
-      });
-    },
-    [linkedActionsEnabled]
-  );
 
   const handleCanvasDragOver = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (!onCanvasDeviceDrop) {
@@ -278,10 +239,61 @@ export default function PreviewArea({
     }
   };
 
-  const handleFullscreen = () => {
-    const element = document.documentElement;
-    if (element.requestFullscreen) {
-      element.requestFullscreen();
+  React.useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const updateFullscreenState = () => {
+      const nextFullscreen = Boolean(document.fullscreenElement);
+
+      setIsFullscreen((previous) => {
+        if (previous !== nextFullscreen) {
+          setFullscreenTransition(nextFullscreen ? 'entering' : 'exiting');
+
+          if (typeof window !== 'undefined') {
+            if (fullscreenAnimationTimeoutRef.current !== null) {
+              window.clearTimeout(fullscreenAnimationTimeoutRef.current);
+            }
+
+            fullscreenAnimationTimeoutRef.current = window.setTimeout(() => {
+              setFullscreenTransition(null);
+              fullscreenAnimationTimeoutRef.current = null;
+            }, 520);
+          }
+        }
+
+        return nextFullscreen;
+      });
+    };
+
+    updateFullscreenState();
+    document.addEventListener('fullscreenchange', updateFullscreenState);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', updateFullscreenState);
+
+      if (typeof window !== 'undefined' && fullscreenAnimationTimeoutRef.current !== null) {
+        window.clearTimeout(fullscreenAnimationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleFullscreen = async () => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen?.();
+        return;
+      }
+
+      const element = document.documentElement;
+      await element.requestFullscreen?.();
+    } catch (error) {
+      console.error('Fullscreen toggle failed:', error);
     }
   };
 
@@ -300,12 +312,6 @@ export default function PreviewArea({
   const handleResetZoom = () => {
     setScale(1);
   };
-
-  React.useEffect(() => {
-    linkedControllersRef.current.forEach((controller) => {
-      controller.setLinkedActionsEnabled(linkedActionsEnabled);
-    });
-  }, [linkedActionsEnabled, proxyUrl]);
 
   const { deviceWidth, deviceHeight, frameWidth, frameHeight } = React.useMemo(
     () => getDeviceFrameMetrics(selectedDevice, isLandscape),
@@ -372,7 +378,14 @@ export default function PreviewArea({
       role="main"
       data-testid="preview-area"
       data-view-mode={viewMode}
-      className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4 md:p-8 ${darkMode ? "bg-gray-900" : "bg-gray-100"}`}
+      data-fullscreen-state={isFullscreen ? 'fullscreen' : 'windowed'}
+      data-fullscreen-transition={fullscreenTransition ?? undefined}
+      className={cn(
+        "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4 md:p-8",
+        darkMode ? "bg-gray-900" : "bg-gray-100",
+        fullscreenTransition === 'entering' && 'animate-fullscreen-enter',
+        fullscreenTransition === 'exiting' && 'animate-fullscreen-exit'
+      )}
     >
       {/* Preview Header */}
       <div className="mb-6 flex items-center justify-between animate-fade-in-up">
@@ -430,11 +443,24 @@ export default function PreviewArea({
           <Button
             size="sm"
             onClick={handleFullscreen}
-            className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
+            className={cn(
+              "flex items-center overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95",
+              isFullscreen
+                ? "bg-slate-900 text-white shadow-[0_10px_30px_rgba(15,23,42,0.3)] hover:bg-slate-800"
+                : "",
+              fullscreenTransition && 'animate-fullscreen-button-pulse'
+            )}
             data-testid="button-fullscreen"
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            <Expand className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Fullscreen</span>
+            {isFullscreen ? (
+              <X className={cn('w-4 h-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
+            ) : (
+              <Expand className={cn('w-4 h-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
+            )}
+            <span className={cn('hidden sm:inline', fullscreenTransition && 'animate-slide-in-right')}>
+              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            </span>
           </Button>
         </div>
       </div>
@@ -456,10 +482,13 @@ export default function PreviewArea({
           )}
           <div
             className={cn(
-              "flex min-h-112 w-full min-w-0 justify-center rounded-4xl border p-4 md:p-6 lg:p-8",
+              "flex min-h-112 w-full min-w-0 justify-center rounded-4xl border p-4 md:p-6 lg:p-8 transition-[transform,box-shadow,background-color,border-color] duration-500",
               darkMode
                 ? "border-gray-800 bg-gray-950/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                : "border-gray-200 bg-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+                : "border-gray-200 bg-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
+              isFullscreen && "border-cyan-300/60 bg-white/75 shadow-[0_24px_60px_rgba(15,23,42,0.18)] dark:border-cyan-400/30 dark:bg-gray-950/70",
+              fullscreenTransition === 'entering' && 'animate-fullscreen-stage-enter',
+              fullscreenTransition === 'exiting' && 'animate-fullscreen-stage-exit'
             )}
           >
             <DeviceFrame
@@ -494,34 +523,10 @@ export default function PreviewArea({
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={linkedActionsEnabled ? 'default' : 'outline'}
-                size="sm"
-                onClick={onToggleLinkedActions}
-                disabled={!currentUrl || pinnedDevices.length < 2 || linkedActionsPending}
-                data-testid="button-toggle-linked-actions"
-              >
-                {linkedActionsPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Link2 className="mr-2 h-4 w-4" />
-                )}
-                {linkedActionsEnabled ? 'Linked actions on' : 'Link actions'}
-              </Button>
-              <span className="text-xs text-gray-500">
-                Drag to reposition
-              </span>
-            </div>
+            <span className="text-xs text-gray-500">
+              Drag to reposition
+            </span>
           </div>
-
-          {(linkedActionsPending || linkedActionsError) && (
-            <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              {linkedActionsPending
-                ? 'Preparing synced previews for linked scroll and click actions.'
-                : linkedActionsError}
-            </div>
-          )}
 
           {pinnedDevices.length === 0 ? (
             <div
@@ -626,9 +631,6 @@ export default function PreviewArea({
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger + localReloadTrigger}
-                        linkedActionsEnabled={linkedActionsEnabled}
-                        onLinkedAction={(action) => handleLinkedAction(device.id, action)}
-                        registerLinkedController={registerLinkedController}
                       />
                     </div>
                   </div>
