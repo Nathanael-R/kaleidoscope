@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerPreviewTools } from './tools/preview.js';
 import { registerScreenshotTools } from './tools/screenshot.js';
 import { registerProxyTools } from './tools/proxy.js';
+import { registerInspectTools } from './tools/inspect.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
@@ -15,6 +16,7 @@ const server = new McpServer({
 registerPreviewTools(server);
 registerScreenshotTools(server);
 registerProxyTools(server);
+registerInspectTools(server);
 
 // Start the server
 async function main() {

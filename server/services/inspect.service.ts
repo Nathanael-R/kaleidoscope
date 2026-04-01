@@ -21,13 +21,35 @@ export interface InspectSelection {
   selector: string | null;
   tagName: string;
   text: string | null;
+  title: string | null;
+  pageUrl: string | null;
   elementSource: RawElementSourceResult | null;
+}
+
+export interface InspectDeviceContext {
+  id: string;
+  name: string;
+  type: 'mobile' | 'tablet' | 'desktop';
+  width: number;
+  height: number;
+}
+
+export interface InspectSourceContext {
+  startLine: number;
+  endLine: number;
+  focusLine: number | null;
+  snippet: string;
 }
 
 export interface InspectResolution {
   capability: 'supported' | 'partial' | 'unsupported';
   resolver: 'element-source' | 'heuristic' | 'none';
   confidence: 'exact' | 'likely' | 'none';
+  page: {
+    title: string | null;
+    url: string | null;
+  };
+  device: InspectDeviceContext | null;
   selector: string | null;
   tagName: string;
   text: string | null;
@@ -37,6 +59,7 @@ export interface InspectResolution {
     lineNumber: number | null;
     columnNumber: number | null;
     code: string | null;
+    context: InspectSourceContext | null;
     kind: 'exact' | 'likely';
   } | null;
   stack: InspectStackFrame[];
@@ -46,6 +69,7 @@ export interface InspectResolution {
 interface ResolveInspectRequest {
   url: string;
   sourceDir?: string;
+  device?: InspectDeviceContext | null;
   selection: InspectSelection;
 }
 
@@ -92,17 +116,41 @@ function resolveCandidatePath(filePath: string, sourceDir?: string): string | nu
   return null;
 }
 
-function readCodeLine(filePath: string, lineNumber: number | null): string | null {
-  if (!lineNumber || lineNumber < 1 || !existsSync(filePath)) {
+function readSourceFile(filePath: string): string[] | null {
+  if (!existsSync(filePath)) {
     return null;
   }
 
   try {
-    const line = readFileSync(filePath, 'utf8').split(/\r?\n/)[lineNumber - 1];
-    return line ? line.trim() : null;
+    return readFileSync(filePath, 'utf8').split(/\r?\n/);
   } catch {
     return null;
   }
+}
+
+function readCodeLine(lines: string[] | null, lineNumber: number | null): string | null {
+  if (!lines || !lineNumber || lineNumber < 1) {
+    return null;
+  }
+
+  const line = lines[lineNumber - 1];
+  return line ? line.trim() : null;
+}
+
+function readCodeContext(lines: string[] | null, lineNumber: number | null, radius = 2): InspectSourceContext | null {
+  if (!lines || !lineNumber || lineNumber < 1 || lineNumber > lines.length) {
+    return null;
+  }
+
+  const startLine = Math.max(1, lineNumber - radius);
+  const endLine = Math.min(lines.length, lineNumber + radius);
+
+  return {
+    startLine,
+    endLine,
+    focusLine: lineNumber,
+    snippet: lines.slice(startLine - 1, endLine).join('\n'),
+  };
 }
 
 function normalizeExactSource(
@@ -116,9 +164,12 @@ function normalizeExactSource(
       lineNumber: frame.lineNumber,
       columnNumber: frame.columnNumber,
       code: null,
+      context: null,
       kind: 'exact',
     };
   }
+
+  const lines = readSourceFile(absolutePath);
 
   return {
     filePath: path.isAbsolute(frame.filePath)
@@ -126,8 +177,28 @@ function normalizeExactSource(
       : frame.filePath.replace(/\\/g, '/'),
     lineNumber: frame.lineNumber,
     columnNumber: frame.columnNumber,
-    code: readCodeLine(absolutePath, frame.lineNumber),
+    code: readCodeLine(lines, frame.lineNumber),
+    context: readCodeContext(lines, frame.lineNumber),
     kind: 'exact',
+  };
+}
+
+function normalizeLikelySource(
+  filePath: string,
+  lineNumber: number,
+  fallbackCode: string,
+  sourceDir?: string,
+): InspectResolution['source'] {
+  const absolutePath = resolveCandidatePath(filePath, sourceDir);
+  const lines = absolutePath ? readSourceFile(absolutePath) : null;
+
+  return {
+    filePath: filePath.replace(/\\/g, '/'),
+    lineNumber,
+    columnNumber: null,
+    code: readCodeLine(lines, lineNumber) ?? fallbackCode,
+    context: readCodeContext(lines, lineNumber),
+    kind: 'likely',
   };
 }
 
@@ -140,10 +211,14 @@ function getComponentName(selection: InspectSelection): string | null {
 }
 
 class InspectService {
-  resolve({ url, sourceDir, selection }: ResolveInspectRequest): InspectResolution {
+  resolve({ url, sourceDir, device, selection }: ResolveInspectRequest): InspectResolution {
     const diagnostics: string[] = [];
     const stack = selection.elementSource?.stack ?? [];
     const componentName = getComponentName(selection);
+    const page = {
+      title: selection.title,
+      url: selection.pageUrl,
+    };
 
     if (!isInspectableLocalUrl(url)) {
       diagnostics.push('Inspect mode only supports local/dev loopback targets such as localhost.');
@@ -151,6 +226,8 @@ class InspectService {
         capability: 'unsupported',
         resolver: 'none',
         confidence: 'none',
+        page,
+        device: device ?? null,
         selector: selection.selector,
         tagName: selection.tagName,
         text: selection.text,
@@ -170,6 +247,8 @@ class InspectService {
         capability: 'supported',
         resolver: 'element-source',
         confidence: 'exact',
+        page,
+        device: device ?? null,
         selector: selection.selector,
         tagName: selection.tagName,
         text: selection.text,
@@ -187,17 +266,13 @@ class InspectService {
           capability: 'supported',
           resolver: 'heuristic',
           confidence: 'likely',
+          page,
+          device: device ?? null,
           selector: selection.selector,
           tagName: selection.tagName,
           text: selection.text,
           componentName,
-          source: {
-            filePath: hint.file,
-            lineNumber: hint.line,
-            columnNumber: null,
-            code: hint.code,
-            kind: 'likely',
-          },
+          source: normalizeLikelySource(hint.file, hint.line, hint.code, sourceDir),
           stack,
           diagnostics,
         };
@@ -220,6 +295,8 @@ class InspectService {
       capability: 'partial',
       resolver: 'none',
       confidence: 'none',
+      page,
+      device: device ?? null,
       selector: selection.selector,
       tagName: selection.tagName,
       text: selection.text,

@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer, type Server } from 'node:http';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import inspectRoutes from './inspect.routes.js';
 import proxyRoutes from './proxy.routes.js';
+import { closeSharedBrowser } from '../services/browser.service.js';
 
 let apiServer: Server;
 let targetServer: Server;
@@ -62,6 +66,8 @@ test.after(async () => {
       targetServer.close((error) => error ? reject(error) : resolve());
     }),
   ]);
+
+  await closeSharedBrowser();
 });
 
 test('inspect proxy injects the runtime scripts into proxied HTML', async () => {
@@ -93,4 +99,188 @@ test('inspect bridge rebases history mutations onto the proxy origin', async () 
   assert.match(script, /wrapHistoryMethod\('pushState'\)/);
   assert.match(script, /wrapHistoryMethod\('replaceState'\)/);
   assert.match(script, /new URL\(String\(value\), window\.location\.href\)/);
+});
+
+test('inspect resolve returns device metadata and source context', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'inspect-route-'));
+  const sourceDir = join(tempDir, 'src');
+  const filePath = join(sourceDir, 'App.tsx');
+
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(filePath, [
+    'export function App() {',
+    '  const ready = true;',
+    '  return <button id="save">Save</button>;',
+    '}',
+  ].join('\n'));
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/inspect/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: targetBaseUrl,
+        sourceDir,
+        device: {
+          id: 'iphone-16',
+          name: 'iPhone 16',
+          type: 'mobile',
+          width: 393,
+          height: 852,
+        },
+        selection: {
+          selector: '#save',
+          tagName: 'button',
+          text: 'Save',
+          title: 'Inspect Target',
+          pageUrl: `${targetBaseUrl}/checkout`,
+          elementSource: {
+            componentName: 'SaveButton',
+            source: {
+              filePath: 'src/App.tsx',
+              lineNumber: 3,
+              columnNumber: 10,
+              componentName: 'SaveButton',
+            },
+            stack: [],
+          },
+        },
+      }),
+    });
+
+    const body = await response.json() as {
+      success: boolean;
+      result: {
+        page: { title: string | null; url: string | null };
+        device: { id: string; name: string } | null;
+        source: { context: { startLine: number; snippet: string } | null } | null;
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.result.page.title, 'Inspect Target');
+    assert.equal(body.result.page.url, `${targetBaseUrl}/checkout`);
+    assert.equal(body.result.device?.id, 'iphone-16');
+    assert.equal(body.result.device?.name, 'iPhone 16');
+    assert.equal(body.result.source?.context?.startLine, 1);
+    assert.match(body.result.source?.context?.snippet ?? '', /return <button id="save">Save<\/button>;/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('inspect selector resolves an element directly from the page using a CSS selector', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'inspect-selector-'));
+  const sourceDir = join(tempDir, 'src');
+  const filePath = join(sourceDir, 'App.tsx');
+
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(filePath, [
+    'export function App() {',
+    '  return <div id="root">hello</div>;',
+    '}',
+  ].join('\n'));
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/inspect/selector`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: targetBaseUrl,
+        selector: '#root',
+        sourceDir,
+        device: {
+          id: 'desktop',
+          name: 'Desktop HD',
+          type: 'desktop',
+          width: 1920,
+          height: 1080,
+        },
+      }),
+    });
+
+    const body = await response.json() as {
+      success: boolean;
+      result: {
+        selector: string | null;
+        page: { title: string | null };
+        device: { id: string } | null;
+        source: { context: { snippet: string } | null } | null;
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.result.selector, '#root');
+    assert.equal(body.result.page.title, 'Inspect Target');
+    assert.equal(body.result.device?.id, 'desktop');
+    assert.match(body.result.source?.context?.snippet ?? '', /<div id="root">hello<\/div>/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('inspect discover returns high-confidence candidates for a natural-language query', async () => {
+  targetServer.close();
+  targetServer = createServer((_req, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end([
+      '<!doctype html>',
+      '<html>',
+      '<head><title>Checkout</title></head>',
+      '<body>',
+      '  <main>',
+      '    <section class="hero">Welcome</section>',
+      '    <button id="save">Save changes</button>',
+      '  </main>',
+      '</body>',
+      '</html>',
+    ].join(''));
+  });
+
+  const targetPort = await listen(targetServer);
+  targetBaseUrl = `http://127.0.0.1:${targetPort}`;
+
+  const response = await fetch(`${apiBaseUrl}/api/inspect/discover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: targetBaseUrl,
+      query: 'save button',
+      device: {
+        id: 'iphone-16',
+        name: 'iPhone 16',
+        type: 'mobile',
+        width: 393,
+        height: 852,
+      },
+      limit: 3,
+    }),
+  });
+
+  const body = await response.json() as {
+    success: boolean;
+    query: string;
+    page: { title: string | null; url: string | null };
+    device: { id: string } | null;
+    candidates: Array<{
+      selector: string;
+      tagName: string;
+      text: string | null;
+      score: number;
+      reasons: string[];
+    }>;
+  };
+
+  assert.equal(response.status, 200);
+  assert.equal(body.success, true);
+  assert.equal(body.query, 'save button');
+  assert.equal(body.page.title, 'Checkout');
+  assert.equal(body.device?.id, 'iphone-16');
+  assert.ok(body.candidates.length > 0);
+  assert.equal(body.candidates[0]?.selector, '#save');
+  assert.equal(body.candidates[0]?.tagName, 'button');
+  assert.match(body.candidates[0]?.text ?? '', /Save changes/);
+  assert.ok((body.candidates[0]?.score ?? 0) > 0);
 });

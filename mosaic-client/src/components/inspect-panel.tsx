@@ -1,8 +1,17 @@
-import { AlertTriangle, Crosshair, FileCode, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ClipboardCopy, Crosshair, FileCode, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { isInspectableLocalUrl, type InspectResult } from '@/lib/inspect';
+import {
+  formatInspectResultAsJson,
+  formatInspectResultForLlm,
+  formatInspectSourcePath,
+  formatInspectSourceText,
+  isInspectableLocalUrl,
+  type InspectResult,
+} from '@/lib/inspect';
 
 interface InspectPanelProps {
   currentUrl: string;
@@ -59,6 +68,71 @@ export default function InspectPanel({
 }: InspectPanelProps) {
   const reason = disabledReason(currentUrl, viewMode);
   const buttonDisabled = pending || (!enabled && reason !== null);
+  const [copiedAction, setCopiedAction] = useState<'path' | 'source' | 'json' | 'llm' | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [issueSummary, setIssueSummary] = useState('');
+  const [showLlmComposer, setShowLlmComposer] = useState(false);
+  const resetTimerRef = useRef<number | null>(null);
+  const issueInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => () => {
+    if (resetTimerRef.current) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showLlmComposer) {
+      issueInputRef.current?.focus();
+    }
+  }, [showLlmComposer]);
+
+  const setCopiedFeedback = (action: 'path' | 'source' | 'json' | 'llm') => {
+    setCopiedAction(action);
+    if (resetTimerRef.current) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+    resetTimerRef.current = window.setTimeout(() => {
+      setCopiedAction(null);
+      resetTimerRef.current = null;
+    }, 1600);
+  };
+
+  const copyToClipboard = async (text: string, action: 'path' | 'source' | 'json' | 'llm') => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard access is unavailable in this browser.');
+      }
+
+      await navigator.clipboard.writeText(text);
+      setCopyError(null);
+      setCopiedFeedback(action);
+    } catch (copyIssue) {
+      setCopiedAction(null);
+      setCopyError(copyIssue instanceof Error ? copyIssue.message : 'Failed to copy inspect details.');
+    }
+  };
+
+  const sourcePath = result ? formatInspectSourcePath(result) : null;
+  const sourceText = result ? formatInspectSourceText(result) : null;
+  const jsonPayload = result ? formatInspectResultAsJson(result) : null;
+  const trimmedIssueSummary = issueSummary.trim();
+  const llmPayload = result && trimmedIssueSummary ? formatInspectResultForLlm(result, trimmedIssueSummary) : null;
+
+  const handleCopyForLlm = () => {
+    if (!showLlmComposer) {
+      setShowLlmComposer(true);
+      setCopyError(null);
+      return;
+    }
+
+    if (!llmPayload) {
+      issueInputRef.current?.focus();
+      return;
+    }
+
+    void copyToClipboard(llmPayload, 'llm');
+  };
 
   return (
     <div className="space-y-3" data-testid="inspect-panel">
@@ -141,16 +215,122 @@ export default function InspectPanel({
             </span>
           </div>
 
+          <div className="grid gap-1 text-[11px] text-gray-600 dark:text-gray-400">
+            <div className="min-w-0">
+              <span className="font-medium text-gray-800 dark:text-gray-200">Page:</span>{' '}
+              {result.page.title && (
+                <span className="text-gray-700 dark:text-gray-300">{result.page.title}</span>
+              )}
+              {result.page.url && (
+                <div className="mt-0.5 break-all font-mono text-[10px] text-gray-500 dark:text-gray-400" data-testid="inspect-page-url">
+                  {result.page.url}
+                </div>
+              )}
+              {!result.page.url && !result.page.title && 'Unavailable'}
+            </div>
+            {result.device && (
+              <div>
+                <span className="font-medium text-gray-800 dark:text-gray-200">Device:</span>{' '}
+                {result.device.name} ({result.device.width} x {result.device.height}, {result.device.type})
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px]"
+              disabled={!sourcePath}
+              onClick={() => sourcePath && void copyToClipboard(sourcePath, 'path')}
+              data-testid="inspect-copy-path"
+            >
+              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              {copiedAction === 'path' ? 'Copied Path' : 'Copy Source Path'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px]"
+              disabled={!sourceText}
+              onClick={() => sourceText && void copyToClipboard(sourceText, 'source')}
+              data-testid="inspect-copy-source"
+            >
+              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              {copiedAction === 'source' ? 'Copied Source' : 'Copy Source'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px]"
+              disabled={!jsonPayload}
+              onClick={() => jsonPayload && void copyToClipboard(jsonPayload, 'json')}
+              data-testid="inspect-copy-json"
+            >
+              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              {copiedAction === 'json' ? 'Copied JSON' : 'Copy JSON'}
+            </Button>
+          </div>
+
+          <div className="rounded-md border border-gray-200 bg-gray-50/80 p-2 dark:border-gray-700 dark:bg-gray-950/30" data-testid="inspect-llm-group">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px]"
+                disabled={!result}
+                onClick={handleCopyForLlm}
+                data-testid="inspect-copy-llm"
+              >
+                <ClipboardCopy className="mr-1.5 h-3 w-3" />
+                {copiedAction === 'llm' ? 'Copied for LLM' : 'Copy for LLM'}
+              </Button>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                {showLlmComposer
+                  ? 'Add a short bug description, then copy the prompt.'
+                  : 'Opens a small issue template before copying.'}
+              </span>
+            </div>
+
+            {showLlmComposer && (
+              <div className="mt-2 space-y-1.5">
+                <Label htmlFor="inspect-issue-input" className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                  What is the problem?
+                </Label>
+                <textarea
+                  id="inspect-issue-input"
+                  ref={issueInputRef}
+                  value={issueSummary}
+                  onChange={(event) => setIssueSummary(event.target.value)}
+                  placeholder="Describe the bug you want the LLM to fix, for example: The save button wraps and overflows on iPhone 16."
+                  className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
+                  data-testid="inspect-issue-input"
+                />
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Required for Copy for LLM. Keep it short and specific to the bug you want fixed.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {copyError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+              {copyError}
+            </div>
+          )}
+
           {result.source && (
             <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40">
               <div className="text-[11px] font-mono text-gray-700 dark:text-gray-300" data-testid="inspect-source-path">
-                {result.source.filePath}
-                {result.source.lineNumber ? `:${result.source.lineNumber}` : ''}
-                {result.source.columnNumber ? `:${result.source.columnNumber}` : ''}
+                {sourcePath}
               </div>
-              {result.source.code && (
+              {sourceText && (
                 <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-gray-600 dark:text-gray-400">
-                  {result.source.code}
+                  {sourceText}
                 </pre>
               )}
             </div>
