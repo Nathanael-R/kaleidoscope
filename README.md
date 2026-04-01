@@ -48,7 +48,7 @@ npm run dev:all
 ```
 
 This starts:
-- **Frontend**: http://localhost:5173
+- **Frontend**: the Vite URL printed in the terminal, usually http://localhost:5173 and http://localhost:5174 if 5173 is already occupied
 - **Backend**: http://localhost:5000
 
 ### Option 2: Docker Development
@@ -74,7 +74,7 @@ docker compose -f docker-compose.prod.yml up --build
 
 ### Basic Preview
 
-1. Open Kaleidoscope: http://localhost:5173
+1. Open Kaleidoscope at the frontend URL printed by Vite. In local development this is usually `http://localhost:5173`, and `http://localhost:5174` when 5173 is occupied.
 2. In the sidebar, enter a URL: `https://example.com`
 3. Press Enter or click the arrow button
 4. See your site on 8 different devices!
@@ -167,6 +167,8 @@ Add to your Claude Code MCP config (`~/.claude/claude_desktop_config.json`):
 |------|-------------|
 | `preview_responsive` | Open a URL for responsive preview across device sizes |
 | `capture_screenshots` | Capture screenshots across multiple viewports |
+| `discover_page_elements` | Find likely selectors from a natural-language query |
+| `inspect_element_source` | Inspect an element by CSS selector and return structured source metadata |
 | `kaleidoscope_status` | Check if services are running |
 | `kaleidoscope_start` | Start Kaleidoscope services |
 | `kaleidoscope_stop` | Stop all services |
@@ -179,6 +181,12 @@ Add to your Claude Code MCP config (`~/.claude/claude_desktop_config.json`):
 
 "Take screenshots of my dashboard on desktop and iPad"
 → Calls capture_screenshots(url="http://localhost:3000/dashboard", devices=["desktop","ipad"])
+
+"Find the save button on iPhone 16"
+→ Calls discover_page_elements(url="http://localhost:3000/checkout", query="save button", device="iphone-16")
+
+"Inspect the overflowing save button on iPhone 16"
+→ Calls inspect_element_source(url="http://localhost:3000/checkout", selector="#save", device="iphone-16", source_dir="C:/Code/my-app/src")
 ```
 
 ## 📸 Screenshots
@@ -238,7 +246,7 @@ npx playwright test --project=chromium
 Use this checklist to verify everything works:
 
 #### Basic Functionality
-- [ ] Can open Kaleidoscope at http://localhost:5173
+- [ ] Can open Kaleidoscope at the frontend URL printed by Vite
 - [ ] Can enter a URL and see it load
 - [ ] All 8 devices render correctly
 - [ ] Can switch between devices
@@ -299,6 +307,8 @@ Kaleidoscope/
 npm run dev:client          # Start frontend only
 npm run dev:server          # Start backend only
 npm run dev:all            # Start everything (recommended)
+npm run dev:client --port 5174  # Start frontend on an explicit port
+npm run dev:all --port 5174     # Start frontend on an explicit port with the backend
 
 # Testing
 npm test                   # Run all tests
@@ -364,6 +374,27 @@ npm run docker:build       # Rebuild images
 - This is expected behavior for those sites
 - Your own localhost sites won't have this restriction
 - For production sites, you can't bypass this (it's a security feature)
+
+### "Linked actions blocked private host"
+
+**Problem**: Linked actions need a proxy session so Kaleidoscope can inject the sync bridge, and private hosts are blocked by default.
+
+**Solutions**:
+- Prefer `localhost` or `127.0.0.1` when possible.
+- For a trusted private dev host, allow it explicitly before starting the server.
+
+```powershell
+$env:KALEIDOSCOPE_LINKED_DEV_ALLOWLIST="192.168.1.8:3000"
+npm run dev:server
+```
+
+```bash
+export KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192.168.1.8:3000
+npm run dev:server
+```
+
+- Multiple hosts can be comma-separated: `192.168.1.8:3000,host.docker.internal:5173`.
+- This allowlist is intended for development only.
 
 ### "High memory usage"
 
