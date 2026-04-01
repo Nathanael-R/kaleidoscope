@@ -1,4 +1,4 @@
-import { Smartphone, HelpCircle, Settings, Moon, Sun, GitBranch } from "lucide-react";
+import { Smartphone, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { usePreviewStore } from "@/store/preview-store";
@@ -43,38 +43,9 @@ export default function Header() {
                 <span className="hidden md:inline">Preview</span>
               </Button>
             </Link>
-            <Link href="/flows">
-              <Button
-                variant={location === "/flows" ? "secondary" : "ghost"}
-                size="sm"
-                className="text-sm h-8 transition-all duration-150 active:scale-95"
-                aria-current={location === "/flows" ? "page" : undefined}
-              >
-                <GitBranch className="w-4 h-4 mr-1.5" />
-                <span className="hidden md:inline">Flows</span>
-              </Button>
-            </Link>
           </nav>
         </div>
         <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden md:flex text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-transform duration-150 hover:scale-110 active:scale-95"
-            data-testid="button-help"
-            aria-label="Help"
-          >
-            <HelpCircle className="w-5 h-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden md:flex text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-transform duration-150 hover:scale-110 active:scale-95"
-            data-testid="button-settings"
-            aria-label="Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </Button>
           <Button
             variant="ghost"
             size="sm"

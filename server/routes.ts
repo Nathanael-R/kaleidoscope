@@ -4,7 +4,6 @@ import tunnelRoutes from "./routes/tunnel.routes.js";
 import watcherRoutes from "./routes/watcher.routes.js";
 import screenshotRoutes from "./routes/screenshot.routes.js";
 import proxyRoutes from "./routes/proxy.routes.js";
-import crawlRoutes from "./routes/crawl.routes.js";
 import performanceRoutes from "./routes/performance.routes.js";
 import inspectRoutes from "./routes/inspect.routes.js";
 
@@ -25,7 +24,6 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.use("/api/watcher", watcherRoutes);
   app.use("/api/screenshots", screenshotRoutes);
   app.use("/api/proxy", proxyRoutes);
-  app.use("/api/crawl", crawlRoutes);
   app.use("/api/performance", performanceRoutes);
   app.use("/api/inspect", inspectRoutes);
 }

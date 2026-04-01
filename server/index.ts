@@ -114,11 +114,6 @@ app.use((req, res, next) => {
     sseService.addClient(req, res);
   });
 
-  // Serve crawl screenshots as static files
-  app.use('/api/crawl-screenshots', express.static(path.resolve('crawl-screenshots'), {
-    maxAge: '1h',
-  }));
-
   // Serve device screenshots for client downloads
   app.use('/api/screenshots-files', express.static(
     path.resolve(process.env.SCREENSHOT_OUTPUT_DIR || './screenshots'),

@@ -25,7 +25,6 @@ function Router() {
     <Suspense fallback={<LoadingFallback />}>
       <Switch>
         <Route path="/" component={Workspace} />
-        <Route path="/flows" component={Workspace} />
         <Route component={Ahome} />
       </Switch>
     </Suspense>

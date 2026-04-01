@@ -50,12 +50,12 @@ describe("Workspace", () => {
     expect(screen.queryByText("Flow Editor")).not.toBeInTheDocument();
   });
 
-  it("renders the flow workspace on the flows route", () => {
+  it("keeps rendering the preview workspace even if the location is /flows", () => {
     mockLocation = "/flows";
 
     renderWorkspace();
 
-    expect(screen.getByText("Flow Editor")).toBeInTheDocument();
-    expect(screen.queryByTestId("input-url")).not.toBeInTheDocument();
+    expect(screen.getByTestId("input-url")).toBeInTheDocument();
+    expect(screen.queryByText("Flow Editor")).not.toBeInTheDocument();
   });
 });
