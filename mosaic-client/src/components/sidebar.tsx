@@ -201,6 +201,12 @@ export default function Sidebar({
     return iconMap[iconName] || '📱';
   };
 
+  const handleDeviceDragStart = (event: React.DragEvent<HTMLElement>, device: Device) => {
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('application/x-kaleidoscope-device', device.id);
+    event.dataTransfer.setData('text/plain', device.id);
+  };
+
   return (
     <>
     {!isCollapsed && (
@@ -251,6 +257,8 @@ export default function Sidebar({
                   : "border-transparent hover:border-gray-200"
               )}
               onClick={() => onDeviceSelect(device)}
+              onDragStart={(event) => handleDeviceDragStart(event, device)}
+              draggable
               data-testid={`device-${device.id}-collapsed`}
               title={device.name}
             >
@@ -480,7 +488,7 @@ export default function Sidebar({
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-all duration-150 h-auto justify-start active:scale-[0.97]",
+                            "w-full cursor-grab flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-all duration-150 h-auto justify-start active:scale-[0.97] active:cursor-grabbing",
                             isSelected
                               ? "border-primary bg-primary/5 shadow-sm"
                               : isPinned
@@ -488,6 +496,8 @@ export default function Sidebar({
                                 : "border-transparent hover:border-gray-200 hover:bg-gray-50"
                           )}
                           onClick={() => onDeviceSelect(device)}
+                          onDragStart={(event) => handleDeviceDragStart(event, device)}
+                          draggable
                           data-testid={`device-${device.id}`}
                           data-device-id={device.id}
                           data-selected={isSelected}

@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isAllowedHttpUrl, isInspectableLocalUrl, validateCookies, validateRequestHeaders } from './security.js';
+import {
+  isAllowedHttpUrl,
+  isInspectableLocalUrl,
+  validateCookies,
+  validateProxyTargetUrl,
+  validateRequestHeaders,
+} from './security.js';
 
 test('isAllowedHttpUrl rejects disallowed schemes and hosts', async () => {
   assert.equal(await isAllowedHttpUrl('ftp://example.com/file.txt'), false);
@@ -23,9 +29,31 @@ test('isAllowedHttpUrl allows valid public URLs', async () => {
 test('isInspectableLocalUrl only allows loopback and localhost targets', () => {
   assert.equal(isInspectableLocalUrl('http://localhost:3000'), true);
   assert.equal(isInspectableLocalUrl('https://127.0.0.1:5173/app'), true);
+  assert.equal(isInspectableLocalUrl('http://127.0.0.1:5174/preview'), true);
   assert.equal(isInspectableLocalUrl('http://studio.localhost:4000'), true);
   assert.equal(isInspectableLocalUrl('https://example.com'), false);
   assert.equal(isInspectableLocalUrl('http://192.168.1.10:3000'), false);
+});
+
+test('validateProxyTargetUrl explains blocked private linked host', async () => {
+  const result = await validateProxyTargetUrl('http://192.168.1.8:3000', {
+    mode: 'linked',
+    nodeEnv: 'development',
+  });
+
+  assert.equal(result.allowed, false);
+  assert.match(result.reason, /Linked actions blocked private host "192\.168\.1\.8"/);
+  assert.match(result.reason, /KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192\.168\.1\.8:3000/);
+});
+
+test('validateProxyTargetUrl allows allowlisted linked private host in development', async () => {
+  const result = await validateProxyTargetUrl('http://192.168.1.8:3000', {
+    mode: 'linked',
+    nodeEnv: 'development',
+    linkedDevAllowlist: '192.168.1.8:3000',
+  });
+
+  assert.equal(result.allowed, true);
 });
 
 test('validateCookies accepts valid cookie list', () => {

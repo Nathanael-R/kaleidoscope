@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 import { devices, type Device } from "@/lib/devices";
 import {
@@ -31,6 +31,7 @@ export interface PreviewWorkspaceController {
   handleProxyUrl: (url: string | null) => void;
   proxyUrl: string | null;
   effectiveProxyUrl: string | null;
+  comparisonProxyUrl: string | null;
   inspectEnabled: boolean;
   inspectPending: boolean;
   inspectResolving: boolean;
@@ -41,6 +42,11 @@ export interface PreviewWorkspaceController {
   handleToggleInspect: () => Promise<void>;
   handleInspectSelection: (selection: InspectSelectionPayload) => Promise<void>;
   inspectAvailable: boolean;
+  linkedActionsEnabled: boolean;
+  linkedActionsPending: boolean;
+  linkedActionsError: string | null;
+  handleToggleLinkedActions: () => void;
+  handleAddDeviceToCanvas: (device: Device) => void;
   reloadTrigger: number;
 }
 
@@ -61,10 +67,19 @@ export function usePreviewWorkspace(
   const [inspectSourceDir, setInspectSourceDir] = useState("");
   const [inspectSessionLoading, setInspectSessionLoading] = useState(false);
   const [inspectResolving, setInspectResolving] = useState(false);
+  const [linkedActionsEnabled, setLinkedActionsEnabled] = useState(false);
+  const [linkedActionsPending, setLinkedActionsPending] = useState(false);
+  const [linkedActionsError, setLinkedActionsError] = useState<string | null>(null);
+  const [linkedActionsProxyUrl, setLinkedActionsProxyUrl] = useState<string | null>(null);
+  const linkedActionsSessionIdRef = useRef<string | null>(null);
 
   const inspectAvailable = viewMode === "single" && isInspectableLocalUrl(currentUrl);
   const inspectPending = inspectSessionLoading || inspectResolving;
   const effectiveProxyUrl = inspectEnabled && inspectProxyUrl ? inspectProxyUrl : proxyUrl;
+  const hasLinkedActionsTargets = pinnedDevices.length > 1;
+  const comparisonProxyUrl = viewMode === "comparison" && linkedActionsEnabled
+    ? linkedActionsProxyUrl || effectiveProxyUrl
+    : effectiveProxyUrl;
 
   const handleDeviceSelect = useCallback((device: Device) => {
     setSelectedDevice(device);
@@ -98,6 +113,28 @@ export function usePreviewWorkspace(
     });
   }, []);
 
+  const handleAddDeviceToCanvas = useCallback(
+    (device: Device) => {
+      setPinnedDevices((previous) => {
+        const nextDevices = new Map<string, Device>();
+
+        if (viewMode !== "comparison") {
+          nextDevices.set(selectedDevice.id, selectedDevice);
+        }
+
+        previous.forEach((candidate) => {
+          nextDevices.set(candidate.id, candidate);
+        });
+        nextDevices.set(device.id, device);
+
+        return Array.from(nextDevices.values());
+      });
+
+      setViewMode("comparison");
+    },
+    [selectedDevice, viewMode]
+  );
+
   const handleViewModeToggle = useCallback(() => {
     setViewMode((previous) => (previous === "single" ? "comparison" : "single"));
   }, []);
@@ -120,6 +157,18 @@ export function usePreviewWorkspace(
     },
     [setProxyUrl]
   );
+
+  const destroyLinkedActionsSession = useCallback(async (sessionId: string | null) => {
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      await fetch(`${API_BASE}/api/proxy/session/${sessionId}`, { method: "DELETE" });
+    } catch {
+      // Session cleanup is best-effort only.
+    }
+  }, []);
 
   const clearInspect = useCallback(() => {
     setInspectEnabled(false);
@@ -198,6 +247,13 @@ export function usePreviewWorkspace(
           body: JSON.stringify({
             url: currentUrl,
             sourceDir: inspectSourceDir.trim() || undefined,
+            device: {
+              id: selectedDevice.id,
+              name: selectedDevice.name,
+              type: selectedDevice.type,
+              width: selectedDevice.width,
+              height: selectedDevice.height,
+            },
             selection,
           }),
         });
@@ -218,8 +274,13 @@ export function usePreviewWorkspace(
         setInspectResolving(false);
       }
     },
-    [currentUrl, inspectEnabled, inspectSourceDir]
+    [currentUrl, inspectEnabled, inspectSourceDir, selectedDevice]
   );
+
+  const handleToggleLinkedActions = useCallback(() => {
+    setLinkedActionsError(null);
+    setLinkedActionsEnabled((previous) => !previous);
+  }, []);
 
   const handleKeyNavigation = useCallback(
     (event: KeyboardEvent) => {
@@ -281,6 +342,90 @@ export function usePreviewWorkspace(
   }, [clearInspect, inspectEnabled, viewMode]);
 
   useEffect(() => {
+    if (!linkedActionsEnabled || viewMode !== "comparison" || !currentUrl || !hasLinkedActionsTargets) {
+      const activeSessionId = linkedActionsSessionIdRef.current;
+      linkedActionsSessionIdRef.current = null;
+      setLinkedActionsProxyUrl(null);
+      setLinkedActionsPending(false);
+
+      if (viewMode !== "comparison" || !hasLinkedActionsTargets || !currentUrl) {
+        setLinkedActionsError(null);
+      }
+
+      if (activeSessionId) {
+        void destroyLinkedActionsSession(activeSessionId);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const targetUrl = effectiveProxyUrl || currentUrl;
+
+    setLinkedActionsPending(true);
+    setLinkedActionsError(null);
+    setLinkedActionsProxyUrl(null);
+
+    void (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/proxy/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: targetUrl,
+            mode: "linked",
+            allowLoopback: true,
+          }),
+        });
+
+        const data = (await response.json()) as {
+          error?: string;
+          session?: { id: string; proxyUrl: string };
+        };
+
+        if (!response.ok || !data.session) {
+          throw new Error(data.error || "Failed to enable linked actions");
+        }
+
+        if (cancelled) {
+          void destroyLinkedActionsSession(data.session.id);
+          return;
+        }
+
+        linkedActionsSessionIdRef.current = data.session.id;
+        setLinkedActionsProxyUrl(`${API_BASE}${data.session.proxyUrl}/`);
+      } catch (error) {
+        if (!cancelled) {
+          setLinkedActionsError(
+            error instanceof Error ? error.message : "Failed to enable linked actions"
+          );
+          setLinkedActionsEnabled(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLinkedActionsPending(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      const activeSessionId = linkedActionsSessionIdRef.current;
+      linkedActionsSessionIdRef.current = null;
+
+      if (activeSessionId) {
+        void destroyLinkedActionsSession(activeSessionId);
+      }
+    };
+  }, [
+    currentUrl,
+    destroyLinkedActionsSession,
+    effectiveProxyUrl,
+    linkedActionsEnabled,
+    hasLinkedActionsTargets,
+    viewMode,
+  ]);
+
+  useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
         setIsSidebarCollapsed(true);
@@ -309,6 +454,7 @@ export function usePreviewWorkspace(
     handleProxyUrl,
     proxyUrl,
     effectiveProxyUrl,
+    comparisonProxyUrl,
     inspectEnabled,
     inspectPending,
     inspectResolving,
@@ -319,6 +465,11 @@ export function usePreviewWorkspace(
     handleToggleInspect,
     handleInspectSelection,
     inspectAvailable,
+    linkedActionsEnabled,
+    linkedActionsPending,
+    linkedActionsError,
+    handleToggleLinkedActions,
+    handleAddDeviceToCanvas,
     reloadTrigger,
   };
 }

@@ -36,3 +36,24 @@ test('proxyRequest injects session cookies and request headers into upstream fet
     global.fetch = originalFetch;
   }
 });
+
+test('proxyRequest injects the linked actions bridge for linked sessions', async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () => new Response('<html><head></head><body>ok</body></html>', {
+    status: 200,
+    headers: { 'content-type': 'text/html' },
+  });
+
+  const session = proxyService.createSession('https://example.com', [], { mode: 'linked' });
+
+  try {
+    const result = await proxyService.proxyRequest(session.id, '/');
+    assert.equal(result.status, 200);
+    assert.equal(typeof result.body, 'string');
+    assert.match(result.body as string, /linked-actions-bridge\.js/);
+  } finally {
+    proxyService.removeSession(session.id);
+    global.fetch = originalFetch;
+  }
+});

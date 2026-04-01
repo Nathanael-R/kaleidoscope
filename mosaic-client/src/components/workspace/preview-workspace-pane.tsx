@@ -19,6 +19,7 @@ export default function PreviewWorkspacePane({
   handleProxyUrl,
   proxyUrl,
   effectiveProxyUrl,
+  comparisonProxyUrl,
   inspectEnabled,
   inspectPending,
   inspectResolving,
@@ -29,6 +30,11 @@ export default function PreviewWorkspacePane({
   handleToggleInspect,
   handleInspectSelection,
   inspectAvailable,
+  linkedActionsEnabled,
+  linkedActionsPending,
+  linkedActionsError,
+  handleToggleLinkedActions,
+  handleAddDeviceToCanvas,
   reloadTrigger,
 }: PreviewWorkspaceController) {
   return (
@@ -62,15 +68,21 @@ export default function PreviewWorkspacePane({
         <PreviewArea
           selectedDevice={selectedDevice}
           currentUrl={currentUrl}
-          proxyUrl={effectiveProxyUrl}
+          proxyUrl={viewMode === "comparison" ? comparisonProxyUrl : effectiveProxyUrl}
           pinnedDevices={pinnedDevices}
           viewMode={viewMode}
+          onDevicePin={handleDevicePin}
+          onCanvasDeviceDrop={handleAddDeviceToCanvas}
           reloadTrigger={reloadTrigger}
           canInspect={inspectAvailable}
           inspectEnabled={inspectEnabled}
           inspectPending={inspectPending}
           onToggleInspect={handleToggleInspect}
           onInspectSelection={handleInspectSelection}
+          linkedActionsEnabled={linkedActionsEnabled}
+          linkedActionsPending={linkedActionsPending}
+          linkedActionsError={linkedActionsError}
+          onToggleLinkedActions={handleToggleLinkedActions}
         />
       </div>
     </div>

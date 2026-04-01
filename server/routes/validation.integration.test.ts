@@ -103,6 +103,65 @@ test('POST /api/proxy/session rejects invalid auth headers with normalized error
   assert.equal(body.requestId, 'test-request-id');
 });
 
+test('POST /api/proxy/session allows linked loopback sessions when explicitly requested', async () => {
+  const { status, body } = await requestJson('/api/proxy/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://localhost:3000',
+      mode: 'linked',
+      allowLoopback: true,
+    }),
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.success, true);
+  assert.equal(typeof body.session?.proxyUrl, 'string');
+});
+
+test('POST /api/proxy/session explains why linked private hosts are blocked', async () => {
+  const { status, body } = await requestJson('/api/proxy/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://192.168.1.8:3000',
+      mode: 'linked',
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.match(body.error, /Linked actions blocked private host "192\.168\.1\.8"/);
+  assert.match(body.error, /KALEIDOSCOPE_LINKED_DEV_ALLOWLIST=192\.168\.1\.8:3000/);
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/proxy/session allows linked private hosts from the development allowlist', async () => {
+  const previousAllowlist = process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST;
+
+  process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST = '192.168.0.104:5173';
+
+  try {
+    const { status, body } = await requestJson('/api/proxy/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: 'http://192.168.1.8:3000',
+        mode: 'linked',
+      }),
+    });
+
+    assert.equal(status, 200);
+    assert.equal(body.success, true);
+    assert.equal(typeof body.session?.proxyUrl, 'string');
+  } finally {
+    if (previousAllowlist === undefined) {
+      delete process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST;
+    } else {
+      process.env.KALEIDOSCOPE_LINKED_DEV_ALLOWLIST = previousAllowlist;
+    }
+  }
+});
+
 test('POST /api/performance/audit rejects invalid URLs with normalized error payload', async () => {
   const { status, body } = await requestJson('/api/performance/audit', {
     method: 'POST',

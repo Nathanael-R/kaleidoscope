@@ -9,7 +9,7 @@ export interface ProxySession {
   requestHeaders: Array<{ name: string; value: string }>;
   mockRoutes: Map<string, unknown>;
   authFailed: boolean;
-  mode: 'standard' | 'inspect';
+  mode: 'standard' | 'inspect' | 'linked';
   createdAt: Date;
 }
 
@@ -25,6 +25,8 @@ const INSPECT_RUNTIME_SNIPPET = [
   '<script src="/api/inspect/bridge.js" data-kaleidoscope-inspect-runtime defer></script>',
 ].join('\n');
 
+const LINKED_ACTIONS_RUNTIME_SNIPPET = '<script src="/api/proxy/linked-actions-bridge.js" data-kaleidoscope-linked-actions defer></script>';
+
 class ProxyService {
   private sessions: Map<string, ProxySession> = new Map();
 
@@ -35,7 +37,7 @@ class ProxyService {
     targetUrl: string,
     cookies: Array<{ name: string; value: string }> = [],
     options: {
-      mode?: 'standard' | 'inspect';
+      mode?: 'standard' | 'inspect' | 'linked';
       requestHeaders?: Array<{ name: string; value: string }>;
     } = {},
   ): ProxySession {
@@ -317,9 +319,17 @@ class ProxyService {
     // Add a <base> tag to handle relative URLs
     // This makes the browser resolve relative URLs against the original target
     const baseTag = `<base href="${session.targetUrl}/">`;
-    const headInjection = session.mode === 'inspect'
-      ? `${INSPECT_RUNTIME_SNIPPET}\n${baseTag}`
-      : baseTag;
+    const runtimeSnippets: string[] = [];
+
+    if (session.mode === 'inspect') {
+      runtimeSnippets.push(INSPECT_RUNTIME_SNIPPET);
+    }
+
+    if (session.mode === 'linked') {
+      runtimeSnippets.push(LINKED_ACTIONS_RUNTIME_SNIPPET);
+    }
+
+    const headInjection = [...runtimeSnippets, baseTag].join('\n');
 
     if (html.includes('<head>')) {
       return html.replace('<head>', `<head>\n${headInjection}`);

@@ -1,9 +1,15 @@
+import * as React from "react";
 import { Button } from "@/components/ui/button";
-import type { Device } from "@/lib/devices";
+import { devices, type Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
 import { cn } from "@/lib/utils";
-import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
-import DeviceFrame, { getDeviceFrameMetrics } from "./device-frame";
+import { ArrowLeftFromLine, Camera, Crosshair, Expand, Link2, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import DeviceFrame, {
+  getDeviceFrameMetrics,
+  type DeviceFrameLinkedController,
+  type LinkedActionCommand,
+} from "./device-frame";
+
 interface PreviewAreaProps {
   selectedDevice: Device;
   currentUrl: string;
@@ -19,9 +25,13 @@ interface PreviewAreaProps {
   inspectPending?: boolean;
   onToggleInspect?: () => void;
   onInspectSelection?: (selection: InspectSelectionPayload) => void;
+  onCanvasDeviceDrop?: (device: Device) => void;
+  linkedActionsEnabled?: boolean;
+  linkedActionsPending?: boolean;
+  linkedActionsError?: string | null;
+  onToggleLinkedActions?: () => void;
 }
 
-import * as React from "react";
 import { usePreviewStore } from "@/store/preview-store";
 
 type DirectoryPickerWindow = Window & typeof globalThis & {
@@ -41,6 +51,11 @@ export default function PreviewArea({
   inspectPending = false,
   onToggleInspect,
   onInspectSelection,
+  onCanvasDeviceDrop,
+  linkedActionsEnabled = false,
+  linkedActionsPending = false,
+  linkedActionsError,
+  onToggleLinkedActions,
 }: PreviewAreaProps) {
   const [isLandscape, setIsLandscape] = React.useState(false);
   const [scale, setScale] = React.useState(1);
@@ -51,8 +66,10 @@ export default function PreviewArea({
   });
   const containerRef = React.useRef<HTMLDivElement>(null);
   const singlePreviewRef = React.useRef<HTMLDivElement>(null);
+  const linkedControllersRef = React.useRef(new Map<string, DeviceFrameLinkedController>());
   const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
   const [singlePreviewBounds, setSinglePreviewBounds] = React.useState({ width: 0, height: 0 });
+  const [isCanvasDropActive, setIsCanvasDropActive] = React.useState(false);
 
   const { darkMode } = usePreviewStore();
 
@@ -71,6 +88,71 @@ export default function PreviewArea({
       onDevicePin(device);
     }
   };
+
+  const registerLinkedController = React.useCallback(
+    (deviceId: string, controller: DeviceFrameLinkedController) => {
+      linkedControllersRef.current.set(deviceId, controller);
+      controller.setLinkedActionsEnabled(linkedActionsEnabled);
+
+      return () => {
+        linkedControllersRef.current.delete(deviceId);
+      };
+    },
+    [linkedActionsEnabled]
+  );
+
+  const handleLinkedAction = React.useCallback(
+    (sourceDeviceId: string, action: LinkedActionCommand) => {
+      if (!linkedActionsEnabled) {
+        return;
+      }
+
+      linkedControllersRef.current.forEach((controller, deviceId) => {
+        if (deviceId === sourceDeviceId) {
+          return;
+        }
+
+        controller.applyLinkedAction(action);
+      });
+    },
+    [linkedActionsEnabled]
+  );
+
+  const handleCanvasDragOver = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!onCanvasDeviceDrop) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    setIsCanvasDropActive(true);
+  }, [onCanvasDeviceDrop]);
+
+  const handleCanvasDragLeave = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+
+    setIsCanvasDropActive(false);
+  }, []);
+
+  const handleCanvasDropEvent = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!onCanvasDeviceDrop) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsCanvasDropActive(false);
+
+    const deviceId =
+      event.dataTransfer.getData('application/x-kaleidoscope-device') ||
+      event.dataTransfer.getData('text/plain');
+    const droppedDevice = devices.find((candidate) => candidate.id === deviceId);
+
+    if (droppedDevice) {
+      onCanvasDeviceDrop(droppedDevice);
+    }
+  }, [onCanvasDeviceDrop]);
 
   const handleMouseDown = (e: React.MouseEvent, deviceId: string) => {
     e.preventDefault();
@@ -219,6 +301,12 @@ export default function PreviewArea({
     setScale(1);
   };
 
+  React.useEffect(() => {
+    linkedControllersRef.current.forEach((controller) => {
+      controller.setLinkedActionsEnabled(linkedActionsEnabled);
+    });
+  }, [linkedActionsEnabled, proxyUrl]);
+
   const { deviceWidth, deviceHeight, frameWidth, frameHeight } = React.useMemo(
     () => getDeviceFrameMetrics(selectedDevice, isLandscape),
     [isLandscape, selectedDevice]
@@ -353,7 +441,19 @@ export default function PreviewArea({
 
       {/* Device Preview Frame(s) */}
       {viewMode === 'single' ? (
-        <div ref={singlePreviewRef} className="w-full min-w-0 pb-6 pt-2" data-testid="single-preview-stage">
+        <div
+          ref={singlePreviewRef}
+          className="relative w-full min-w-0 pb-6 pt-2"
+          data-testid="single-preview-stage"
+          onDragOver={handleCanvasDragOver}
+          onDragLeave={handleCanvasDragLeave}
+          onDrop={handleCanvasDropEvent}
+        >
+          {isCanvasDropActive && (
+            <div className="pointer-events-none absolute inset-x-4 inset-y-2 z-20 flex items-center justify-center rounded-4xl border-2 border-dashed border-cyan-400 bg-cyan-500/10 text-sm font-medium text-cyan-700 backdrop-blur-sm">
+              Drop here to add this device to the comparison canvas
+            </div>
+          )}
           <div
             className={cn(
               "flex min-h-112 w-full min-w-0 justify-center rounded-4xl border p-4 md:p-6 lg:p-8",
@@ -394,13 +494,46 @@ export default function PreviewArea({
                 </Button>
               )}
             </div>
-            <span className="text-xs text-gray-500">
-              Drag to reposition
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={linkedActionsEnabled ? 'default' : 'outline'}
+                size="sm"
+                onClick={onToggleLinkedActions}
+                disabled={!currentUrl || pinnedDevices.length < 2 || linkedActionsPending}
+                data-testid="button-toggle-linked-actions"
+              >
+                {linkedActionsPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Link2 className="mr-2 h-4 w-4" />
+                )}
+                {linkedActionsEnabled ? 'Linked actions on' : 'Link actions'}
+              </Button>
+              <span className="text-xs text-gray-500">
+                Drag to reposition
+              </span>
+            </div>
           </div>
 
+          {(linkedActionsPending || linkedActionsError) && (
+            <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              {linkedActionsPending
+                ? 'Preparing synced previews for linked scroll and click actions.'
+                : linkedActionsError}
+            </div>
+          )}
+
           {pinnedDevices.length === 0 ? (
-            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+            <div
+              className={cn(
+                'text-center py-16 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed dark:border-gray-600',
+                isCanvasDropActive ? 'border-cyan-400 bg-cyan-50/60 dark:bg-cyan-950/30' : 'border-gray-300'
+              )}
+              data-testid="comparison-canvas-dropzone"
+              onDragOver={handleCanvasDragOver}
+              onDragLeave={handleCanvasDragLeave}
+              onDrop={handleCanvasDropEvent}
+            >
               <div className="text-gray-400 mb-4">
                 <Menu className="h-16 w-16 mx-auto mb-4" />
               </div>
@@ -408,7 +541,7 @@ export default function PreviewArea({
                 No devices pinned for comparison
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Pin devices using the pin icons in the sidebar or press Space while selecting a device.
+                Drag devices here from the sidebar, use the pin icons in the sidebar, or press Space while selecting a device.
               </p>
               <div className="flex justify-center space-x-2 text-xs text-gray-400">
                 <kbd className="px-2 py-1 bg-gray-100 rounded">Space</kbd>
@@ -421,7 +554,14 @@ export default function PreviewArea({
           ) : (
             <div 
               ref={containerRef}
-              className="relative min-h-screen w-full"
+              className={cn(
+                'relative min-h-screen w-full rounded-2xl border-2 border-dashed p-4 transition-colors',
+                isCanvasDropActive ? 'border-cyan-400 bg-cyan-50/40 dark:bg-cyan-950/20' : 'border-transparent'
+              )}
+              data-testid="comparison-canvas-dropzone"
+              onDragOver={handleCanvasDragOver}
+              onDragLeave={handleCanvasDragLeave}
+              onDrop={handleCanvasDropEvent}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -486,6 +626,9 @@ export default function PreviewArea({
                         isLandscape={isLandscape}
                         scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
                         reloadTrigger={reloadTrigger + localReloadTrigger}
+                        linkedActionsEnabled={linkedActionsEnabled}
+                        onLinkedAction={(action) => handleLinkedAction(device.id, action)}
+                        registerLinkedController={registerLinkedController}
                       />
                     </div>
                   </div>

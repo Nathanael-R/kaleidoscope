@@ -1,6 +1,21 @@
 import { isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
 
+export const LINKED_DEV_ALLOWLIST_ENV = 'KALEIDOSCOPE_LINKED_DEV_ALLOWLIST';
+export type ProxyTargetMode = 'standard' | 'inspect' | 'linked';
+
+export interface ProxyTargetValidationOptions {
+  allowLoopback?: boolean;
+  mode?: ProxyTargetMode;
+  nodeEnv?: string;
+  linkedDevAllowlist?: string;
+}
+
+export interface ProxyTargetValidationResult {
+  allowed: boolean;
+  reason: string;
+}
+
 const BLOCKED_HOSTS = new Set([
   '169.254.169.254',
   'metadata.google.internal',
@@ -43,39 +58,147 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-export async function isAllowedHttpUrl(url: string): Promise<boolean> {
+function getDefaultPort(protocol: string): string | null {
+  if (protocol === 'http:') return '80';
+  if (protocol === 'https:') return '443';
+  return null;
+}
+
+function normalizeAllowlistEntry(entry: string): { hostname: string; port: string | null } | null {
+  const trimmed = entry.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = trimmed.includes('://') ? new URL(trimmed) : new URL(`http://${trimmed}`);
+    return {
+      hostname: parsed.hostname.toLowerCase(),
+      port: parsed.port || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getLinkedDevAllowlistEntries(rawAllowlist?: string): Array<{ hostname: string; port: string | null }> {
+  const value = rawAllowlist ?? process.env[LINKED_DEV_ALLOWLIST_ENV] ?? '';
+  return value
+    .split(',')
+    .map(normalizeAllowlistEntry)
+    .filter((entry): entry is { hostname: string; port: string | null } => entry !== null);
+}
+
+function isLinkedDevAllowlistEnabled(options: ProxyTargetValidationOptions): boolean {
+  const nodeEnv = (options.nodeEnv ?? process.env.NODE_ENV ?? '').toLowerCase();
+  return options.mode === 'linked' && nodeEnv !== 'production';
+}
+
+function matchesLinkedDevAllowlist(parsed: URL, options: ProxyTargetValidationOptions): boolean {
+  if (!isLinkedDevAllowlistEnabled(options)) {
+    return false;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const port = parsed.port || getDefaultPort(parsed.protocol);
+
+  return getLinkedDevAllowlistEntries(options.linkedDevAllowlist).some((entry) => {
+    if (entry.hostname !== hostname) {
+      return false;
+    }
+
+    return entry.port === null || entry.port === port;
+  });
+}
+
+function getLinkedDevAllowlistHint(parsed: URL): string {
+  const port = parsed.port || getDefaultPort(parsed.protocol);
+  const hostExample = port ? `${parsed.hostname.toLowerCase()}:${port}` : parsed.hostname.toLowerCase();
+
+  return `To allow this in development for linked actions, set ${LINKED_DEV_ALLOWLIST_ENV}=${hostExample} and restart the server.`;
+}
+
+export async function validateProxyTargetUrl(
+  url: string,
+  options: ProxyTargetValidationOptions = {},
+): Promise<ProxyTargetValidationResult> {
   let parsed: URL;
 
   try {
     parsed = new URL(url);
   } catch {
-    return false;
+    return { allowed: false, reason: 'URL is invalid.' };
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return false;
+    return {
+      allowed: false,
+      reason: `URL "${url}" is blocked because only http:// and https:// URLs are allowed.`,
+    };
+  }
+
+  if (options.allowLoopback && isInspectableLocalUrl(url)) {
+    return { allowed: true, reason: 'Allowed loopback URL.' };
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(hostname) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
-    return false;
+
+  if (BLOCKED_HOSTS.has(hostname)) {
+    return {
+      allowed: false,
+      reason: `URL host "${hostname}" is blocked by proxy policy.`,
+    };
+  }
+
+  if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    if (matchesLinkedDevAllowlist(parsed, options)) {
+      return { allowed: true, reason: 'Allowed by linked-actions development allowlist.' };
+    }
+
+    return {
+      allowed: false,
+      reason: options.mode === 'linked'
+        ? `Linked actions blocked local/private host "${hostname}". ${getLinkedDevAllowlistHint(parsed)}`
+        : `URL host "${hostname}" is blocked because local/internal hostnames are not proxied by default.`,
+    };
   }
 
   if (isPrivateIp(hostname)) {
-    return false;
+    if (matchesLinkedDevAllowlist(parsed, options)) {
+      return { allowed: true, reason: 'Allowed by linked-actions development allowlist.' };
+    }
+
+    return {
+      allowed: false,
+      reason: options.mode === 'linked'
+        ? `Linked actions blocked private host "${hostname}". ${getLinkedDevAllowlistHint(parsed)}`
+        : `URL host "${hostname}" is private and cannot be proxied.`,
+    };
   }
 
-  // DNS rebinding mitigation: if hostname resolves to a private IP, reject.
   try {
     const resolved = await lookup(hostname, { all: true });
-    if (resolved.some(entry => isPrivateIp(entry.address))) {
-      return false;
+    if (resolved.some((entry) => isPrivateIp(entry.address))) {
+      if (matchesLinkedDevAllowlist(parsed, options)) {
+        return { allowed: true, reason: 'Allowed by linked-actions development allowlist.' };
+      }
+
+      return {
+        allowed: false,
+        reason: options.mode === 'linked'
+          ? `Linked actions blocked host "${hostname}" because it resolves to a private IP. ${getLinkedDevAllowlistHint(parsed)}`
+          : `URL host "${hostname}" resolves to a private IP and cannot be proxied.`,
+      };
     }
   } catch {
     // Ignore DNS lookup failures to avoid blocking valid environments with custom DNS.
   }
 
-  return true;
+  return { allowed: true, reason: 'Allowed public URL.' };
+}
+
+export async function isAllowedHttpUrl(url: string): Promise<boolean> {
+  return (await validateProxyTargetUrl(url)).allowed;
 }
 
 export function isInspectableLocalUrl(url: string): boolean {

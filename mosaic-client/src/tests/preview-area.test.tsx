@@ -75,6 +75,27 @@ describe('PreviewArea', () => {
       expect(screen.getByTestId('text-device-name')).toHaveTextContent('Comparing 0 Devices');
       expect(screen.getByTestId('text-device-dimensions')).toHaveTextContent('Side-by-side device comparison');
     });
+
+    it('accepts a dropped sidebar device onto the canvas', () => {
+      const onCanvasDeviceDrop = vi.fn();
+
+      render(
+        <PreviewArea
+          {...defaultProps}
+          viewMode="comparison"
+          pinnedDevices={[]}
+          onCanvasDeviceDrop={onCanvasDeviceDrop}
+        />
+      );
+
+      fireEvent.drop(screen.getByTestId('comparison-canvas-dropzone'), {
+        dataTransfer: {
+          getData: (type: string) => (type === 'application/x-kaleidoscope-device' ? ipad.id : ''),
+        },
+      });
+
+      expect(onCanvasDeviceDrop).toHaveBeenCalledWith(ipad);
+    });
   });
 
   describe('comparison mode - with pinned devices', () => {
@@ -181,6 +202,23 @@ describe('PreviewArea', () => {
       );
 
       expect(screen.getByText('Drag devices to reposition')).toBeInTheDocument();
+    });
+
+    it('renders a linked actions toggle for multi-device comparison', () => {
+      const onToggleLinkedActions = vi.fn();
+
+      render(
+        <PreviewArea
+          {...defaultProps}
+          viewMode="comparison"
+          pinnedDevices={[iphone, ipad]}
+          onToggleLinkedActions={onToggleLinkedActions}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('button-toggle-linked-actions'));
+
+      expect(onToggleLinkedActions).toHaveBeenCalledTimes(1);
     });
   });
 

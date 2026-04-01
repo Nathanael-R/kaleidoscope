@@ -36,6 +36,26 @@ export function getDeviceFrameMetrics(device: Device, isLandscape = false) {
   };
 }
 
+export type LinkedActionCommand =
+  | {
+      kind: 'scroll';
+      left: number;
+      top: number;
+      progressX: number;
+      progressY: number;
+    }
+  | {
+      kind: 'click';
+      selector: string | null;
+      xRatio: number;
+      yRatio: number;
+    };
+
+export interface DeviceFrameLinkedController {
+  setLinkedActionsEnabled: (enabled: boolean) => void;
+  applyLinkedAction: (action: LinkedActionCommand) => void;
+}
+
 interface DeviceFrameProps {
   device: Device;
   url: string;
@@ -47,6 +67,12 @@ interface DeviceFrameProps {
   reloadTrigger?: number;
   inspectEnabled?: boolean;
   onInspectSelection?: (selection: InspectSelectionPayload) => void;
+  linkedActionsEnabled?: boolean;
+  onLinkedAction?: (action: LinkedActionCommand) => void;
+  registerLinkedController?: (
+    deviceId: string,
+    controller: DeviceFrameLinkedController
+  ) => void | (() => void);
 }
 
 export default function DeviceFrame({
@@ -60,6 +86,9 @@ export default function DeviceFrame({
   reloadTrigger = 0,
   inspectEnabled = false,
   onInspectSelection,
+  linkedActionsEnabled = false,
+  onLinkedAction,
+  registerLinkedController,
 }: DeviceFrameProps) {
   const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState(false);
@@ -79,6 +108,28 @@ export default function DeviceFrame({
   const topFeature = device.frame?.topFeature ?? 'none';
   const dynamicIslandEnabled = device.type === 'mobile' && topFeature === 'dynamic-island';
   const dynamicIslandExpanded = dynamicIslandEnabled && (dynamicIslandPinned || dynamicIslandHovered);
+
+  const postLinkedActionsState = useCallback((enabled: boolean) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'kaleidoscope-linked-actions',
+        type: 'KALEIDOSCOPE_LINKED_SET_STATE',
+        enabled,
+      },
+      '*'
+    );
+  }, []);
+
+  const applyLinkedAction = useCallback((action: LinkedActionCommand) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'kaleidoscope-linked-actions',
+        type: 'KALEIDOSCOPE_LINKED_APPLY',
+        payload: action,
+      },
+      '*'
+    );
+  }, []);
 
   const activeHostLabel = useMemo(() => {
     const candidateUrl = proxyUrl || url;
@@ -214,6 +265,17 @@ export default function DeviceFrame({
   }, [reloadTrigger, hasUrl]);
 
   useEffect(() => {
+    if (!registerLinkedController) {
+      return;
+    }
+
+    return registerLinkedController(device.id, {
+      setLinkedActionsEnabled: postLinkedActionsState,
+      applyLinkedAction,
+    });
+  }, [applyLinkedAction, device.id, postLinkedActionsState, registerLinkedController]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) {
         return;
@@ -223,9 +285,25 @@ export default function DeviceFrame({
         source?: string;
         type?: string;
         payload?: InspectSelectionPayload;
+        enabled?: boolean;
       };
 
-      if (!data || data.source !== 'kaleidoscope-inspect') {
+      if (!data) {
+        return;
+      }
+
+      if (data.source === 'kaleidoscope-linked-actions') {
+        if (data.type === 'KALEIDOSCOPE_LINKED_READY') {
+          postLinkedActionsState(linkedActionsEnabled);
+        }
+
+        if (data.type === 'KALEIDOSCOPE_LINKED_EVENT' && data.payload) {
+          onLinkedAction?.(data.payload as LinkedActionCommand);
+        }
+        return;
+      }
+
+      if (data.source !== 'kaleidoscope-inspect') {
         return;
       }
 
@@ -243,7 +321,7 @@ export default function DeviceFrame({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [inspectEnabled, onInspectSelection]);
+  }, [inspectEnabled, linkedActionsEnabled, onInspectSelection, onLinkedAction, postLinkedActionsState]);
 
   useEffect(() => {
     if (!hasUrl || loading) {
@@ -256,6 +334,18 @@ export default function DeviceFrame({
 
     return () => window.clearTimeout(timeoutId);
   }, [hasUrl, inspectEnabled, loading, iframeKey]);
+
+  useEffect(() => {
+    if (!hasUrl || loading) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      postLinkedActionsState(linkedActionsEnabled);
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasUrl, iframeKey, linkedActionsEnabled, loading, postLinkedActionsState]);
 
   const handleIframeLoad = () => {
     setLoading(false);

@@ -1,10 +1,15 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { proxyService } from '../services/proxy.service.js';
-import { isAllowedHttpUrl, validateCookies, validateRequestHeaders } from '../utils/security.js';
+import { linkedActionsBridgeScript } from '../services/linked-actions-bridge-script.js';
+import { validateCookies, validateProxyTargetUrl, validateRequestHeaders } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
 
 const router = Router();
+
+router.get('/linked-actions-bridge.js', (_req: Request, res: Response) => {
+  res.type('application/javascript').send(linkedActionsBridgeScript);
+});
 
 /**
  * POST /api/proxy/session
@@ -12,18 +17,25 @@ const router = Router();
  */
 router.post('/session', async (req: Request, res: Response) => {
   try {
-    const { url, cookies = [], headers = [] } = req.body as {
+    const { url, cookies = [], headers = [], mode, allowLoopback = false } = req.body as {
       url: string;
       cookies?: Array<{ name: string; value: string }>;
       headers?: Array<{ name: string; value: string }>;
+      mode?: 'standard' | 'inspect' | 'linked';
+      allowLoopback?: boolean;
     };
 
     if (!url || typeof url !== 'string') {
       return sendError(res, 400, 'url is required');
     }
 
-    if (!(await isAllowedHttpUrl(url))) {
-      return sendError(res, 400, 'URL is not allowed (blocked scheme or host)');
+    if (mode !== undefined && mode !== 'standard' && mode !== 'inspect' && mode !== 'linked') {
+      return sendError(res, 400, 'mode must be one of standard, inspect, or linked');
+    }
+
+    const validation = await validateProxyTargetUrl(url, { allowLoopback, mode });
+    if (!validation.allowed) {
+      return sendError(res, 400, validation.reason);
     }
 
     const cookieValidation = validateCookies(cookies);
@@ -37,6 +49,7 @@ router.post('/session', async (req: Request, res: Response) => {
     }
 
     const session = proxyService.createSession(url, cookieValidation.sanitized, {
+      mode,
       requestHeaders: headerValidation.sanitized,
     });
 
