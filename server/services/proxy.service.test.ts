@@ -36,3 +36,17 @@ test('proxyRequest injects session cookies and request headers into upstream fet
     global.fetch = originalFetch;
   }
 });
+
+test('createSession uses opaque random UUID-based session identifiers', () => {
+  const sessionOne = proxyService.createSession('https://example.com');
+  const sessionTwo = proxyService.createSession('https://example.com');
+
+  try {
+    assert.match(sessionOne.id, /^proxy_[0-9a-f-]{36}$/i);
+    assert.match(sessionTwo.id, /^proxy_[0-9a-f-]{36}$/i);
+    assert.notEqual(sessionOne.id, sessionTwo.id);
+  } finally {
+    proxyService.removeSession(sessionOne.id);
+    proxyService.removeSession(sessionTwo.id);
+  }
+});

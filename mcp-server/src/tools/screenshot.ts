@@ -2,8 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
 import { DEVICE_IDS } from '../../../shared/devices.js';
-
-const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
+import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 const DEFAULT_CAPTURE_DEVICES = ['iphone-14', 'ipad', 'desktop'];
 
@@ -53,7 +52,7 @@ export function registerScreenshotTools(server: McpServer) {
         const devicesToCapture = selectedDevices ?? DEFAULT_CAPTURE_DEVICES;
         const outputDir = output_dir ?? './screenshots';
 
-        const screenshotRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/screenshots`, {
+        const screenshotRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/screenshots`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

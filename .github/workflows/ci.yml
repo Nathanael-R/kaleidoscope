@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint client
+        run: npm run lint
+
+      - name: Type-check workspaces
+        run: npm run check
+
+      - name: Run stable unit suite
+        run: npm run test:ci
+
+      - name: Build client
+        run: cd mosaic-client && npm run build
+
+      - name: Build server
+        run: cd server && npm run build
+
+      - name: Build MCP server
+        run: cd mcp-server && npm run build

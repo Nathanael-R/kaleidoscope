@@ -11,15 +11,15 @@
     "dev": "tsx src/index.ts",
     "build": "esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "node dist/index.js",
-    "check": "tsc --noEmit"
+    "check": "node ./scripts/typecheck.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.11",
-    "esbuild": "^0.19.12",
+    "esbuild": "^0.27.4",
     "tsx": "^4.20.4",
     "typescript": "^5.9.2"
   }

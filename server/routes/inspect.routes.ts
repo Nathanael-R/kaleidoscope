@@ -239,103 +239,118 @@ async function discoverInspectableElements(
 
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.waitForTimeout(250);
+    const normalize = (value: string | null | undefined) => {
+      if (!value) {
+        return null;
+      }
 
-    return await page.evaluate(({ search, maxResults }) => {
-      const normalizedQuery = search.trim().toLowerCase();
-      const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+      const normalized = value.trim().replace(/\s+/g, ' ');
+      return normalized.length > 0 ? normalized : null;
+    };
 
-      const escapeCss = (value: string) => {
-        if (window.CSS && typeof window.CSS.escape === 'function') {
-          return window.CSS.escape(value);
-        }
+    const pageMetadata = {
+      title: (await page.title()) || null,
+      url: page.url() || null,
+    };
 
-        return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-      };
+    const normalizedQuery = query.trim().toLowerCase();
+    const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    const elementHandles = await page.locator('body *').elementHandles();
+    const candidates: InspectDiscoveryCandidate[] = [];
 
-      const buildSelector = (element: Element) => {
-        if (element.id) {
-          return '#' + escapeCss(element.id);
-        }
-
-        const parts: string[] = [];
-        let current: Element | null = element;
-
-        while (current && current !== document.body) {
-          let part = current.tagName.toLowerCase();
-          if (current.classList.length > 0) {
-            part += '.' + Array.from(current.classList)
-              .slice(0, 2)
-              .map(escapeCss)
-              .join('.');
+    try {
+      for (const handle of elementHandles) {
+        const snapshot = await handle.evaluate((element: Element) => {
+          const rect = element.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) {
+            return null;
           }
 
-          const parent: Element | null = current.parentElement;
-          if (parent) {
-            const siblings = Array.from(parent.children).filter((child: Element) => child.tagName === current?.tagName);
-            if (siblings.length > 1) {
-              part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+          const style = window.getComputedStyle(element);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+            return null;
+          }
+
+          const tagName = element.tagName.toLowerCase();
+          const textContent = (element.textContent || '').trim().replace(/\s+/g, ' ');
+          const classTokens: string[] = [];
+
+          if (typeof element.className === 'string') {
+            const rawTokens = element.className.trim().split(/\s+/);
+            for (const token of rawTokens) {
+              if (!token) {
+                continue;
+              }
+
+              if (window.CSS && typeof window.CSS.escape === 'function') {
+                classTokens.push(window.CSS.escape(token));
+              } else {
+                classTokens.push(String(token).replace(/[^a-zA-Z0-9_-]/g, '\\$&'));
+              }
+
+              if (classTokens.length === 2) {
+                break;
+              }
             }
           }
 
-          parts.unshift(part);
+          const escapedId = element.id
+            ? ((window.CSS && typeof window.CSS.escape === 'function')
+              ? window.CSS.escape(element.id)
+              : String(element.id).replace(/[^a-zA-Z0-9_-]/g, '\\$&'))
+            : null;
 
-          if (current.id) {
-            parts[0] = '#' + escapeCss(current.id);
-            break;
-          }
+          return {
+            selector: escapedId ? `#${escapedId}` : `${tagName}${classTokens.length > 0 ? `.${classTokens.join('.')}` : ''}`,
+            tagName,
+            text: textContent.length > 0 ? textContent.slice(0, 140) : null,
+            role: element.getAttribute('role'),
+            id: element.id || null,
+            className: typeof element.className === 'string' ? element.className : null,
+            ariaLabel: element.getAttribute('aria-label'),
+            title: element.getAttribute('title'),
+            name: element.getAttribute('name'),
+            placeholder: element.getAttribute('placeholder'),
+            testId: element.getAttribute('data-testid'),
+          };
+        });
 
-          current = parent;
+        await handle.dispose();
+
+        if (!snapshot) {
+          continue;
         }
 
-        return parts.join(' > ') || element.tagName.toLowerCase();
-      };
-
-      const normalize = (value: string | null | undefined) => {
-        if (!value) {
-          return null;
-        }
-
-        const normalized = value.trim().replace(/\s+/g, ' ');
-        return normalized.length > 0 ? normalized : null;
-      };
-
-      const isVisible = (element: Element) => {
-        const rect = element.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-          return false;
-        }
-
-        const style = window.getComputedStyle(element);
-        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-      };
-
-      const scoreCandidate = (element: Element) => {
-        const text = normalize(element.textContent)?.slice(0, 140) ?? null;
-        const ariaLabel = normalize(element.getAttribute('aria-label'));
-        const title = normalize(element.getAttribute('title'));
-        const name = normalize(element.getAttribute('name'));
-        const placeholder = normalize(element.getAttribute('placeholder'));
-        const testId = normalize(element.getAttribute('data-testid'));
-        const id = normalize(element.id);
-        const className = normalize(element.className);
-        const role = normalize(element.getAttribute('role'));
-        const tagName = element.tagName.toLowerCase();
+        const candidate: InspectDiscoveryCandidate = {
+          selector: snapshot.selector,
+          tagName: snapshot.tagName,
+          text: normalize(snapshot.text)?.slice(0, 140) ?? null,
+          role: normalize(snapshot.role),
+          attributes: {
+            id: normalize(snapshot.id),
+            className: normalize(snapshot.className),
+            ariaLabel: normalize(snapshot.ariaLabel),
+            title: normalize(snapshot.title),
+            name: normalize(snapshot.name),
+            placeholder: normalize(snapshot.placeholder),
+            testId: normalize(snapshot.testId),
+          },
+          score: 0,
+          reasons: [],
+        };
 
         const haystacks = [
-          { label: 'text', value: text },
-          { label: 'aria-label', value: ariaLabel },
-          { label: 'title', value: title },
-          { label: 'name', value: name },
-          { label: 'placeholder', value: placeholder },
-          { label: 'data-testid', value: testId },
-          { label: 'id', value: id },
-          { label: 'class', value: className },
-          { label: 'role', value: role },
-          { label: 'tag', value: tagName },
+          { label: 'text', value: candidate.text },
+          { label: 'aria-label', value: candidate.attributes.ariaLabel },
+          { label: 'title', value: candidate.attributes.title },
+          { label: 'name', value: candidate.attributes.name },
+          { label: 'placeholder', value: candidate.attributes.placeholder },
+          { label: 'data-testid', value: candidate.attributes.testId },
+          { label: 'id', value: candidate.attributes.id },
+          { label: 'class', value: candidate.attributes.className },
+          { label: 'role', value: candidate.role },
+          { label: 'tag', value: candidate.tagName },
         ];
-
-        let score = 0;
-        const reasons: string[] = [];
 
         for (const haystack of haystacks) {
           if (!haystack.value) {
@@ -344,14 +359,14 @@ async function discoverInspectableElements(
 
           const normalizedValue = haystack.value.toLowerCase();
           if (normalizedValue === normalizedQuery) {
-            score += haystack.label === 'text' ? 120 : 90;
-            reasons.push(`exact ${haystack.label} match`);
+            candidate.score += haystack.label === 'text' ? 120 : 90;
+            candidate.reasons.push(`exact ${haystack.label} match`);
             continue;
           }
 
           if (normalizedValue.includes(normalizedQuery)) {
-            score += haystack.label === 'text' ? 70 : 45;
-            reasons.push(`${haystack.label} contains query`);
+            candidate.score += haystack.label === 'text' ? 70 : 45;
+            candidate.reasons.push(`${haystack.label} contains query`);
           }
 
           let matchedTokens = 0;
@@ -362,57 +377,47 @@ async function discoverInspectableElements(
           }
 
           if (matchedTokens > 0) {
-            score += matchedTokens * (haystack.label === 'text' ? 18 : 10);
-            reasons.push(`${matchedTokens} token match${matchedTokens > 1 ? 'es' : ''} in ${haystack.label}`);
+            candidate.score += matchedTokens * (haystack.label === 'text' ? 18 : 10);
+            candidate.reasons.push(`${matchedTokens} token match${matchedTokens > 1 ? 'es' : ''} in ${haystack.label}`);
           }
         }
 
-        if (['button', 'a', 'input', 'label', 'section', 'article', 'main', 'nav', 'header', 'footer', 'h1', 'h2', 'h3'].includes(tagName)) {
-          score += 6;
+        if (['button', 'a', 'input', 'label', 'section', 'article', 'main', 'nav', 'header', 'footer', 'h1', 'h2', 'h3'].includes(candidate.tagName)) {
+          candidate.score += 6;
         }
 
-        if (role === 'button' || role === 'link') {
-          score += 8;
+        if (candidate.role === 'button' || candidate.role === 'link') {
+          candidate.score += 8;
         }
 
-        if (!text && !ariaLabel && !title && !name && !placeholder && !testId && !id && !className) {
-          score = 0;
+        if (
+          !candidate.text
+          && !candidate.attributes.ariaLabel
+          && !candidate.attributes.title
+          && !candidate.attributes.name
+          && !candidate.attributes.placeholder
+          && !candidate.attributes.testId
+          && !candidate.attributes.id
+          && !candidate.attributes.className
+        ) {
+          candidate.score = 0;
         }
 
-        return {
-          selector: buildSelector(element),
-          tagName,
-          text,
-          role,
-          attributes: {
-            id,
-            className,
-            ariaLabel,
-            title,
-            name,
-            placeholder,
-            testId,
-          },
-          score,
-          reasons: Array.from(new Set(reasons)).slice(0, 4),
-        };
-      };
+        if (candidate.score > 0) {
+          candidate.reasons = Array.from(new Set(candidate.reasons)).slice(0, 4);
+          candidates.push(candidate);
+        }
+      }
+    } finally {
+      await Promise.all(elementHandles.map((handle) => handle.dispose().catch(() => undefined)));
+    }
 
-      const candidates = Array.from(document.querySelectorAll('body *'))
-        .filter((element) => isVisible(element))
-        .map((element) => scoreCandidate(element))
-        .filter((candidate) => candidate.score > 0)
-        .sort((left, right) => right.score - left.score)
-        .slice(0, Math.max(1, Math.min(maxResults, 10)));
+    candidates.sort((left, right) => right.score - left.score);
 
-      return {
-        page: {
-          title: document.title || null,
-          url: window.location.href,
-        },
-        candidates,
-      };
-    }, { search: query, maxResults: limit });
+    return {
+      page: pageMetadata,
+      candidates: candidates.slice(0, Math.max(1, Math.min(limit, 10))),
+    };
   } finally {
     await page.close();
   }
@@ -534,19 +539,23 @@ router.post('/selector', async (req: Request, res: Response) => {
     }
   }
 
-  const selection = await inspectSelectionBySelector(url, selector.trim(), normalizedDevice);
-  if (!selection) {
-    return sendError(res, 404, 'No element matched the provided selector');
+  try {
+    const selection = await inspectSelectionBySelector(url, selector.trim(), normalizedDevice);
+    if (!selection) {
+      return sendError(res, 404, 'No element matched the provided selector');
+    }
+
+    const result = inspectService.resolve({
+      url,
+      sourceDir: resolvedSourceDir,
+      device: normalizedDevice,
+      selection,
+    });
+
+    return res.json({ success: true, result });
+  } catch (error) {
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to inspect selector');
   }
-
-  const result = inspectService.resolve({
-    url,
-    sourceDir: resolvedSourceDir,
-    device: normalizedDevice,
-    selection,
-  });
-
-  return res.json({ success: true, result });
 });
 
 router.post('/discover', async (req: Request, res: Response) => {
@@ -578,15 +587,19 @@ router.post('/discover', async (req: Request, res: Response) => {
     return sendError(res, 400, 'device payload is invalid');
   }
 
-  const discovery = await discoverInspectableElements(url, query.trim(), normalizedDevice, limit ?? 5);
+  try {
+    const discovery = await discoverInspectableElements(url, query.trim(), normalizedDevice, limit ?? 5);
 
-  return res.json({
-    success: true,
-    page: discovery.page,
-    device: normalizedDevice,
-    query: query.trim(),
-    candidates: discovery.candidates,
-  });
+    return res.json({
+      success: true,
+      page: discovery.page,
+      device: normalizedDevice,
+      query: query.trim(),
+      candidates: discovery.candidates,
+    });
+  } catch (error) {
+    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to discover inspect candidates');
+  }
 });
 
 export default router;

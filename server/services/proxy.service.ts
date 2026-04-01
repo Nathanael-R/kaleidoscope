@@ -1,6 +1,4 @@
-import { createRequire } from 'node:module';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { URL } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 export interface ProxySession {
   id: string;
@@ -363,7 +361,7 @@ class ProxyService {
   }
 
   private generateId(): string {
-    return `proxy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return `proxy_${randomUUID()}`;
   }
 }
 

@@ -25,16 +25,25 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 });
 
+Object.defineProperty(window, 'alert', {
+  writable: true,
+  value: () => {},
+});
+
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = '';
+  readonly thresholds = [];
+
   constructor() {}
   disconnect() {}
   observe() {}
-  takeRecords() {
+  takeRecords(): IntersectionObserverEntry[] {
     return [];
   }
   unobserve() {}
-} as any;
+};
 
 // Prevent happy-dom from performing real iframe navigations during component tests.
 const happyDomWindow = window as typeof window & {

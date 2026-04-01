@@ -3,6 +3,7 @@ import { Loader2, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
+import { getDeviceFrameMetrics } from "./device-frame-metrics";
 
 type BatteryStateManager = {
   level: number;
@@ -20,20 +21,6 @@ function formatStatusTime(date: Date): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(date);
-}
-
-export function getDeviceFrameMetrics(device: Device, isLandscape = false) {
-  const deviceWidth = isLandscape ? device.height : device.width;
-  const deviceHeight = isLandscape ? device.width : device.height;
-  const frameWidth = deviceWidth + (device.type === 'mobile' ? 48 : device.type === 'tablet' ? 60 : 80);
-  const frameHeight = deviceHeight + (device.type === 'mobile' ? 96 : device.type === 'tablet' ? 80 : 60);
-
-  return {
-    deviceWidth,
-    deviceHeight,
-    frameWidth,
-    frameHeight,
-  };
 }
 
 interface DeviceFrameProps {

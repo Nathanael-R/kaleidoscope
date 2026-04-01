@@ -2,8 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
 import { DEVICE_IDS, DEVICES } from '../../../shared/devices.js';
-
-const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
+import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 
 const DEVICE_MAP = new Map(
@@ -60,7 +59,7 @@ export function registerInspectTools(server: McpServer) {
 
         const selectedDevice = device ? DEVICE_MAP.get(device) ?? null : null;
 
-        const response = await fetch(`${KALEIDOSCOPE_SERVER}/api/inspect/discover`, {
+        const response = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/inspect/discover`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -126,7 +125,7 @@ export function registerInspectTools(server: McpServer) {
 
         const selectedDevice = device ? DEVICE_MAP.get(device) ?? null : null;
 
-        const response = await fetch(`${KALEIDOSCOPE_SERVER}/api/inspect/selector`, {
+        const response = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/inspect/selector`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

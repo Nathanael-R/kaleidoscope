@@ -2,8 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
 import { DEVICE_IDS } from '../../../shared/devices.js';
-
-const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
+import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
 
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 
@@ -50,7 +49,7 @@ export function registerPreviewTools(server: McpServer) {
         const clientUrl = status.client.url;
 
         // Check health
-        const healthRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/health`);
+        const healthRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/health`);
         if (!healthRes.ok) {
           return {
             content: [{
@@ -71,7 +70,7 @@ export function registerPreviewTools(server: McpServer) {
             const portMatch = url.match(/:(\d+)/);
             const port = portMatch ? parseInt(portMatch[1], 10) : 3000;
 
-            const tunnelRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/tunnel/create`, {
+            const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel/create`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ port }),
@@ -134,7 +133,7 @@ export function registerPreviewTools(server: McpServer) {
         // Check for active tunnels
         if (serverReachable) {
           try {
-            const tunnelRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/tunnel`);
+            const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel`);
             if (tunnelRes.ok) {
               const data = await tunnelRes.json() as { tunnels: Array<{ port: number; url: string; status: string }> };
               if (data.tunnels.length > 0) {

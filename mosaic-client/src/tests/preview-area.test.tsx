@@ -8,11 +8,11 @@ const ipad = devices.find(d => d.id === 'ipad')!;
 const desktop = devices.find(d => d.id === 'desktop')!;
 
 let fullscreenElement: Element | null = null;
-const requestFullscreenMock = vi.fn(async function (this: Element) {
-  fullscreenElement = this;
+const requestFullscreenMock = vi.fn(() => {
+  fullscreenElement = document.documentElement;
   document.dispatchEvent(new Event('fullscreenchange'));
 });
-const exitFullscreenMock = vi.fn(async () => {
+const exitFullscreenMock = vi.fn(() => {
   fullscreenElement = null;
   document.dispatchEvent(new Event('fullscreenchange'));
 });

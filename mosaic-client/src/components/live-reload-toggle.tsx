@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Wifi, WifiOff, Check, AlertCircle } from 'lucide-react';
+import { kaleidoscopeFetch } from '@/lib/kaleidoscope-api';
 import { useSocket } from '@/hooks/use-socket';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +17,7 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
   const [lastReload, setLastReload] = useState<Date | null>(null);
   const [watcherStarted, setWatcherStarted] = useState(false);
 
-  const { isConnected } = useSocket({
+  const { isConnected, clientId } = useSocket({
     autoConnect: enabled,
     onReload: () => {
       console.log('Live reload triggered');
@@ -24,6 +25,7 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
       onReload?.();
     },
   });
+  const watcherId = `live-reload-${clientId}`;
 
   // Start the file watcher on the server when enabled + connected
   useEffect(() => {
@@ -33,11 +35,12 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
     // Default to cwd if we can't determine the path
     const startWatcher = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/watcher/start`, {
+        const res = await kaleidoscopeFetch(`${API_BASE}/api/watcher/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: 'live-reload',
+            id: watcherId,
+            eventClientId: clientId,
             paths: ['src/**/*', 'public/**/*', '*.html', '*.css', '*.js', '*.ts', '*.tsx', '*.jsx'],
           }),
         });
@@ -51,7 +54,7 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
     };
 
     startWatcher();
-  }, [enabled, isConnected, watcherStarted]);
+  }, [clientId, enabled, isConnected, watcherId, watcherStarted]);
 
   // Stop the watcher when disabled
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
 
     const stopWatcher = async () => {
       try {
-        await fetch(`${API_BASE}/api/watcher/stop/live-reload`, { method: 'DELETE' });
+        await kaleidoscopeFetch(`${API_BASE}/api/watcher/stop/${watcherId}`, { method: 'DELETE' });
         setWatcherStarted(false);
         console.log('File watcher stopped');
       } catch {
@@ -69,7 +72,7 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
     };
 
     stopWatcher();
-  }, [enabled, watcherStarted]);
+  }, [enabled, watcherId, watcherStarted]);
 
   const handleToggle = () => {
     setEnabled(!enabled);

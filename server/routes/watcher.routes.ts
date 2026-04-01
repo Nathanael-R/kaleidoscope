@@ -10,13 +10,25 @@ const router = Router();
 
 // Only allow watching paths under the current working directory
 const ALLOWED_BASE = process.cwd();
+const WATCHER_EVENT_CLIENT_ID_REGEX = /^[A-Za-z0-9._-]{16,128}$/;
 
-function validateWatchPaths(paths: string[]): string | null {
+function getWatchPathBase(pattern: string): string {
+  const normalizedPattern = pattern.replace(/\\/g, '/');
+  const globIndex = normalizedPattern.search(/[\*\?\[{]/);
+  const basePattern = globIndex === -1 ? normalizedPattern : normalizedPattern.slice(0, globIndex);
+  const trimmedBase = basePattern.replace(/[\/]+$/, '');
+  return trimmedBase.length > 0 ? trimmedBase : '.';
+}
+
+export function validateWatchPaths(paths: string[], allowedBase: string = ALLOWED_BASE): string | null {
   for (const p of paths) {
-    const resolved = path.resolve(p);
-    if (!resolved.startsWith(ALLOWED_BASE)) {
+    const resolved = path.resolve(getWatchPathBase(p));
+    const relative = path.relative(allowedBase, resolved);
+
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
       return `Path "${p}" is outside the allowed directory`;
     }
+
     if (p.includes('..')) {
       return `Path "${p}" contains disallowed traversal`;
     }
@@ -30,10 +42,17 @@ function validateWatchPaths(paths: string[]): string | null {
  */
 router.post('/start', (req: Request, res: Response) => {
   try {
-    const { id = 'default', paths, ignored, debounceMs } = req.body as WatcherConfig & { id?: string };
+    const { id = 'default', paths, ignored, debounceMs, eventClientId } = req.body as WatcherConfig & {
+      id?: string;
+      eventClientId?: string;
+    };
 
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
       return sendError(res, 400, 'paths array is required');
+    }
+
+    if (typeof eventClientId !== 'string' || !WATCHER_EVENT_CLIENT_ID_REGEX.test(eventClientId)) {
+      return sendError(res, 400, 'eventClientId is required');
     }
 
     const pathError = validateWatchPaths(paths);
@@ -46,7 +65,10 @@ router.post('/start', (req: Request, res: Response) => {
       { paths, ignored, debounceMs },
       (event) => {
         console.log(`File ${event.type}: ${event.path}`);
-        sseService.broadcast('reload', { path: event.path, timestamp: Date.now() });
+        sseService.sendToClient(eventClientId, 'reload', {
+          watcherId: id,
+          timestamp: Date.now(),
+        });
       }
     );
 

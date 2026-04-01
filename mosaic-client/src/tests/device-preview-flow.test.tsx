@@ -268,7 +268,7 @@ describe('Device preview flow', () => {
         <DeviceFrame device={iphone} url="http://localhost:3000" reloadTrigger={0} />
       );
 
-      const iframe1 = screen.getByTestId('preview-iframe');
+      expect(screen.getByTestId('preview-iframe')).toBeInTheDocument();
 
       // Simulate reload trigger (file change detected)
       rerender(
@@ -276,7 +276,7 @@ describe('Device preview flow', () => {
       );
 
       // iframe should have been remounted (key changed)
-      const iframe2 = screen.getByTestId('preview-iframe');
+      expect(screen.getByTestId('preview-iframe')).toBeInTheDocument();
       // Both exist but with different internal keys — we verify by checking loading state resets
       expect(screen.getByText('Loading website...')).toBeInTheDocument();
     });

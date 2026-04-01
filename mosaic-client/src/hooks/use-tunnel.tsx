@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { kaleidoscopeFetch } from '@/lib/kaleidoscope-api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export interface TunnelInfo {
   url: string;
-  provider: 'localtunnel' | 'ngrok' | 'cloudflared' | 'manual';
+  provider: 'ngrok' | 'cloudflared';
   port: number;
   status: 'active' | 'error' | 'closed';
   createdAt: Date;
@@ -13,8 +14,7 @@ export interface TunnelInfo {
 
 export interface TunnelOptions {
   port: number;
-  subdomain?: string;
-  preferredProvider?: 'localtunnel' | 'ngrok' | 'cloudflared';
+  preferredProvider?: 'ngrok' | 'cloudflared';
 }
 
 export function useTunnel(port?: number) {
@@ -28,7 +28,7 @@ export function useTunnel(port?: number) {
       if (!currentPort) return null;
 
       try {
-        const response = await fetch(`${API_URL}/api/tunnel/${currentPort}`);
+        const response = await kaleidoscopeFetch(`${API_URL}/api/tunnel/${currentPort}`);
         if (response.status === 404) return null;
         if (!response.ok) throw new Error('Failed to fetch tunnel');
 
@@ -49,7 +49,7 @@ export function useTunnel(port?: number) {
   // Create tunnel mutation
   const createMutation = useMutation({
     mutationFn: async (options: TunnelOptions) => {
-      const response = await fetch(`${API_URL}/api/tunnel/create`, {
+      const response = await kaleidoscopeFetch(`${API_URL}/api/tunnel/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,7 +74,7 @@ export function useTunnel(port?: number) {
   // Close tunnel mutation
   const closeMutation = useMutation({
     mutationFn: async (port: number) => {
-      const response = await fetch(`${API_URL}/api/tunnel/${port}`, {
+      const response = await kaleidoscopeFetch(`${API_URL}/api/tunnel/${port}`, {
         method: 'DELETE',
       });
 
@@ -91,7 +91,7 @@ export function useTunnel(port?: number) {
   // Auto-detect port and create tunnel
   const autoDetectMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`${API_URL}/api/tunnel/auto-detect`, {
+      const response = await kaleidoscopeFetch(`${API_URL}/api/tunnel/auto-detect`, {
         method: 'POST',
       });
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { kaleidoscopeFetch } from '@/lib/kaleidoscope-api';
 import { Lock, Check, AlertCircle, Plus, X, Key, Cookie, Loader2, Shield, Database, Trash2, RefreshCw } from 'lucide-react';
 import { isLikelyPublicHttpUrl } from '@/lib/url-input';
 import { cn } from '@/lib/utils';
@@ -55,7 +56,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   const proxySupported = currentUrl ? isLikelyPublicHttpUrl(currentUrl) : false;
 
   const fetchProxyStatus = async (sessionId: string) => {
-    const statusRes = await fetch(`${API_URL}/api/proxy/session/${sessionId}/status`);
+    const statusRes = await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${sessionId}/status`);
     if (!statusRes.ok) {
       const statusError = await statusRes.json() as { error?: string };
       throw new Error(statusError.error || 'Failed to check proxy status');
@@ -140,7 +141,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
       setProxyError(null);
 
       try {
-        const res = await fetch(`${API_URL}/api/proxy/session`, {
+        const res = await kaleidoscopeFetch(`${API_URL}/api/proxy/session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: currentUrl, cookies: validCookies, headers: validHeaders }),
@@ -219,7 +220,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
         return { pattern: m.pattern, response: parsed };
       });
 
-      const res = await fetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, {
+      const res = await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mocks }),
@@ -244,7 +245,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   const handleClearMocks = async () => {
     if (!proxySession) return;
     try {
-      await fetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, { method: 'DELETE' });
+      await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, { method: 'DELETE' });
       setMockSuccess(null);
       setMockRoutes([{ pattern: '', response: '' }]);
     } catch {

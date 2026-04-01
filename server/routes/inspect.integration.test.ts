@@ -14,6 +14,18 @@ let targetServer: Server;
 let apiBaseUrl = '';
 let targetBaseUrl = '';
 
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 async function listen(server: Server): Promise<number> {
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve());
@@ -58,14 +70,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  await Promise.all([
-    new Promise<void>((resolve, reject) => {
-      apiServer.close((error) => error ? reject(error) : resolve());
-    }),
-    new Promise<void>((resolve, reject) => {
-      targetServer.close((error) => error ? reject(error) : resolve());
-    }),
-  ]);
+  await Promise.all([closeServer(apiServer), closeServer(targetServer)]);
 
   await closeSharedBrowser();
 });
@@ -222,7 +227,7 @@ test('inspect selector resolves an element directly from the page using a CSS se
 });
 
 test('inspect discover returns high-confidence candidates for a natural-language query', async () => {
-  targetServer.close();
+  await closeServer(targetServer);
   targetServer = createServer((_req, res) => {
     res.setHeader('content-type', 'text/html');
     res.end([

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Download, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
 import { devices } from "@/lib/devices";
 
 interface ScreenshotResult {
@@ -15,6 +16,23 @@ interface ScreenshotPanelProps {
   currentUrl: string;
   proxyUrl?: string | null;
 }
+
+interface FileSystemWritableFileStreamLike {
+  write: (data: Blob) => Promise<void>;
+  close: () => Promise<void>;
+}
+
+interface FileSystemFileHandleLike {
+  createWritable: () => Promise<FileSystemWritableFileStreamLike>;
+}
+
+interface FileSystemDirectoryHandleLike {
+  getFileHandle: (name: string, options: { create: boolean }) => Promise<FileSystemFileHandleLike>;
+}
+
+type DirectoryPickerWindow = Window & typeof globalThis & {
+  showDirectoryPicker?: () => Promise<FileSystemDirectoryHandleLike>;
+};
 
 const DEVICE_OPTIONS = devices.map(device => ({
   id: device.id,
@@ -57,7 +75,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       return;
     }
 
-    const showDirectoryPicker = (window as { showDirectoryPicker?: () => Promise<any> }).showDirectoryPicker;
+    const showDirectoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
     if (typeof showDirectoryPicker !== "function") {
       setSaveNote("Screenshots saved to ./screenshots/");
       return;
@@ -98,7 +116,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     setSaveNote(null);
 
     try {
-      const res = await fetch(`${API_BASE}/api/screenshots`, {
+      const res = await kaleidoscopeFetch(`${API_BASE}/api/screenshots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

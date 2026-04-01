@@ -6,6 +6,7 @@ import {
   type InspectResult,
   type InspectSelectionPayload,
 } from "@/lib/inspect";
+import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
 import { usePreviewStore } from "@/store/preview-store";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -179,7 +180,7 @@ export function usePreviewWorkspace(
     setInspectResult(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/inspect/session`, {
+      const response = await kaleidoscopeFetch(`${API_BASE}/api/inspect/session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: currentUrl }),
@@ -215,7 +216,7 @@ export function usePreviewWorkspace(
       setInspectError(null);
 
       try {
-        const response = await fetch(`${API_BASE}/api/inspect/resolve`, {
+        const response = await kaleidoscopeFetch(`${API_BASE}/api/inspect/resolve`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

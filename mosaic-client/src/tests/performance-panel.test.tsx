@@ -139,14 +139,16 @@ describe('PerformancePanel', () => {
     fireEvent.click(screen.getByTestId('run-performance-audit'));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:5000/api/performance/audit',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
+      expect(mockFetch).toHaveBeenCalled();
     });
+
+    const [requestUrl, requestInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(requestUrl).toBe('http://localhost:5000/api/performance/audit');
+    expect(requestInit).toEqual(expect.objectContaining({ method: 'POST' }));
+
+    const headers = new Headers(requestInit.headers);
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('X-Kaleidoscope-Client')).toBe('mosaic-client');
 
     // Average score banner should appear
     await waitFor(() => {

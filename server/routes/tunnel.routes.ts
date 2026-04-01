@@ -5,6 +5,7 @@ import type { TunnelOptions } from '../services/tunnel.service.js';
 import { sendError } from '../utils/http.js';
 
 const router = Router();
+const TUNNEL_PROVIDERS = new Set(['cloudflared', 'ngrok']);
 
 /**
  * POST /api/tunnel/create
@@ -12,7 +13,7 @@ const router = Router();
  */
 router.post('/create', async (req: Request, res: Response) => {
   try {
-    const { port, subdomain, preferredProvider } = req.body as TunnelOptions;
+    const { port, preferredProvider } = req.body as TunnelOptions;
 
     if (!port || typeof port !== 'number') {
       return sendError(res, 400, 'Invalid port number');
@@ -22,10 +23,13 @@ router.post('/create', async (req: Request, res: Response) => {
       return sendError(res, 400, 'Port must be between 1 and 65535');
     }
 
+    if (preferredProvider && !TUNNEL_PROVIDERS.has(preferredProvider)) {
+      return sendError(res, 400, 'preferredProvider must be cloudflared or ngrok');
+    }
+
     console.log(`Creating tunnel for port ${port}...`);
     const tunnelInfo = await tunnelService.createTunnel({
       port,
-      subdomain,
       preferredProvider
     });
 

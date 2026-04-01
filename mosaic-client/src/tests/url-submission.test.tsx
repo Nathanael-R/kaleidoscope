@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from '@/components/sidebar';
 import { devices } from '@/lib/devices';
@@ -190,14 +190,16 @@ describe('URL submission', () => {
       expect(screen.queryByTestId('auth-wizard-toggle')).not.toBeInTheDocument();
     });
 
-    it('shows auth wizard after URL is entered', () => {
+    it('shows auth wizard after URL is entered', async () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
       fireEvent.change(screen.getByTestId('input-url'), {
         target: { value: 'http://localhost:3000' },
       });
 
-      expect(screen.getByTestId('auth-wizard-toggle')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId('auth-wizard-toggle')).toBeInTheDocument();
+      }, { timeout: 5000 });
     });
   });
 

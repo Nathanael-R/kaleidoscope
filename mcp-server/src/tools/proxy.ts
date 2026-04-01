@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
-
-const KALEIDOSCOPE_SERVER = 'http://localhost:5000';
+import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
 
 async function formatToolError(action: string, error: unknown): Promise<string> {
   const reason = error instanceof Error ? error.message : String(error);
@@ -55,7 +54,7 @@ export function registerProxyTools(server: McpServer) {
         }
 
         // Create proxy session
-        const createRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session`, {
+        const createRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, cookies: cookies || [] }),
@@ -74,7 +73,7 @@ export function registerProxyTools(server: McpServer) {
         };
 
         // Test the proxy by fetching the root page to detect auth issues
-        const testRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${data.session.id}/status`);
+        const testRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${data.session.id}/status`);
         const status = testRes.ok ? await testRes.json() as { authFailed: boolean } : { authFailed: false };
 
         // Also do a quick probe of the target through the proxy
@@ -83,7 +82,7 @@ export function registerProxyTools(server: McpServer) {
         });
 
         // Check auth status after probe
-        const statusAfterProbe = await fetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${data.session.id}/status`);
+        const statusAfterProbe = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${data.session.id}/status`);
         const probeStatus = statusAfterProbe.ok
           ? await statusAfterProbe.json() as { authFailed: boolean }
           : { authFailed: false };
@@ -182,7 +181,7 @@ export function registerProxyTools(server: McpServer) {
         }
 
         // Inject mock data
-        const mockRes = await fetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${session_id}/mock`, {
+        const mockRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${session_id}/mock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mocks }),

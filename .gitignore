@@ -14,6 +14,13 @@ dist-ssr
 .env
 .env.local
 screenshots
+Documentation/
+DEVELOPMENT.md
+LESSONS-LEARNED.md
+PROGRESS.md
+SESSION-SUMMARY.md
+WEEK1-2-COMPLETE.md
+WEEK1-2-SUMMARY.md
 
 # Editor directories and files
 .vscode/*

@@ -12,6 +12,12 @@ import { sseService } from "./services/sse.service.js";
 import { proxyService } from "./services/proxy.service.js";
 import { logApiRequest, logServerError } from "./utils/logger.js";
 import { sendError } from "./utils/http.js";
+import {
+  KALEIDOSCOPE_CLIENT_HEADER_NAME,
+  isAllowedBrowserOrigin,
+  isManagementApiPath,
+  isTrustedManagementClient,
+} from "./utils/request-security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,6 +25,37 @@ const app = express();
 const port = parseInt(process.env.PORT || '5000', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 const configuredCorsOrigin = process.env.CORS_ORIGIN;
+const allowedRequestHeaders = [
+  'Origin',
+  'X-Requested-With',
+  'Content-Type',
+  'Accept',
+  'Authorization',
+  'X-Request-Id',
+  'X-Kaleidoscope-Client',
+].join(', ');
+
+function appendVaryHeader(res: Response, value: string) {
+  const current = res.getHeader('Vary');
+
+  if (!current) {
+    res.setHeader('Vary', value);
+    return;
+  }
+
+  const nextValues = new Set(
+    String(current)
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  );
+  nextValues.add(value);
+  res.setHeader('Vary', Array.from(nextValues).join(', '));
+}
+
+function isAllowedOrigin(origin: string): boolean {
+  return isAllowedBrowserOrigin(origin, isProduction ? configuredCorsOrigin : undefined);
+}
 
 if (isProduction && !configuredCorsOrigin) {
   throw new Error('CORS_ORIGIN must be set in production');
@@ -42,6 +79,16 @@ type RateEntry = { count: number; resetAt: number };
 const rateLimitMap = new Map<string, RateEntry>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 120;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+let lastRateLimitCleanupAt = 0;
+
+function cleanupExpiredRateEntries(now: number) {
+  for (const [key, entry] of rateLimitMap) {
+    if (entry.resetAt <= now) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) {
@@ -49,6 +96,11 @@ app.use((req, res, next) => {
   }
 
   const now = Date.now();
+  if (now - lastRateLimitCleanupAt >= RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+    cleanupExpiredRateEntries(now);
+    lastRateLimitCleanupAt = now;
+  }
+
   const key = req.ip || req.socket.remoteAddress || 'unknown';
   const existing = rateLimitMap.get(key);
 
@@ -74,16 +126,44 @@ app.use((req, res, next) => {
 
 // CORS middleware
 app.use((req, res, next) => {
-  const allowedOrigin = isProduction ? configuredCorsOrigin! : '*';
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
+  const origin = req.header('origin');
+  const originAllowed = origin ? isAllowedOrigin(origin) : false;
+
+  if (origin && originAllowed) {
+    res.header('Access-Control-Allow-Origin', origin);
+    appendVaryHeader(res, 'Origin');
+  }
+
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Request-Id');
+  res.header('Access-Control-Allow-Headers', allowedRequestHeaders);
 
   if (req.method === 'OPTIONS') {
+    if (origin && !originAllowed) {
+      return sendError(res, 403, 'Origin is not allowed.');
+    }
+
     res.sendStatus(200);
   } else {
     next();
   }
+});
+
+app.use((req, res, next) => {
+  if (!isManagementApiPath(req.path)) {
+    return next();
+  }
+
+  const clientHeader = req.header(KALEIDOSCOPE_CLIENT_HEADER_NAME);
+  if (!isTrustedManagementClient(clientHeader)) {
+    return sendError(res, 403, 'Trusted Kaleidoscope client header is required for this endpoint.');
+  }
+
+  const origin = req.header('origin');
+  if (origin && !isAllowedOrigin(origin)) {
+    return sendError(res, 403, 'Origin is not allowed.');
+  }
+
+  return next();
 });
 
 // Simple logging for API requests
@@ -111,7 +191,24 @@ app.use((req, res, next) => {
 
   // SSE endpoint for live reload events
   app.get('/api/events', (req, res) => {
-    sseService.addClient(req, res);
+    const origin = req.header('origin');
+    if (origin && !isAllowedOrigin(origin)) {
+      return sendError(res, 403, 'Origin is not allowed.');
+    }
+
+    const clientId = typeof req.query.clientId === 'string' ? req.query.clientId.trim() : '';
+    if (!/^[A-Za-z0-9._-]{16,128}$/.test(clientId)) {
+      return sendError(res, 400, 'clientId is required.');
+    }
+
+    if (origin) {
+      appendVaryHeader(res, 'Origin');
+    }
+
+    sseService.addClient(req, res, {
+      clientId,
+      accessControlAllowOrigin: origin && isAllowedOrigin(origin) ? origin : undefined,
+    });
   });
 
   // Serve device screenshots for client downloads

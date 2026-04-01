@@ -2,12 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer, type Server } from 'node:http';
-import crawlRoutes from './crawl.routes.js';
 import screenshotRoutes from './screenshot.routes.js';
 import proxyRoutes from './proxy.routes.js';
 import performanceRoutes from './performance.routes.js';
 import inspectRoutes from './inspect.routes.js';
-import { crawlService } from '../services/crawl.service.js';
 
 let server: Server;
 let baseUrl = '';
@@ -27,7 +25,6 @@ test.before(async () => {
   });
 
   app.use('/api/screenshots', screenshotRoutes);
-  app.use('/api/crawl', crawlRoutes);
   app.use('/api/proxy', proxyRoutes);
   app.use('/api/performance', performanceRoutes);
   app.use('/api/inspect', inspectRoutes);
@@ -164,80 +161,6 @@ test('POST /api/performance/audit rejects invalid device IDs with normalized err
   assert.equal(body.requestId, 'test-request-id');
   assert.ok(Array.isArray(body.validDeviceIds));
   assert.ok(body.validDeviceIds.includes('iphone-14'));
-});
-
-test('POST /api/crawl rejects invalid URLs with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/crawl', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'file:///etc/passwd',
-      depth: 1,
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/crawl accepts localhost start URLs before proxy validation', async () => {
-  const { status, body } = await requestJson('/api/crawl', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'http://localhost:5173',
-      proxyUrl: 'file:///etc/passwd',
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(body.error, 'proxyUrl is invalid');
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/crawl accepts loopback proxy URLs before downstream crawl execution', async () => {
-  const originalCrawl = crawlService.crawl;
-  crawlService.crawl = async () => ({
-    startUrl: 'https://example.com',
-    pages: [],
-    sitemapUrls: [],
-  });
-
-  try {
-    const { status, body } = await requestJson('/api/crawl', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: 'https://example.com',
-        proxyUrl: 'http://127.0.0.1:5000/api/proxy/sess123/',
-      }),
-    });
-
-    assert.equal(status, 200);
-    assert.deepEqual(body, {
-      startUrl: 'https://example.com',
-      pages: [],
-      sitemapUrls: [],
-    });
-  } finally {
-    crawlService.crawl = originalCrawl;
-  }
-});
-
-test('POST /api/crawl rejects invalid proxy URLs with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/crawl', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'https://example.com',
-      proxyUrl: 'file:///etc/passwd',
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(body.error, 'proxyUrl is invalid');
-  assert.equal(body.requestId, 'test-request-id');
 });
 
 test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {

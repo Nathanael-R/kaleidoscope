@@ -2,9 +2,11 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { devices, type Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
+import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
 import { cn } from "@/lib/utils";
 import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
-import DeviceFrame, { getDeviceFrameMetrics } from "./device-frame";
+import DeviceFrame from "./device-frame";
+import { getDeviceFrameMetrics } from "./device-frame-metrics";
 
 interface PreviewAreaProps {
   selectedDevice: Device;
@@ -220,7 +222,7 @@ export default function PreviewArea({
         ? pinnedDevices.map(d => d.id)
         : [selectedDevice.id];
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/api/screenshots`, {
+      const res = await kaleidoscopeFetch(`${apiUrl}/api/screenshots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: proxyUrl || currentUrl, devices }),

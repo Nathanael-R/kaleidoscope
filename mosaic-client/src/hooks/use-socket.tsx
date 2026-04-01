@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 
 const SSE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/events';
 
+function createSocketClientId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `socket-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export interface SocketHookOptions {
   autoConnect?: boolean;
   onConnect?: () => void;
@@ -19,6 +27,7 @@ export function useSocket(options: SocketHookOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
+  const clientIdRef = useRef(createSocketClientId());
 
   // Store callbacks in refs to avoid reconnection on callback identity change
   const onConnectRef = useRef(onConnect);
@@ -31,7 +40,8 @@ export function useSocket(options: SocketHookOptions = {}) {
   useEffect(() => {
     if (!autoConnect) return;
 
-    const source = new EventSource(SSE_URL);
+    const clientId = clientIdRef.current;
+    const source = new EventSource(`${SSE_URL}?clientId=${encodeURIComponent(clientId)}`);
     sourceRef.current = source;
 
     source.addEventListener('connected', () => {
@@ -41,8 +51,8 @@ export function useSocket(options: SocketHookOptions = {}) {
     });
 
     source.addEventListener('reload', (e) => {
-      const data = JSON.parse(e.data);
-      console.log('Reload triggered by:', data.path);
+      JSON.parse(e.data);
+      console.log('Reload triggered');
       onReloadRef.current?.();
     });
 
@@ -59,6 +69,7 @@ export function useSocket(options: SocketHookOptions = {}) {
   }, [autoConnect]);
 
   return {
+    clientId: clientIdRef.current,
     isConnected,
   };
 }

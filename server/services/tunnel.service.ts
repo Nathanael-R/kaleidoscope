@@ -1,18 +1,55 @@
-// @ts-expect-error localtunnel has no type declarations
-import localtunnel from 'localtunnel';
+import { spawn, type ChildProcessByStdio } from 'node:child_process';
+import type { Readable } from 'node:stream';
 
 export interface TunnelInfo {
   url: string;
-  provider: 'localtunnel' | 'ngrok' | 'cloudflared' | 'manual';
+  provider: TunnelProvider;
   port: number;
   status: 'active' | 'error' | 'closed';
   createdAt: Date;
 }
 
+export type TunnelProvider = 'cloudflared' | 'ngrok';
+
 export interface TunnelOptions {
   port: number;
-  subdomain?: string;
-  preferredProvider?: 'localtunnel' | 'ngrok' | 'cloudflared';
+  preferredProvider?: TunnelProvider;
+}
+
+type ManagedTunnel = {
+  info: TunnelInfo;
+  process: ChildProcessByStdio<null, Readable, Readable>;
+  close: () => void;
+};
+
+const TUNNEL_READY_TIMEOUT_MS = 15_000;
+
+function formatRecentOutput(output: string[]): string {
+  const recent = output
+    .join('\n')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(-240);
+
+  return recent.length > 0 ? ` Output: ${recent}` : '';
+}
+
+function getProviderInstallHelp(provider: TunnelProvider): string {
+  switch (provider) {
+    case 'cloudflared':
+      return 'Install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/';
+    case 'ngrok':
+      return 'Install ngrok from https://ngrok.com/download';
+  }
+}
+
+export function extractTunnelUrl(provider: TunnelProvider, line: string): string | null {
+  switch (provider) {
+    case 'cloudflared':
+      return line.match(/https:\/\/[a-z0-9.-]+\.trycloudflare\.com/iu)?.[0] ?? null;
+    case 'ngrok':
+      return line.match(/https:\/\/[\w.-]*ngrok[\w./-]*/iu)?.[0] ?? null;
+  }
 }
 
 class TunnelService {
@@ -21,10 +58,10 @@ class TunnelService {
 
   /**
    * Create a tunnel to expose a local port to the internet
-   * Tries multiple providers in order: ngrok → localtunnel → cloudflared
+   * Tries supported external providers in order: cloudflared → ngrok
    */
   async createTunnel(options: TunnelOptions): Promise<TunnelInfo> {
-    const { port, subdomain } = options;
+    const { port } = options;
 
     // Check if tunnel already exists for this port
     if (this.activeTunnels.has(port)) {
@@ -37,25 +74,40 @@ class TunnelService {
 
     // Try providers in order
     const providers = this.getProviderOrder(options.preferredProvider);
+    const failures: string[] = [];
 
     for (const provider of providers) {
       try {
         console.log(`Attempting to create tunnel with ${provider}...`);
-        const tunnelInfo = await this.createWithProvider(provider, port, subdomain);
+        const managedTunnel = await this.createWithProvider(provider, port);
+        const tunnelInfo = managedTunnel.info;
 
         this.activeTunnels.set(port, tunnelInfo);
+        this.tunnelClosers.set(port, managedTunnel.close);
+
+        managedTunnel.process.once('exit', () => {
+          this.tunnelClosers.delete(port);
+
+          const active = this.activeTunnels.get(port);
+          if (active?.url === tunnelInfo.url) {
+            active.status = 'closed';
+          }
+        });
+
         console.log(`✓ Tunnel created successfully: ${tunnelInfo.url}`);
 
         return tunnelInfo;
       } catch (error) {
-        console.warn(`${provider} failed:`, error instanceof Error ? error.message : error);
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push(`${provider}: ${message}`);
+        console.warn(`${provider} failed:`, message);
         continue;
       }
     }
 
     throw new Error(
-      'All tunnel providers failed. ' +
-      'Please ensure you have internet connectivity or manually expose your port.'
+      'All tunnel providers failed. '
+      + failures.join(' ')
     );
   }
 
@@ -63,75 +115,160 @@ class TunnelService {
    * Create tunnel with specific provider
    */
   private async createWithProvider(
-    provider: string,
+    provider: TunnelProvider,
     port: number,
-    subdomain?: string
-  ): Promise<TunnelInfo> {
+  ): Promise<ManagedTunnel> {
     switch (provider) {
-      case 'localtunnel':
-        return await this.createLocalTunnel(port, subdomain);
-
       case 'ngrok':
-        // ngrok requires manual installation or API token
-        throw new Error(
-          'ngrok is not installed. Install with: npm install -g ngrok, ' +
-          'or use an alternative tunnel provider.'
-        );
+        return await this.createNgrokTunnel(port);
 
       case 'cloudflared':
-        // cloudflared requires binary installation
-        throw new Error(
-          'cloudflared is not installed. Install from: ' +
-          'https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/'
-        );
-
-      default:
-        throw new Error(`Unknown provider: ${provider}`);
+        return await this.createCloudflaredTunnel(port);
     }
   }
 
   /**
-   * Create tunnel using localtunnel (pure JavaScript, no binary needed)
+   * Create tunnel using cloudflared quick tunnels.
    */
-  private async createLocalTunnel(port: number, subdomain?: string): Promise<TunnelInfo> {
-    const options: any = { port };
-    if (subdomain) {
-      options.subdomain = subdomain;
-    }
-
-    const tunnel = await localtunnel(options);
-
-    const tunnelInfo: TunnelInfo = {
-      url: tunnel.url,
-      provider: 'localtunnel',
+  private async createCloudflaredTunnel(port: number): Promise<ManagedTunnel> {
+    return await this.createProcessTunnel({
+      provider: 'cloudflared',
       port,
-      status: 'active',
-      createdAt: new Date()
-    };
-
-    // Handle tunnel close
-    tunnel.on('close', () => {
-      console.log(`Tunnel closed for port ${port}`);
-      if (this.activeTunnels.has(port)) {
-        const info = this.activeTunnels.get(port)!;
-        info.status = 'closed';
-      }
+      command: 'cloudflared',
+      args: ['tunnel', '--url', `http://127.0.0.1:${port}`, '--no-autoupdate'],
     });
+  }
 
-    // Handle tunnel error
-    tunnel.on('error', (err: Error) => {
-      console.error(`Tunnel error for port ${port}:`, err);
-      if (this.activeTunnels.has(port)) {
-        const info = this.activeTunnels.get(port)!;
-        info.status = 'error';
-      }
-      this.tunnelClosers.delete(port);
+  /**
+   * Create tunnel using the ngrok CLI.
+   */
+  private async createNgrokTunnel(port: number): Promise<ManagedTunnel> {
+    return await this.createProcessTunnel({
+      provider: 'ngrok',
+      port,
+      command: 'ngrok',
+      args: ['http', `http://127.0.0.1:${port}`, '--log', 'stdout', '--log-format', 'json'],
     });
+  }
 
-    // Store closer function
-    this.tunnelClosers.set(port, () => tunnel.close());
+  private async createProcessTunnel(options: {
+    provider: TunnelProvider;
+    port: number;
+    command: string;
+    args: string[];
+  }): Promise<ManagedTunnel> {
+    const { provider, port, command, args } = options;
 
-    return tunnelInfo;
+    return await new Promise<ManagedTunnel>((resolve, reject) => {
+      const child = spawn(command, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      const recentOutput: string[] = [];
+      let buffer = '';
+      let settled = false;
+
+      const close = () => {
+        if (child.killed) {
+          return;
+        }
+
+        child.kill();
+      };
+
+      const finish = (callback: () => void) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+        child.stdout.off('data', onData);
+        child.stderr.off('data', onData);
+        callback();
+      };
+
+      const rejectWithMessage = (message: string) => {
+        finish(() => {
+          close();
+          reject(new Error(message));
+        });
+      };
+
+      const onLine = (line: string) => {
+        const normalized = line.trim();
+        if (normalized.length === 0) {
+          return;
+        }
+
+        recentOutput.push(normalized);
+        if (recentOutput.length > 12) {
+          recentOutput.shift();
+        }
+
+        const url = extractTunnelUrl(provider, normalized);
+        if (!url) {
+          return;
+        }
+
+        const info: TunnelInfo = {
+          url,
+          provider,
+          port,
+          status: 'active',
+          createdAt: new Date(),
+        };
+
+        finish(() => {
+          resolve({
+            info,
+            process: child,
+            close,
+          });
+        });
+      };
+
+      const onData = (chunk: Buffer) => {
+        buffer += chunk.toString('utf8');
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          onLine(line);
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        rejectWithMessage(
+          `Timed out waiting for ${provider} to return a public URL.${formatRecentOutput(recentOutput)}`,
+        );
+      }, TUNNEL_READY_TIMEOUT_MS);
+
+      child.stdout.on('data', onData);
+      child.stderr.on('data', onData);
+
+      child.once('error', (error) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          rejectWithMessage(`${provider} is not installed. ${getProviderInstallHelp(provider)}`);
+          return;
+        }
+
+        rejectWithMessage(
+          `Failed to start ${provider}: ${error.message}.${formatRecentOutput(recentOutput)}`,
+        );
+      });
+
+      child.once('exit', (code, signal) => {
+        if (settled) {
+          return;
+        }
+
+        rejectWithMessage(
+          `${provider} exited before publishing a public URL (code: ${code ?? 'unknown'}, signal: ${signal ?? 'none'}).${formatRecentOutput(recentOutput)}`,
+        );
+      });
+    });
   }
 
   /**
@@ -208,8 +345,8 @@ class TunnelService {
   /**
    * Get provider order based on preference
    */
-  private getProviderOrder(preferred?: string): string[] {
-    const allProviders = ['localtunnel', 'ngrok', 'cloudflared'];
+  private getProviderOrder(preferred?: TunnelProvider): TunnelProvider[] {
+    const allProviders: TunnelProvider[] = ['cloudflared', 'ngrok'];
 
     if (preferred && allProviders.includes(preferred)) {
       // Put preferred first

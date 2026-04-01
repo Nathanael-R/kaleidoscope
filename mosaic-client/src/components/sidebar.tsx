@@ -12,14 +12,16 @@ import {
   ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight,
   Columns, Pin, X, Globe, Clock, Activity,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import TunnelButton from "@/components/tunnel-button";
-import LiveReloadToggle from "@/components/live-reload-toggle";
-import AuthWizard, { type AuthCookie, type ProxySession } from "@/components/auth-wizard";
-import ScreenshotPanel from "@/components/screenshot-panel";
-import PerformancePanel from "@/components/performance-panel";
-import InspectPanel from "@/components/inspect-panel";
+import { lazy, Suspense, useEffect, useState } from "react";
+import type { AuthCookie, ProxySession } from "@/components/auth-wizard";
 import type { InspectResult } from "@/lib/inspect";
+
+const TunnelButton = lazy(() => import("@/components/tunnel-button"));
+const LiveReloadToggle = lazy(() => import("@/components/live-reload-toggle"));
+const AuthWizard = lazy(() => import("@/components/auth-wizard"));
+const ScreenshotPanel = lazy(() => import("@/components/screenshot-panel"));
+const PerformancePanel = lazy(() => import("@/components/performance-panel"));
+const InspectPanel = lazy(() => import("@/components/inspect-panel"));
 
 interface SidebarProps {
   selectedDevice: Device;
@@ -62,6 +64,13 @@ function Section({
   badge?: string | number;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [hasRenderedContent, setHasRenderedContent] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (open) {
+      setHasRenderedContent(true);
+    }
+  }, [open]);
 
   return (
     <div className="border-b border-gray-100 dark:border-gray-700">
@@ -77,8 +86,16 @@ function Section({
         <ChevronDown className={cn("w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
       </button>
       <div className="accordion-content" data-open={open ? "true" : "false"}>
-        <div className="px-4 pb-3">{children}</div>
+        {hasRenderedContent ? <div className="px-4 pb-3">{children}</div> : null}
       </div>
+    </div>
+  );
+}
+
+function SectionLoadingFallback({ label }: { label: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+      Loading {label}...
     </div>
   );
 }
@@ -396,49 +413,61 @@ export default function Sidebar({
 
         {/* Tools sections — collapsible */}
         <Section title="Share Localhost" icon={Globe}>
-          <TunnelButton port={currentPort} />
+          <Suspense fallback={<SectionLoadingFallback label="sharing tools" />}>
+            <TunnelButton port={currentPort} />
+          </Suspense>
         </Section>
 
         <Section title="Live Reload" icon={Globe}>
-          <LiveReloadToggle onReload={onReload} />
+          <Suspense fallback={<SectionLoadingFallback label="live reload" />}>
+            <LiveReloadToggle onReload={onReload} />
+          </Suspense>
         </Section>
 
         {urlInput && (
           <Section title="Inspect" icon={Activity} defaultOpen>
-            <InspectPanel
-              currentUrl={currentUrl}
-              viewMode={viewMode}
-              enabled={inspectEnabled}
-              pending={inspectPending}
-              resolving={inspectResolving}
-              sourceDir={inspectSourceDir}
-              onSourceDirChange={onInspectSourceDirChange}
-              onToggle={onToggleInspect}
-              result={inspectResult}
-              error={inspectError}
-            />
+            <Suspense fallback={<SectionLoadingFallback label="inspect tools" />}>
+              <InspectPanel
+                currentUrl={currentUrl}
+                viewMode={viewMode}
+                enabled={inspectEnabled}
+                pending={inspectPending}
+                resolving={inspectResolving}
+                sourceDir={inspectSourceDir}
+                onSourceDirChange={onInspectSourceDirChange}
+                onToggle={onToggleInspect}
+                result={inspectResult}
+                error={inspectError}
+              />
+            </Suspense>
           </Section>
         )}
 
         {urlInput && (
           <Section title="Authentication" icon={Globe} defaultOpen>
-            <AuthWizard
-              onAuthCapture={onAuthCapture || (() => {})}
-              onProxyUrl={onProxyUrl}
-              currentUrl={urlInput}
-            />
+            <Suspense fallback={<SectionLoadingFallback label="authentication tools" />}>
+              <AuthWizard
+                onAuthCapture={onAuthCapture || (() => {})}
+                onProxyUrl={onProxyUrl}
+                currentUrl={urlInput}
+              />
+            </Suspense>
           </Section>
         )}
 
         {urlInput && (
           <Section title="Screenshots" icon={Globe} defaultOpen>
-            <ScreenshotPanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+            <Suspense fallback={<SectionLoadingFallback label="screenshots" />}>
+              <ScreenshotPanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+            </Suspense>
           </Section>
         )}
 
         {urlInput && (
           <Section title="Performance" icon={Activity}>
-            <PerformancePanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+            <Suspense fallback={<SectionLoadingFallback label="performance tools" />}>
+              <PerformancePanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+            </Suspense>
           </Section>
         )}
 

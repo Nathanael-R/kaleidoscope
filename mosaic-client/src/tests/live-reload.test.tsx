@@ -5,16 +5,17 @@
  * server-side watcher is started → file changes trigger a reload event →
  * preview iframes remount.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import LiveReloadToggle from '@/components/live-reload-toggle';
+import type { SocketHookOptions } from '@/hooks/use-socket';
 
 // --- Mocks ---
 
 // Mock the useSocket hook so we can control connection state and trigger reloads
 const mockUseSocket = vi.fn();
 vi.mock('@/hooks/use-socket', () => ({
-  useSocket: (opts: any) => mockUseSocket(opts),
+  useSocket: (opts: SocketHookOptions) => mockUseSocket(opts),
 }));
 
 // Mock fetch for the watcher API calls
@@ -23,14 +24,14 @@ globalThis.fetch = mockFetch;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockUseSocket.mockReturnValue({ isConnected: false });
+  mockUseSocket.mockReturnValue({ isConnected: false, clientId: 'test-client-123456' });
   mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
 });
 
 describe('Live Reload', () => {
   describe('when toggled on', () => {
     it('should connect to the event stream for file changes', () => {
-      mockUseSocket.mockReturnValue({ isConnected: false });
+      mockUseSocket.mockReturnValue({ isConnected: false, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
 
@@ -46,7 +47,7 @@ describe('Live Reload', () => {
     });
 
     it('should show "Connected" status when SSE connection succeeds', async () => {
-      mockUseSocket.mockReturnValue({ isConnected: true });
+      mockUseSocket.mockReturnValue({ isConnected: true, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
@@ -63,7 +64,7 @@ describe('Live Reload', () => {
     });
 
     it('should show "Connecting..." when SSE is not yet connected', () => {
-      mockUseSocket.mockReturnValue({ isConnected: false });
+      mockUseSocket.mockReturnValue({ isConnected: false, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
@@ -73,7 +74,7 @@ describe('Live Reload', () => {
 
     it('should start the server-side file watcher when connected', async () => {
       // Simulate: user clicks toggle → SSE connects → watcher starts
-      mockUseSocket.mockReturnValue({ isConnected: true });
+      mockUseSocket.mockReturnValue({ isConnected: true, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
@@ -90,7 +91,8 @@ describe('Live Reload', () => {
         (call) => typeof call[0] === 'string' && call[0].includes('/api/watcher/start')
       );
       const body = JSON.parse(startCall![1].body);
-      expect(body.id).toBe('live-reload');
+      expect(body.id).toBe('live-reload-test-client-123456');
+      expect(body.eventClientId).toBe('test-client-123456');
       expect(body.paths).toContain('src/**/*');
     });
 
@@ -99,9 +101,9 @@ describe('Live Reload', () => {
 
       // Capture the onReload callback passed to useSocket
       let capturedOnReload: (() => void) | undefined;
-      mockUseSocket.mockImplementation((opts: any) => {
+      mockUseSocket.mockImplementation((opts: SocketHookOptions) => {
         capturedOnReload = opts.onReload;
-        return { isConnected: true };
+        return { isConnected: true, clientId: 'test-client-123456' };
       });
 
       render(<LiveReloadToggle onReload={onReload} />);
@@ -126,9 +128,9 @@ describe('Live Reload', () => {
 
     it('should show "Just now" after receiving a reload event', async () => {
       let capturedOnReload: (() => void) | undefined;
-      mockUseSocket.mockImplementation((opts: any) => {
+      mockUseSocket.mockImplementation((opts: SocketHookOptions) => {
         capturedOnReload = opts.onReload;
-        return { isConnected: true };
+        return { isConnected: true, clientId: 'test-client-123456' };
       });
 
       render(<LiveReloadToggle />);
@@ -175,7 +177,7 @@ describe('Live Reload', () => {
 
   describe('toggle on then off', () => {
     it('should stop the server-side file watcher when disabled', async () => {
-      mockUseSocket.mockReturnValue({ isConnected: true });
+      mockUseSocket.mockReturnValue({ isConnected: true, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
 
@@ -196,14 +198,14 @@ describe('Live Reload', () => {
       // Should call stop
       await waitFor(() => {
         const stopCalls = mockFetch.mock.calls.filter(
-          (call) => typeof call[0] === 'string' && call[0].includes('/api/watcher/stop/live-reload')
+          (call) => typeof call[0] === 'string' && call[0].includes('/api/watcher/stop/live-reload-test-client-123456')
         );
         expect(stopCalls.length).toBe(1);
       });
 
       // Verify DELETE method
       const stopCall = mockFetch.mock.calls.find(
-        (call) => typeof call[0] === 'string' && call[0].includes('/api/watcher/stop/live-reload')
+        (call) => typeof call[0] === 'string' && call[0].includes('/api/watcher/stop/live-reload-test-client-123456')
       );
       expect(stopCall![1].method).toBe('DELETE');
     });

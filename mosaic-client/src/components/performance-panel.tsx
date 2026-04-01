@@ -5,6 +5,7 @@ import {
   Activity, Loader2, XCircle, ChevronDown, ChevronRight,
   AlertTriangle, Info, Zap, FileCode, FolderOpen,
 } from "lucide-react";
+import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -329,7 +330,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
         body.sourceDir = sourceDir.trim();
       }
 
-      const res = await fetch(`${API_BASE}/api/performance/audit`, {
+      const res = await kaleidoscopeFetch(`${API_BASE}/api/performance/audit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

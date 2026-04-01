@@ -5,7 +5,7 @@
  * public URL displayed → user copies URL → user closes tunnel.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TunnelButton from '@/components/tunnel-button';
 
@@ -105,7 +105,7 @@ describe('Tunnel feature', () => {
     beforeEach(() => {
       mockUseTunnel.mockReturnValue({
         isActive: true,
-        tunnelUrl: 'https://my-app.loca.lt',
+        tunnelUrl: 'https://public-preview.example.com',
         isLoading: false,
         isCreating: false,
         isClosing: false,
@@ -124,7 +124,7 @@ describe('Tunnel feature', () => {
     it('should display the public tunnel URL', () => {
       renderWithQuery(<TunnelButton port={3000} />);
 
-      expect(screen.getByText('https://my-app.loca.lt')).toBeInTheDocument();
+      expect(screen.getByText('https://public-preview.example.com')).toBeInTheDocument();
       expect(screen.getByText('Public URL:')).toBeInTheDocument();
     });
 
@@ -142,7 +142,7 @@ describe('Tunnel feature', () => {
 
       fireEvent.click(screen.getByTitle('Copy URL'));
 
-      expect(writeText).toHaveBeenCalledWith('https://my-app.loca.lt');
+      expect(writeText).toHaveBeenCalledWith('https://public-preview.example.com');
 
       vi.unstubAllGlobals();
     });
@@ -154,7 +154,7 @@ describe('Tunnel feature', () => {
 
       fireEvent.click(screen.getByTitle('Open in new tab'));
 
-      expect(openSpy).toHaveBeenCalledWith('https://my-app.loca.lt', '_blank');
+      expect(openSpy).toHaveBeenCalledWith('https://public-preview.example.com', '_blank');
       openSpy.mockRestore();
     });
   });
@@ -164,7 +164,7 @@ describe('Tunnel feature', () => {
       const closeTunnel = vi.fn().mockResolvedValue(undefined);
       mockUseTunnel.mockReturnValue({
         isActive: true,
-        tunnelUrl: 'https://my-app.loca.lt',
+        tunnelUrl: 'https://public-preview.example.com',
         isLoading: false,
         isCreating: false,
         isClosing: false,
@@ -183,7 +183,7 @@ describe('Tunnel feature', () => {
     it('should show "Closing..." while tunnel is shutting down', () => {
       mockUseTunnel.mockReturnValue({
         isActive: true,
-        tunnelUrl: 'https://my-app.loca.lt',
+        tunnelUrl: 'https://public-preview.example.com',
         isLoading: false,
         isCreating: false,
         isClosing: true,
@@ -207,14 +207,14 @@ describe('Tunnel feature', () => {
         isLoading: false,
         isCreating: false,
         isClosing: false,
-        createError: new Error('localtunnel connection refused'),
+        createError: new Error('cloudflared is not installed'),
         createTunnel: vi.fn(),
         closeTunnel: vi.fn(),
       });
 
       renderWithQuery(<TunnelButton port={3000} />);
 
-      expect(screen.getByText('localtunnel connection refused')).toBeInTheDocument();
+      expect(screen.getByText('cloudflared is not installed')).toBeInTheDocument();
     });
 
     it('should show generic error for non-Error objects', () => {
