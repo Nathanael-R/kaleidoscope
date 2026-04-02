@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "check": "tsc",
     "test": "vitest",
+    "test:stress": "vitest run src/tests/preview-stress.test.tsx",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"
   },

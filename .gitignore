@@ -14,6 +14,8 @@ dist-ssr
 .env
 .env.local
 screenshots
+playwright-report/
+test-results/
 Documentation/
 DEVELOPMENT.md
 LESSONS-LEARNED.md

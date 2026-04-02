@@ -19,6 +19,8 @@
     "test:unit": "npm run test:unit:client && npm run test:unit:server",
     "test:unit:client": "cd mosaic-client && npm run test -- --run",
     "test:unit:server": "cd server && npm test",
+    "test:stress:client": "cd mosaic-client && npm run test:stress",
+    "test:stress:runtime": "playwright test tests/e2e/preview-runtime-stress.spec.ts --project=chromium --workers=1",
     "test:ci": "npm run test:unit:client && cd server && npx tsx --test utils/*.test.ts services/proxy.service.test.ts services/tunnel.service.test.ts routes/validation.integration.test.ts routes/watcher.routes.test.ts routes/inspect.integration.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
