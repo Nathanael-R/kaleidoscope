@@ -2,7 +2,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { devices, type Device } from "@/lib/devices";
 import type { InspectSelectionPayload } from "@/lib/inspect";
-import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
+import { kaleidoscopeFetch, resolveKaleidoscopeApiUrl } from "@/lib/kaleidoscope-api";
 import { cn } from "@/lib/utils";
 import { ArrowLeftFromLine, Camera, Crosshair, Expand, Loader2, Menu, Move, RefreshCw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import DeviceFrame from "./device-frame";
@@ -193,7 +193,7 @@ export default function PreviewArea({
       const targets = screenshots.filter((shot) => shot.url && !shot.path.startsWith('ERROR:'));
       await Promise.all(
         targets.map(async (shot) => {
-          const response = await fetch(shot.url as string);
+          const response = await fetch(resolveKaleidoscopeApiUrl(shot.url as string));
           if (!response.ok) {
             throw new Error(`Failed to download ${shot.url}`);
           }
@@ -221,8 +221,7 @@ export default function PreviewArea({
       const devices = viewMode === 'comparison' && pinnedDevices.length > 0
         ? pinnedDevices.map(d => d.id)
         : [selectedDevice.id];
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await kaleidoscopeFetch(`${apiUrl}/api/screenshots`, {
+      const res = await kaleidoscopeFetch(resolveKaleidoscopeApiUrl('/api/screenshots'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: proxyUrl || currentUrl, devices }),

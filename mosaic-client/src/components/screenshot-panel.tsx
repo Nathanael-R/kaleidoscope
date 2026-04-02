@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Download, Loader2, CheckCircle, XCircle } from "lucide-react";
-import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
+import { kaleidoscopeFetch, resolveKaleidoscopeApiUrl } from "@/lib/kaleidoscope-api";
 import { devices } from "@/lib/devices";
 
 interface ScreenshotResult {
@@ -39,8 +39,6 @@ const DEVICE_OPTIONS = devices.map(device => ({
   name: device.name,
   type: device.type,
 }));
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPanelProps) {
   const [selectedDevices, setSelectedDevices] = useState<string[]>([
@@ -86,7 +84,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       const targets = screenshots.filter((shot) => shot.url && !shot.path.startsWith("ERROR:"));
       await Promise.all(
         targets.map(async (shot) => {
-          const response = await fetch(shot.url as string);
+          const response = await fetch(resolveKaleidoscopeApiUrl(shot.url as string));
           if (!response.ok) {
             throw new Error(`Failed to download ${shot.url}`);
           }
@@ -116,7 +114,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     setSaveNote(null);
 
     try {
-      const res = await kaleidoscopeFetch(`${API_BASE}/api/screenshots`, {
+      const res = await kaleidoscopeFetch(resolveKaleidoscopeApiUrl('/api/screenshots'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
