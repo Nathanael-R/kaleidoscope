@@ -2,6 +2,47 @@
 
 Responsive preview tooling for local and public web apps. Load a URL once, inspect it across multiple device profiles, capture screenshots, tunnel local sites, and use the MCP server to automate the flow.
 
+<p align="center">
+  <img src="assets/readme/overview-local-dev.png" alt="Kaleidoscope preview workspace showing local development mode and an iPhone preview frame" width="100%" />
+</p>
+
+## Visual Tour
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/screenshot-panel.png" alt="Screenshot capture panel with multiple device targets selected" />
+      <br />
+      <strong>Capture multiple devices in one pass</strong>
+      <br />
+      Queue mobile, tablet, and desktop screenshots from the sidebar without leaving the preview workflow.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/four-device-comparison.png" alt="Desktop comparison view showing four responsive device previews side by side" />
+      <br />
+      <strong>Compare layouts side by side</strong>
+      <br />
+      Pin devices and inspect how the same page behaves across very different breakpoints.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/mobile-comparison-stack.png" alt="Mobile-stacked comparison layout for narrow screens" />
+      <br />
+      <strong>Use it comfortably on narrow screens</strong>
+      <br />
+      Comparison mode falls back to a stacked layout so the workspace stays usable on smaller displays.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/overview-local-dev.png" alt="Main Kaleidoscope workspace with local development URL mode enabled" />
+      <br />
+      <strong>Local-first preview workflow</strong>
+      <br />
+      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, screenshots, or performance checks.
+    </td>
+  </tr>
+</table>
+
 ## What It Does
 
 Kaleidoscope currently ships these product surfaces:
@@ -116,6 +157,66 @@ Example MCP config:
 ```
 
 Leave `KALEIDOSCOPE_SERVER_URL` unset for local development. The MCP server defaults to `http://localhost:5000` when the API is running on the same machine.
+
+### Claude Code
+
+Claude Code can run Kaleidoscope as a local stdio MCP server.
+
+Windows:
+
+```bash
+claude mcp add --transport stdio kaleidoscope --scope project -- cmd /c npx tsx src/index.ts
+```
+
+Then set the working directory and optional API URL in `.mcp.json` at the repo root:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "cmd",
+      "args": ["/c", "npx", "tsx", "src/index.ts"],
+      "cwd": "c:/Code/kaleidoscope/mcp-server",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+macOS or Linux:
+
+```bash
+claude mcp add --transport stdio kaleidoscope --scope project -- npx tsx src/index.ts
+```
+
+Then use the same `.mcp.json` shape, but with `command: "npx"` and `args: ["tsx", "src/index.ts"]`.
+
+### Codex
+
+Codex can also run Kaleidoscope as a local stdio MCP server.
+
+Add this to `.codex/config.toml` in the repo or your user config:
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "npx"
+args = ["tsx", "src/index.ts"]
+cwd = "c:/Code/kaleidoscope/mcp-server"
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+```
+
+If you prefer the CLI, add it like this and then adjust `cwd` in `config.toml` afterward:
+
+```bash
+codex mcp add kaleidoscope -- npx tsx src/index.ts
+```
 
 Core tools:
 
