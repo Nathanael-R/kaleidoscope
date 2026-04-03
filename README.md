@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/Kal%20new%20logo.png" alt="Kaleidoscope logo" width="148" />
+</p>
+
 # Kaleidoscope
 
 Responsive preview tooling for local and public web apps. Load a URL once, inspect it across multiple device profiles, capture screenshots, tunnel local sites, and use the MCP server to automate the flow.

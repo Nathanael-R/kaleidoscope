@@ -1,3 +1,7 @@
+<p align="center">
+	<img src="../assets/Kal%20new%20logo.png" alt="Kaleidoscope logo" width="128" />
+</p>
+
 # Kaleidoscope Client
 
 This package contains the React and Vite frontend for Kaleidoscope.

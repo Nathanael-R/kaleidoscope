@@ -1,4 +1,4 @@
-import { Smartphone, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePreviewStore } from "@/store/preview-store";
 import { useState } from "react";
@@ -23,12 +23,16 @@ export default function Header() {
     >
       <div className="flex items-center justify-between h-16 px-5">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center transition-transform duration-200 hover:scale-110 hover:shadow-md cursor-pointer">
-            <Smartphone className="text-white w-4 h-4" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 shadow-sm transition-transform duration-200 hover:scale-105 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-100">
+            <img
+              src="/branding/kal-logo.png"
+              alt="Kaleidoscope logo"
+              className="h-8 w-8 object-contain"
+            />
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <span className="text-xl font-semibold leading-none text-gray-900 dark:text-white">
             Kaleidoscope
-          </h1>
+          </span>
         </div>
         <div className="flex items-center space-x-4">
           <Button
