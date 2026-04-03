@@ -237,7 +237,7 @@ export default function Sidebar({
         "overflow-hidden border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800",
         "transition-[width,transform,box-shadow] duration-300 ease-out",
         isCollapsed
-          ? "relative z-20 h-full w-14"
+          ? "relative z-20 h-full w-14 shrink-0"
           : "fixed inset-x-0 bottom-0 top-16 z-40 shadow-xl md:relative md:inset-auto md:h-full md:w-80 md:shadow-none",
       )}
       role="complementary"

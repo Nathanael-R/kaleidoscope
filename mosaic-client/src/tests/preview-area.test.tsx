@@ -6,6 +6,7 @@ import { devices } from '@/lib/devices';
 const iphone = devices.find(d => d.id === 'iphone-14')!;
 const ipad = devices.find(d => d.id === 'ipad')!;
 const desktop = devices.find(d => d.id === 'desktop')!;
+const originalInnerWidth = window.innerWidth;
 
 let fullscreenElement: Element | null = null;
 const requestFullscreenMock = vi.fn(() => {
@@ -49,6 +50,11 @@ describe('PreviewArea', () => {
   afterEach(() => {
     fullscreenElement = null;
     document.dispatchEvent(new Event('fullscreenchange'));
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: originalInnerWidth,
+    });
   });
 
   describe('single mode', () => {
@@ -238,6 +244,27 @@ describe('PreviewArea', () => {
       );
 
       expect(screen.getByText('Drag devices to reposition')).toBeInTheDocument();
+    });
+
+    it('uses a stacked comparison layout on narrow viewports', () => {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        writable: true,
+        value: 700,
+      });
+
+      render(
+        <PreviewArea
+          {...defaultProps}
+          viewMode="comparison"
+          pinnedDevices={[iphone, ipad]}
+        />
+      );
+
+      expect(screen.getByTestId('comparison-device-stack')).toBeInTheDocument();
+      expect(screen.getAllByTestId('preview-iframe')).toHaveLength(2);
+      expect(screen.queryByText('Drag devices to reposition')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-reset-positions')).not.toBeInTheDocument();
     });
   });
 

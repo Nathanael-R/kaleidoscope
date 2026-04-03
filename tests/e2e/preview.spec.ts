@@ -155,6 +155,39 @@ test.describe('Device Interaction', () => {
     await expect(comparisonView).toBeVisible();
   });
 
+  test('should keep preview visible on narrow viewports', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('button-expand-sidebar')).toBeVisible();
+    await expect(page.getByTestId('preview-area')).toBeVisible();
+
+    await page.getByTestId('button-expand-sidebar').click();
+    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('button-load-url').click();
+    await expect(page.getByTestId('preview-iframe')).toBeVisible();
+  });
+
+  test('should keep comparison devices visible on narrow viewports', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await page.getByTestId('button-expand-sidebar').click();
+    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('button-load-url').click();
+    await expect(page.getByTestId('preview-iframe')).toBeVisible();
+
+    await page.getByTestId('pin-iphone-14').click();
+    await page.getByTestId('pin-ipad').click();
+    await page.getByTestId('button-toggle-comparison').click();
+
+    await expect(page.getByTestId('comparison-device-stack')).toBeVisible();
+    await expect(page.getByTestId('preview-iframe').first()).toBeVisible();
+    await expect(page.locator('[data-testid="preview-iframe"]')).toHaveCount(2);
+  });
+
   test('should avoid document-level vertical overflow on the flow workspace', async ({ page }) => {
     await page.goto('/flows');
     await page.waitForLoadState('networkidle');

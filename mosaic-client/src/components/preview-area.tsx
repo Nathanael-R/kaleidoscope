@@ -60,6 +60,9 @@ export default function PreviewArea({
   const [singlePreviewBounds, setSinglePreviewBounds] = React.useState({ width: 0, height: 0 });
   const [isCanvasDropActive, setIsCanvasDropActive] = React.useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [viewportWidth, setViewportWidth] = React.useState(() =>
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
+  );
   const [fullscreenTransition, setFullscreenTransition] = React.useState<'entering' | 'exiting' | null>(null);
   const fullscreenAnimationTimeoutRef = React.useRef<number | null>(null);
 
@@ -373,6 +376,36 @@ export default function PreviewArea({
   }, [frameWidth, singlePreviewBounds.width, viewMode]);
 
   const effectiveSingleScale = React.useMemo(() => fitScale * scale, [fitScale, scale]);
+  const isCompactComparisonViewport = viewportWidth < 720;
+
+  const getComparisonScale = React.useCallback((device: Device) => {
+    if (!isCompactComparisonViewport) {
+      return pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7);
+    }
+
+    const { frameWidth } = getDeviceFrameMetrics(device, isLandscape);
+    const availableWidth = Math.max(viewportWidth - 96, 220);
+    const fittedScale = availableWidth / frameWidth;
+
+    return Math.max(0.18, Math.min(scale, fittedScale, 0.55));
+  }, [isCompactComparisonViewport, isLandscape, pinnedDevices.length, scale, viewportWidth]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const updateViewportWidth = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    updateViewportWidth();
+    window.addEventListener('resize', updateViewportWidth);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportWidth);
+    };
+  }, []);
 
   return (
     <main
@@ -507,7 +540,10 @@ export default function PreviewArea({
       ) : (
         <div className="space-y-8">
           {/* Comparison Controls */}
-          <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className={cn(
+            "bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700",
+            isCompactComparisonViewport ? 'space-y-3' : 'flex items-center justify-between',
+          )}>
             <div className="flex items-center space-x-4">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Comparing {pinnedDevices.length} devices
@@ -524,9 +560,11 @@ export default function PreviewArea({
                 </Button>
               )}
             </div>
-            <span className="text-xs text-gray-500">
-              Drag to reposition
-            </span>
+            {!isCompactComparisonViewport && (
+              <span className="text-xs text-gray-500">
+                Drag to reposition
+              </span>
+            )}
           </div>
 
           {pinnedDevices.length === 0 ? (
@@ -556,6 +594,47 @@ export default function PreviewArea({
                 <kbd className="px-2 py-1 bg-gray-100 rounded">C</kbd>
                 <span>to toggle comparison mode</span>
               </div>
+            </div>
+          ) : isCompactComparisonViewport ? (
+            <div className="space-y-6" data-testid="comparison-device-stack">
+              {pinnedDevices.map((device) => (
+                <div
+                  key={device.id}
+                  className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:p-4"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">
+                        {getDeviceIcon(device.icon)}
+                      </span>
+                      <div>
+                        <h4 className="font-medium text-gray-900 dark:text-gray-100">{device.name}</h4>
+                        <p className="text-xs text-gray-500">{device.width} × {device.height}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDevicePin(device)}
+                      className="w-8 h-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      data-testid={`remove-pin-${device.id}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex justify-center overflow-x-auto py-2">
+                    <DeviceFrame
+                      device={device}
+                      url={currentUrl}
+                      proxyUrl={proxyUrl}
+                      isLandscape={isLandscape}
+                      scale={getComparisonScale(device)}
+                      reloadTrigger={reloadTrigger + localReloadTrigger}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div 
@@ -630,7 +709,7 @@ export default function PreviewArea({
                         url={currentUrl}
                         proxyUrl={proxyUrl}
                         isLandscape={isLandscape}
-                        scale={pinnedDevices.length === 1 ? scale : Math.min(scale, 0.7)}
+                        scale={getComparisonScale(device)}
                         reloadTrigger={reloadTrigger + localReloadTrigger}
                       />
                     </div>

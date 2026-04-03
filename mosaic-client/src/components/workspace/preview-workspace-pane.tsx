@@ -33,7 +33,7 @@ export default function PreviewWorkspacePane({
   reloadTrigger,
 }: PreviewWorkspaceController) {
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col md:flex-row">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <Sidebar
         selectedDevice={selectedDevice}
         onDeviceSelect={handleDeviceSelect}
@@ -59,7 +59,7 @@ export default function PreviewWorkspacePane({
         onInspectSourceDirChange={setInspectSourceDir}
         onToggleInspect={handleToggleInspect}
       />
-      <div id="preview-content" className="flex min-h-0 min-w-0 flex-1">
+      <div id="preview-content" className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <PreviewArea
           selectedDevice={selectedDevice}
           currentUrl={currentUrl}
