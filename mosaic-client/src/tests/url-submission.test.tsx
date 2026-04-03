@@ -25,25 +25,31 @@ function createWrapper() {
 
 describe('URL submission', () => {
   const defaultProps = {
-    selectedDevice: devices[0],
-    onDeviceSelect: vi.fn(),
-    currentUrl: '',
-    onUrlChange: vi.fn(),
-    onLoadUrl: vi.fn(),
+    deviceControls: {
+      selectedDevice: devices[0],
+      onDeviceSelect: vi.fn(),
+      pinnedDevices: [] as typeof devices,
+      onDevicePin: vi.fn(),
+    },
+    previewControls: {
+      currentUrl: '',
+      onUrlChange: vi.fn(),
+      onLoadUrl: vi.fn(),
+      viewMode: 'single' as const,
+      onViewModeToggle: vi.fn(),
+    },
+    inspectControls: {
+      enabled: false,
+      pending: false,
+      resolving: false,
+      result: null,
+      error: null,
+      sourceDir: '',
+      onSourceDirChange: vi.fn(),
+      onToggle: vi.fn(),
+    },
     isCollapsed: false,
     onToggleCollapse: vi.fn(),
-    pinnedDevices: [] as typeof devices,
-    onDevicePin: vi.fn(),
-    viewMode: 'single' as const,
-    onViewModeToggle: vi.fn(),
-    inspectEnabled: false,
-    inspectPending: false,
-    inspectResolving: false,
-    inspectResult: null,
-    inspectError: null,
-    inspectSourceDir: '',
-    onInspectSourceDirChange: vi.fn(),
-    onToggleInspect: vi.fn(),
   };
 
   beforeEach(() => {
@@ -69,9 +75,9 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('https://beautifulteachers.com');
-      expect(defaultProps.onUrlChange).toHaveBeenCalledWith('https://beautifulteachers.com');
-      expect(defaultProps.onLoadUrl).not.toHaveBeenCalledWith('https://www.beautifulteachers.com');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('https://beautifulteachers.com');
+      expect(defaultProps.previewControls.onUrlChange).toHaveBeenCalledWith('https://beautifulteachers.com');
+      expect(defaultProps.previewControls.onLoadUrl).not.toHaveBeenCalledWith('https://www.beautifulteachers.com');
     });
 
     it('keeps http:// URLs unchanged', () => {
@@ -83,7 +89,7 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('keeps https:// URLs unchanged', () => {
@@ -95,7 +101,7 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('https://mysite.com/dashboard');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('https://mysite.com/dashboard');
     });
 
     it('uses http:// for localhost targets in local mode', () => {
@@ -107,8 +113,8 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
-      expect(defaultProps.onUrlChange).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onUrlChange).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('turns a bare local port into a localhost URL in local mode', () => {
@@ -119,7 +125,7 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('passes a normalized local URL into the screenshot panel', async () => {
@@ -143,7 +149,7 @@ describe('URL submission', () => {
       fireEvent.change(input, { target: { value: 'http://localhost:3000' } });
       fireEvent.keyDown(input, { key: 'Enter' });
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('submits URL when arrow button is clicked', () => {
@@ -154,7 +160,7 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('does not submit empty URL', () => {
@@ -162,7 +168,7 @@ describe('URL submission', () => {
 
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).not.toHaveBeenCalled();
+      expect(defaultProps.previewControls.onLoadUrl).not.toHaveBeenCalled();
     });
 
     it('trims whitespace from URL before submitting', () => {
@@ -173,7 +179,7 @@ describe('URL submission', () => {
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
     });
   });
 
@@ -208,8 +214,8 @@ describe('URL submission', () => {
       fireEvent.click(screen.getByTestId('recent-url-0'));
 
       // onLoadUrl should be called twice: once for submit, once for recent click
-      expect(defaultProps.onLoadUrl).toHaveBeenCalledTimes(2);
-      expect(defaultProps.onLoadUrl).toHaveBeenLastCalledWith('http://localhost:3000');
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledTimes(2);
+      expect(defaultProps.previewControls.onLoadUrl).toHaveBeenLastCalledWith('http://localhost:3000');
     });
   });
 

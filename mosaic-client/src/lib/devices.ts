@@ -13,8 +13,19 @@ export interface Device {
 
 export const devices: Device[] = DEVICES.map(device => ({ ...device }));
 
+const DEVICE_ICON_GLYPHS: Record<string, string> = {
+  'mobile-alt': '📱',
+  'tablet-alt': '📟',
+  laptop: '💻',
+  desktop: '🖥️',
+};
+
 export const getDeviceById = (id: string): Device | undefined => {
   return devices.find(device => device.id === id);
+};
+
+export const getDeviceIconGlyph = (iconName: string): string => {
+  return DEVICE_ICON_GLYPHS[iconName] || '📱';
 };
 
 export const getDevicesByCategory = () => {

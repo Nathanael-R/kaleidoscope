@@ -35,29 +35,35 @@ export default function PreviewWorkspacePane({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <Sidebar
-        selectedDevice={selectedDevice}
-        onDeviceSelect={handleDeviceSelect}
-        currentUrl={currentUrl}
-        onUrlChange={handleUrlChange}
-        onLoadUrl={handleLoadUrl}
+        deviceControls={{
+          selectedDevice,
+          onDeviceSelect: handleDeviceSelect,
+          pinnedDevices,
+          onDevicePin: handleDevicePin,
+        }}
+        previewControls={{
+          currentUrl,
+          onUrlChange: handleUrlChange,
+          onLoadUrl: handleLoadUrl,
+          viewMode,
+          onViewModeToggle: handleViewModeToggle,
+          onReload: handleReload,
+          onAuthCapture: handleAuthCapture,
+          onProxyUrl: handleProxyUrl,
+          proxyUrl,
+        }}
+        inspectControls={{
+          enabled: inspectEnabled,
+          pending: inspectPending,
+          resolving: inspectResolving,
+          result: inspectResult,
+          error: inspectError,
+          sourceDir: inspectSourceDir,
+          onSourceDirChange: setInspectSourceDir,
+          onToggle: handleToggleInspect,
+        }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
-        pinnedDevices={pinnedDevices}
-        onDevicePin={handleDevicePin}
-        viewMode={viewMode}
-        onViewModeToggle={handleViewModeToggle}
-        onReload={handleReload}
-        onAuthCapture={handleAuthCapture}
-        onProxyUrl={handleProxyUrl}
-        proxyUrl={proxyUrl}
-        inspectEnabled={inspectEnabled}
-        inspectPending={inspectPending}
-        inspectResolving={inspectResolving}
-        inspectResult={inspectResult}
-        inspectError={inspectError}
-        inspectSourceDir={inspectSourceDir}
-        onInspectSourceDirChange={setInspectSourceDir}
-        onToggleInspect={handleToggleInspect}
       />
       <div id="preview-content" className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <PreviewArea

@@ -6,7 +6,7 @@
  * Tests HOW the feature should work, not implementation details.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PreviewArea from '@/components/preview-area';
 import DeviceFrame from '@/components/device-frame';
 import { devices } from '@/lib/devices';
@@ -17,10 +17,28 @@ const desktop = devices.find(d => d.id === 'desktop')!;
 
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
+const showDirectoryPickerMock = vi.fn();
+const directoryHandleMock = {
+  queryPermission: vi.fn().mockResolvedValue('granted'),
+  requestPermission: vi.fn().mockResolvedValue('granted'),
+  getFileHandle: vi.fn().mockResolvedValue({
+    createWritable: vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    }),
+  }),
+};
+
+Object.defineProperty(window, 'showDirectoryPicker', {
+  configurable: true,
+  writable: true,
+  value: showDirectoryPickerMock,
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+  showDirectoryPickerMock.mockResolvedValue(directoryHandleMock);
   // Mock alert for screenshot tests
   vi.spyOn(window, 'alert').mockImplementation(() => {});
 });
@@ -314,6 +332,38 @@ describe('Device preview flow', () => {
       );
 
       expect(screen.queryByTestId('button-expand-sidebar-floating')).not.toBeInTheDocument();
+    });
+
+    it('should capture screenshots from the toolbar using the shared save flow', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            screenshots: [
+              { device: 'iPhone 14', path: '/screenshots/iphone.png', url: '/api/screenshots-files/iphone.png' },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(['image-bytes'])),
+        });
+
+      render(
+        <PreviewArea
+          selectedDevice={iphone}
+          currentUrl="http://localhost:3000"
+          pinnedDevices={[]}
+          viewMode="single"
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('button-screenshot'));
+
+      await waitFor(() => {
+        expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+        expect(window.alert).toHaveBeenCalledWith('Downloaded 1 screenshot(s).');
+      });
     });
   });
 });

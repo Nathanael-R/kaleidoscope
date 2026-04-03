@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRecentUrls } from "@/hooks/use-recent-urls";
-import { devices, getDevicesByCategory, type Device } from "@/lib/devices";
+import { devices, getDeviceIconGlyph, getDevicesByCategory, type Device } from "@/lib/devices";
 import {
   detectPreviewTargetMode,
   normalizePreviewUrl,
@@ -24,29 +24,35 @@ const PerformancePanel = lazy(() => import("@/components/performance-panel"));
 const InspectPanel = lazy(() => import("@/components/inspect-panel"));
 
 interface SidebarProps {
-  selectedDevice: Device;
-  onDeviceSelect: (device: Device) => void;
-  currentUrl: string;
-  onUrlChange: (url: string) => void;
-  onLoadUrl: (url: string) => void;
+  deviceControls: {
+    selectedDevice: Device;
+    onDeviceSelect: (device: Device) => void;
+    pinnedDevices: Device[];
+    onDevicePin: (device: Device) => void;
+  };
+  previewControls: {
+    currentUrl: string;
+    onUrlChange: (url: string) => void;
+    onLoadUrl: (url: string) => void;
+    viewMode: 'single' | 'comparison';
+    onViewModeToggle: () => void;
+    onReload?: () => void;
+    onAuthCapture?: (cookies: AuthCookie[]) => void;
+    onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
+    proxyUrl?: string | null;
+  };
+  inspectControls: {
+    enabled: boolean;
+    pending: boolean;
+    resolving: boolean;
+    result: InspectResult | null;
+    error: string | null;
+    sourceDir: string;
+    onSourceDirChange: (value: string) => void;
+    onToggle: () => void;
+  };
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  pinnedDevices: Device[];
-  onDevicePin: (device: Device) => void;
-  viewMode: 'single' | 'comparison';
-  onViewModeToggle: () => void;
-  onReload?: () => void;
-  onAuthCapture?: (cookies: AuthCookie[]) => void;
-  onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
-  proxyUrl?: string | null;
-  inspectEnabled: boolean;
-  inspectPending: boolean;
-  inspectResolving: boolean;
-  inspectResult: InspectResult | null;
-  inspectError: string | null;
-  inspectSourceDir: string;
-  onInspectSourceDirChange: (value: string) => void;
-  onToggleInspect: () => void;
 }
 
 /** Collapsible section wrapper */
@@ -101,30 +107,34 @@ function SectionLoadingFallback({ label }: { label: string }) {
 }
 
 export default function Sidebar({
-  selectedDevice,
-  onDeviceSelect,
-  currentUrl,
-  onUrlChange,
-  onLoadUrl,
+  deviceControls,
+  previewControls,
+  inspectControls,
   isCollapsed,
   onToggleCollapse,
-  pinnedDevices,
-  onDevicePin,
-  viewMode,
-  onViewModeToggle,
-  onReload,
-  onAuthCapture,
-  onProxyUrl,
-  proxyUrl,
-  inspectEnabled,
-  inspectPending,
-  inspectResolving,
-  inspectResult,
-  inspectError,
-  inspectSourceDir,
-  onInspectSourceDirChange,
-  onToggleInspect,
 }: SidebarProps) {
+  const { selectedDevice, onDeviceSelect, pinnedDevices, onDevicePin } = deviceControls;
+  const {
+    currentUrl,
+    onUrlChange,
+    onLoadUrl,
+    viewMode,
+    onViewModeToggle,
+    onReload,
+    onAuthCapture,
+    onProxyUrl,
+    proxyUrl,
+  } = previewControls;
+  const {
+    enabled: inspectEnabled,
+    pending: inspectPending,
+    resolving: inspectResolving,
+    result: inspectResult,
+    error: inspectError,
+    sourceDir: inspectSourceDir,
+    onSourceDirChange: onInspectSourceDirChange,
+    onToggle: onToggleInspect,
+  } = inspectControls;
   const [urlInput, setUrlInput] = useState("");
   const [urlMode, setUrlMode] = useState<PreviewTargetMode>('local');
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -210,16 +220,6 @@ export default function Sidebar({
     onUrlChange(url);
   };
 
-  const getDeviceIcon = (iconName: string) => {
-    const iconMap: Record<string, string> = {
-      'mobile-alt': '📱',
-      'tablet-alt': '📟',
-      'laptop': '💻',
-      'desktop': '🖥️'
-    };
-    return iconMap[iconName] || '📱';
-  };
-
   const handleDeviceDragStart = (event: React.DragEvent<HTMLElement>, device: Device) => {
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('application/x-kaleidoscope-device', device.id);
@@ -281,7 +281,7 @@ export default function Sidebar({
               data-testid={`device-${device.id}-collapsed`}
               title={device.name}
             >
-              <span className="text-sm">{getDeviceIcon(device.icon)}</span>
+              <span className="text-sm">{getDeviceIconGlyph(device.icon)}</span>
             </Button>
           ))}
         </div>
@@ -482,7 +482,7 @@ export default function Sidebar({
                   key={device.id}
                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 text-[10px] rounded-full border border-orange-200 animate-badge-pop"
                 >
-                  {getDeviceIcon(device.icon)} {device.name}
+                  {getDeviceIconGlyph(device.icon)} {device.name}
                   <button
                     onClick={() => onDevicePin(device)}
                     className="text-orange-400 hover:text-orange-600 transition-colors duration-150 hover:scale-125"
@@ -535,7 +535,7 @@ export default function Sidebar({
                           role="option"
                           aria-selected={isSelected}
                         >
-                          <span className="text-base leading-none transition-transform duration-150 group-hover:scale-110">{getDeviceIcon(device.icon)}</span>
+                          <span className="text-base leading-none transition-transform duration-150 group-hover:scale-110">{getDeviceIconGlyph(device.icon)}</span>
                           <div className="flex-1 text-left min-w-0">
                             <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{device.name}</span>
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1.5">{device.width}x{device.height}</span>
