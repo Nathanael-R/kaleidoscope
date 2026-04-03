@@ -8,23 +8,9 @@ import {
 import {
   usePerformanceAudit,
   type DevicePerformanceResult,
-  type PerformanceIssue,
   type SourceHint,
-  type WebVitals,
 } from "@/hooks/use-performance-audit";
 import { cn } from "@/lib/utils";
-
-/* ------------------------------------------------------------------ */
-/*  Types mirroring the server response                                */
-/* ------------------------------------------------------------------ */
-
-interface DeviceConfig {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  type: "mobile" | "tablet" | "desktop";
-}
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
