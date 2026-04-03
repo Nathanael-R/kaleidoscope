@@ -2,37 +2,24 @@ import type { Page } from 'playwright-core';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { getSharedBrowser, closeSharedBrowser } from './browser.service.js';
-import { DEVICES } from '../../shared/devices.js';
+import {
+  DEVICE_IDS,
+  DEVICE_MAP,
+  getDeviceConfigs,
+  hasDeviceConfig,
+  type DeviceConfig,
+} from './device-catalog.js';
 
-interface DeviceConfig {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  type: 'mobile' | 'tablet' | 'desktop';
-}
+export const SCREENSHOT_DEVICE_MAP = DEVICE_MAP;
 
-export const SCREENSHOT_DEVICE_MAP: Record<string, DeviceConfig> = Object.fromEntries(
-  DEVICES.map(device => [
-    device.id,
-    {
-      id: device.id,
-      name: device.name,
-      width: device.width,
-      height: device.height,
-      type: device.type,
-    },
-  ])
-);
-
-export const SCREENSHOT_DEVICE_IDS = Object.keys(SCREENSHOT_DEVICE_MAP);
+export const SCREENSHOT_DEVICE_IDS = DEVICE_IDS;
 
 export function isValidScreenshotDeviceId(id: string): boolean {
-  return Object.prototype.hasOwnProperty.call(SCREENSHOT_DEVICE_MAP, id);
+  return hasDeviceConfig(id);
 }
 
 export function getScreenshotDevices(): DeviceConfig[] {
-  return Object.values(SCREENSHOT_DEVICE_MAP);
+  return getDeviceConfigs();
 }
 
 export interface ScreenshotRequest {
