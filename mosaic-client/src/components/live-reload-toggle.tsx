@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Wifi, WifiOff, Check, AlertCircle } from 'lucide-react';
-import { kaleidoscopeFetch } from '@/lib/kaleidoscope-api';
+import { useLiveReloadWatcher } from '@/hooks/use-live-reload-watcher';
 import { useSocket } from '@/hooks/use-socket';
 import { cn } from '@/lib/utils';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface LiveReloadToggleProps {
   onReload?: () => void;
@@ -15,7 +13,6 @@ interface LiveReloadToggleProps {
 export default function LiveReloadToggle({ onReload, className }: LiveReloadToggleProps) {
   const [enabled, setEnabled] = useState(false);
   const [lastReload, setLastReload] = useState<Date | null>(null);
-  const [watcherStarted, setWatcherStarted] = useState(false);
 
   const { isConnected, clientId } = useSocket({
     autoConnect: enabled,
@@ -25,54 +22,12 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
       onReload?.();
     },
   });
-  const watcherId = `live-reload-${clientId}`;
 
-  // Start the file watcher on the server when enabled + connected
-  useEffect(() => {
-    if (!enabled || !isConnected || watcherStarted) return;
-
-    // Determine watch path from the current URL (localhost projects)
-    // Default to cwd if we can't determine the path
-    const startWatcher = async () => {
-      try {
-        const res = await kaleidoscopeFetch(`${API_BASE}/api/watcher/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: watcherId,
-            eventClientId: clientId,
-            paths: ['src/**/*', 'public/**/*', '*.html', '*.css', '*.js', '*.ts', '*.tsx', '*.jsx'],
-          }),
-        });
-        if (res.ok) {
-          setWatcherStarted(true);
-          console.log('File watcher started on server');
-        }
-      } catch (err) {
-        console.error('Failed to start file watcher:', err);
-      }
-    };
-
-    startWatcher();
-  }, [clientId, enabled, isConnected, watcherId, watcherStarted]);
-
-  // Stop the watcher when disabled
-  useEffect(() => {
-    if (enabled) return;
-    if (!watcherStarted) return;
-
-    const stopWatcher = async () => {
-      try {
-        await kaleidoscopeFetch(`${API_BASE}/api/watcher/stop/${watcherId}`, { method: 'DELETE' });
-        setWatcherStarted(false);
-        console.log('File watcher stopped');
-      } catch {
-        // ignore — server may already be down
-      }
-    };
-
-    stopWatcher();
-  }, [enabled, watcherId, watcherStarted]);
+  useLiveReloadWatcher({
+    enabled,
+    isConnected,
+    clientId,
+  });
 
   const handleToggle = () => {
     setEnabled(!enabled);

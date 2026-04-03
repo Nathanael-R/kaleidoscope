@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import PerformancePanel from '@/components/performance-panel';
+import { renderWithQueryClient as render } from '@/tests/test-query-client';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

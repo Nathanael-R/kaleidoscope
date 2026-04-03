@@ -6,9 +6,10 @@
  * preview iframes remount.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import LiveReloadToggle from '@/components/live-reload-toggle';
 import type { SocketHookOptions } from '@/hooks/use-socket';
+import { renderWithQueryClient as render } from '@/tests/test-query-client';
 
 // --- Mocks ---
 

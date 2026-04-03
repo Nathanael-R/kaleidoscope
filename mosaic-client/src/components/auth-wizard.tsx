@@ -2,31 +2,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { kaleidoscopeFetch } from '@/lib/kaleidoscope-api';
 import { Lock, Check, AlertCircle, Plus, X, Key, Cookie, Loader2, Shield, Database, Trash2, RefreshCw } from 'lucide-react';
+import { useAuthProxy, type AuthCookie, type AuthHeader, type ProxySession } from '@/hooks/use-auth-proxy';
 import { isLikelyPublicHttpUrl } from '@/lib/url-input';
 import { cn } from '@/lib/utils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const AUTH_FAILURE_MESSAGE = 'Kaleidoscope could not confirm those cookies. The target still looks unauthenticated or redirected to login.';
 const AUTH_PROXY_SCOPE_MESSAGE = 'Auth proxy currently supports public HTTP/HTTPS URLs only. For local/private dev targets, preview directly or use a public tunnel URL.';
-
-export interface AuthCookie {
-  name: string;
-  value: string;
-}
-
-export interface AuthHeader {
-  name: string;
-  value: string;
-}
-
-export interface ProxySession {
-  id: string;
-  proxyUrl: string;
-  targetUrl: string;
-  authFailed: boolean;
-}
 
 interface AuthWizardProps {
   /** Called with cookies (legacy direct injection) */
@@ -43,36 +25,36 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   const [cookies, setCookies] = useState<AuthCookie[]>([{ name: '', value: '' }]);
   const [headers, setHeaders] = useState<AuthHeader[]>([{ name: '', value: '' }]);
   const [activeTab, setActiveTab] = useState<'simple' | 'advanced'>('simple');
-  const [proxyLoading, setProxyLoading] = useState(false);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [proxySession, setProxySession] = useState<ProxySession | null>(null);
   const [proxyError, setProxyError] = useState<string | null>(null);
   const [mockRoutes, setMockRoutes] = useState<Array<{ pattern: string; response: string }>>([
     { pattern: '', response: '' }
   ]);
   const [mockExpanded, setMockExpanded] = useState(false);
-  const [mockLoading, setMockLoading] = useState(false);
   const [mockSuccess, setMockSuccess] = useState<string | null>(null);
   const proxySupported = currentUrl ? isLikelyPublicHttpUrl(currentUrl) : false;
 
-  const fetchProxyStatus = async (sessionId: string) => {
-    const statusRes = await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${sessionId}/status`);
-    if (!statusRes.ok) {
-      const statusError = await statusRes.json() as { error?: string };
-      throw new Error(statusError.error || 'Failed to check proxy status');
+  const {
+    proxySession,
+    createProxySession,
+    refreshProxyStatus,
+    injectMocks,
+    clearMocks,
+    clearProxySession,
+    isCreatingProxy,
+    isCheckingStatus,
+    isInjectingMocks,
+  } = useAuthProxy();
+
+  const handleRefreshProxyStatus = async () => {
+    if (!proxySession) {
+      return null;
     }
 
-    return await statusRes.json() as { authFailed: boolean };
-  };
-
-  const refreshProxyStatus = async (sessionId: string) => {
-    setStatusLoading(true);
     try {
-      const status = await fetchProxyStatus(sessionId);
-
-      setProxySession(prev => prev && prev.id === sessionId
-        ? { ...prev, authFailed: status.authFailed }
-        : prev);
+      const status = await refreshProxyStatus();
+      if (!status) {
+        return null;
+      }
 
       if (status.authFailed) {
         setProxyError(AUTH_FAILURE_MESSAGE);
@@ -85,8 +67,6 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
     } catch (error) {
       setProxyError(error instanceof Error ? error.message : 'Failed to check proxy status');
       return null;
-    } finally {
-      setStatusLoading(false);
     }
   };
 
@@ -134,53 +114,27 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
       return;
     }
 
-    // If we have a URL and proxy callback, create a proxy session
     let failed = false;
     if (currentUrl) {
-      setProxyLoading(true);
       setProxyError(null);
 
       try {
-        const res = await kaleidoscopeFetch(`${API_URL}/api/proxy/session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: currentUrl, cookies: validCookies, headers: validHeaders }),
+        const session = await createProxySession({
+          url: currentUrl,
+          cookies: validCookies,
+          headers: validHeaders,
         });
 
-        if (!res.ok) {
-          const err = await res.json() as { error: string };
-          throw new Error(err.error);
-        }
-
-        const data = await res.json() as {
-          session: { id: string; proxyUrl: string; targetUrl: string };
-        };
-
-        // Probe the proxy to detect auth failures
-        await fetch(`${API_URL}${data.session.proxyUrl}/`, { redirect: 'manual' });
-
-        const status = await fetchProxyStatus(data.session.id);
-
-        const session: ProxySession = {
-          id: data.session.id,
-          proxyUrl: `${API_URL}${data.session.proxyUrl}`,
-          targetUrl: data.session.targetUrl,
-          authFailed: status.authFailed,
-        };
-
-        setProxySession(session);
         onAuthCapture(validCookies);
-        onProxyUrl(`${API_URL}${data.session.proxyUrl}/`, session);
+        onProxyUrl(`${session.proxyUrl}/`, session);
 
-        if (status.authFailed) {
+        if (session.authFailed) {
           setProxyError(AUTH_FAILURE_MESSAGE);
-          setMockExpanded(true); // Auto-show mock data panel on auth failure
+          setMockExpanded(true);
         }
       } catch (error) {
         setProxyError(error instanceof Error ? error.message : 'Failed to create proxy session');
         failed = true;
-      } finally {
-        setProxyLoading(false);
       }
     }
 
@@ -206,46 +160,21 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
     const validMocks = mockRoutes.filter(m => m.pattern && m.response);
     if (validMocks.length === 0) return;
 
-    setMockLoading(true);
     setMockSuccess(null);
 
     try {
-      const mocks = validMocks.map(m => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(m.response);
-        } catch {
-          parsed = m.response; // treat as string if not valid JSON
-        }
-        return { pattern: m.pattern, response: parsed };
-      });
-
-      const res = await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mocks }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json() as { error: string };
-        throw new Error(err.error);
-      }
-
-      const data = await res.json() as { mockCount: number };
+      const data = await injectMocks(validMocks);
       setMockSuccess(`${data.mockCount} mock route(s) active. Preview will use mock data for matching API calls.`);
-      // Trigger reload so iframe picks up mock data
       onProxyUrl?.(`${proxySession.proxyUrl}/`, proxySession);
     } catch (error) {
       setProxyError(error instanceof Error ? error.message : 'Failed to inject mock data');
-    } finally {
-      setMockLoading(false);
     }
   };
 
   const handleClearMocks = async () => {
     if (!proxySession) return;
     try {
-      await kaleidoscopeFetch(`${API_URL}/api/proxy/session/${proxySession.id}/mock`, { method: 'DELETE' });
+      await clearMocks();
       setMockSuccess(null);
       setMockRoutes([{ pattern: '', response: '' }]);
     } catch {
@@ -256,7 +185,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   const handleClear = () => {
     setCookies([{ name: '', value: '' }]);
     setHeaders([{ name: '', value: '' }]);
-    setProxySession(null);
+    clearProxySession();
     setProxyError(null);
     setMockRoutes([{ pattern: '', response: '' }]);
     setMockExpanded(false);
@@ -310,12 +239,12 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => refreshProxyStatus(proxySession.id)}
-              disabled={statusLoading}
+              onClick={handleRefreshProxyStatus}
+              disabled={isCheckingStatus}
               className="h-6 px-2 text-[11px]"
               data-testid="auth-recheck-button"
             >
-              {statusLoading ? (
+              {isCheckingStatus ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
                 <RefreshCw className="mr-1 h-3 w-3" />
@@ -398,15 +327,15 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                 <Button
                   size="sm"
                   onClick={handleInjectMocks}
-                  disabled={mockLoading || !mockRoutes.some(m => m.pattern && m.response)}
+                  disabled={isInjectingMocks || !mockRoutes.some(m => m.pattern && m.response)}
                   className="flex-1 h-7 text-xs"
                 >
-                  {mockLoading ? (
+                  {isInjectingMocks ? (
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   ) : (
                     <Database className="w-3 h-3 mr-1" />
                   )}
-                  {mockLoading ? 'Injecting...' : 'Inject Mocks'}
+                  {isInjectingMocks ? 'Injecting...' : 'Inject Mocks'}
                 </Button>
                 {mockSuccess && (
                   <Button
@@ -613,16 +542,16 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
           <div className="flex space-x-2 pt-2">
             <Button
               onClick={handleApply}
-              disabled={(!(hasValidCookies || hasValidHeaders)) || proxyLoading || (!!onProxyUrl && !proxySupported)}
+              disabled={(!(hasValidCookies || hasValidHeaders)) || isCreatingProxy || (!!onProxyUrl && !proxySupported)}
               className="flex-1"
               data-testid="auth-apply-button"
             >
-              {proxyLoading ? (
+              {isCreatingProxy ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Check className="w-4 h-4 mr-2" />
               )}
-              {proxyLoading ? 'Creating Proxy...' : 'Apply & Preview'}
+              {isCreatingProxy ? 'Creating Proxy...' : 'Apply & Preview'}
             </Button>
             <Button
               onClick={handleClear}

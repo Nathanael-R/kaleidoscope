@@ -5,40 +5,18 @@ import {
   Activity, Loader2, XCircle, ChevronDown, ChevronRight,
   AlertTriangle, Info, Zap, FileCode, FolderOpen,
 } from "lucide-react";
-import { kaleidoscopeFetch } from "@/lib/kaleidoscope-api";
+import {
+  usePerformanceAudit,
+  type DevicePerformanceResult,
+  type PerformanceIssue,
+  type SourceHint,
+  type WebVitals,
+} from "@/hooks/use-performance-audit";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
 /*  Types mirroring the server response                                */
 /* ------------------------------------------------------------------ */
-
-interface SourceHint {
-  file: string;
-  line: number;
-  code: string;
-  suggestion: string;
-}
-
-interface WebVitals {
-  fcp: number | null;
-  lcp: number | null;
-  cls: number | null;
-  ttfb: number | null;
-  domContentLoaded: number | null;
-  loadTime: number | null;
-  totalBytes: number;
-  requestCount: number;
-}
-
-interface PerformanceIssue {
-  type: string;
-  severity: "critical" | "warning" | "info";
-  message: string;
-  element?: string;
-  value?: string;
-  target?: string;
-  sourceHint?: SourceHint;
-}
 
 interface DeviceConfig {
   id: string;
@@ -46,20 +24,6 @@ interface DeviceConfig {
   width: number;
   height: number;
   type: "mobile" | "tablet" | "desktop";
-}
-
-interface DevicePerformanceResult {
-  device: DeviceConfig;
-  vitals: WebVitals;
-  issues: PerformanceIssue[];
-  score: number;
-}
-
-interface AuditResponse {
-  success: boolean;
-  url: string;
-  timestamp: string;
-  results: DevicePerformanceResult[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -76,8 +40,6 @@ const DEVICE_OPTIONS = [
   { id: "desktop", name: "Desktop HD", type: "desktop" },
   { id: "desktop-4k", name: "Desktop 4K", type: "desktop" },
 ] as const;
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -300,10 +262,14 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
     "ipad",
     "desktop",
   ]);
-  const [auditing, setAuditing] = useState(false);
-  const [results, setResults] = useState<DevicePerformanceResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [sourceDir, setSourceDir] = useState("");
+  const {
+    runPerformanceAudit,
+    resetPerformanceAudit,
+    results,
+    error,
+    isAuditing,
+  } = usePerformanceAudit();
 
   const toggleDevice = (id: string) => {
     setSelectedDevices((prev) =>
@@ -317,36 +283,16 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
   const runAudit = async () => {
     if (!currentUrl || selectedDevices.length === 0) return;
 
-    setAuditing(true);
-    setError(null);
-    setResults(null);
+    resetPerformanceAudit();
 
     try {
-      const body: Record<string, unknown> = {
+      await runPerformanceAudit({
         url: proxyUrl || currentUrl,
         devices: selectedDevices,
-      };
-      if (sourceDir.trim()) {
-        body.sourceDir = sourceDir.trim();
-      }
-
-      const res = await kaleidoscopeFetch(`${API_BASE}/api/performance/audit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        sourceDir: sourceDir.trim() || undefined,
       });
-
-      if (!res.ok) {
-        const data = (await res.json()) as { error: string };
-        throw new Error(data.error || "Audit failed");
-      }
-
-      const data = (await res.json()) as AuditResponse;
-      setResults(data.results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Performance audit failed");
-    } finally {
-      setAuditing(false);
+    } catch {
+      // Mutation state surfaces the error message in the panel.
     }
   };
 
@@ -414,12 +360,12 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
       {/* Run Button */}
       <Button
         onClick={runAudit}
-        disabled={auditing || !currentUrl || selectedDevices.length === 0}
+        disabled={isAuditing || !currentUrl || selectedDevices.length === 0}
         className="w-full"
         size="sm"
         data-testid="run-performance-audit"
       >
-        {auditing ? (
+        {isAuditing ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             Auditing {selectedDevices.length} device{selectedDevices.length !== 1 ? "s" : ""}...
