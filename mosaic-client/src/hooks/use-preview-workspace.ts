@@ -49,7 +49,7 @@ export function usePreviewWorkspace(
 ): PreviewWorkspaceController {
   const { keyboardNavigationEnabled = true } = options;
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]);
-  const { currentUrl, setCurrentUrl, proxyUrl, setProxyUrl } = usePreviewStore();
+  const { currentUrl, setCurrentUrl, proxyUrl } = usePreviewStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<"single" | "comparison">("single");
