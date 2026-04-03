@@ -29,7 +29,7 @@ function sanitizeOutputDir(outputDir: string | undefined): string {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { url, devices, outputDir, fullPage } = req.body as ScreenshotRequest;
+    const { url, devices, outputDir, fullPage, includeMockup } = req.body as ScreenshotRequest;
 
     if (!url || typeof url !== 'string') {
       return sendError(res, 400, 'url is required');
@@ -61,6 +61,7 @@ router.post('/', async (req: Request, res: Response) => {
       devices,
       outputDir: safeOutputDir,
       fullPage: fullPage ?? false,
+      includeMockup: includeMockup ?? false,
     });
 
     const screenshots = results.map((result) => {

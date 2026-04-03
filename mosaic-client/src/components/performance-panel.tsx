@@ -10,6 +10,7 @@ import {
   type DevicePerformanceResult,
   type SourceHint,
 } from "@/hooks/use-performance-audit";
+import { resolveKaleidoscopeApiUrl } from "@/lib/kaleidoscope-api";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -75,6 +76,41 @@ function severityIcon(severity: string) {
   if (severity === "critical") return <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
   if (severity === "warning") return <AlertTriangle className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
   return <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+}
+
+function CollapsiblePanelSection({
+  title,
+  badge,
+  children,
+  defaultOpen = true,
+  testId,
+}: {
+  title: string;
+  badge?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  testId?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid={testId}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+      >
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-200 flex-1">{title}</span>
+        {badge && (
+          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            {badge}
+          </span>
+        )}
+        <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">{children}</div>}
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -269,11 +305,13 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
   const runAudit = async () => {
     if (!currentUrl || selectedDevices.length === 0) return;
 
+    const auditUrl = proxyUrl ? resolveKaleidoscopeApiUrl(proxyUrl) : currentUrl;
+
     resetPerformanceAudit();
 
     try {
       await runPerformanceAudit({
-        url: proxyUrl || currentUrl,
+        url: auditUrl,
         devices: selectedDevices,
         sourceDir: sourceDir.trim() || undefined,
       });
@@ -294,19 +332,27 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
 
   return (
     <div className="space-y-3" data-testid="performance-panel">
-      {/* Device Selection */}
-      <div>
-        <div className="flex justify-end mb-2">
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" data-testid="performance-disclaimer">
+        Performance results are approximate and useful for quick comparisons, not final benchmarking. Validate important issues with dedicated tooling such as Lighthouse, Chrome DevTools, or WebPageTest.
+      </div>
+
+      <CollapsiblePanelSection
+        title="Devices"
+        badge={`${selectedDevices.length}/${DEVICE_OPTIONS.length}`}
+        testId="perf-device-section"
+      >
+        <div className="mb-2 flex justify-end">
           <div className="flex gap-1">
-            <button onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">All</button>
+            <button type="button" onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">All</button>
             <span className="text-xs text-gray-400">|</span>
-            <button onClick={clearAll} className="text-xs text-blue-600 hover:text-blue-800">None</button>
+            <button type="button" onClick={clearAll} className="text-xs text-blue-600 hover:text-blue-800">None</button>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {DEVICE_OPTIONS.map((device) => (
             <button
               key={device.id}
+              type="button"
               onClick={() => toggleDevice(device.id)}
               className={`px-2 py-1 text-xs rounded-md border transition-colors ${
                 selectedDevices.includes(device.id)
@@ -319,7 +365,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
             </button>
           ))}
         </div>
-      </div>
+      </CollapsiblePanelSection>
 
       {/* Source Directory (optional) */}
       <div>

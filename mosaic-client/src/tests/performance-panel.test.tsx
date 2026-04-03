@@ -83,10 +83,20 @@ describe('PerformancePanel', () => {
   it('renders device selection and audit button', () => {
     render(<PerformancePanel currentUrl="http://localhost:3000" />);
 
+    expect(screen.getByTestId('performance-disclaimer')).toBeDefined();
+    expect(screen.getByTestId('perf-device-section')).toBeDefined();
     expect(screen.getByText('iPhone 14')).toBeDefined();
     expect(screen.getByText('iPad')).toBeDefined();
     expect(screen.getByText('Desktop HD')).toBeDefined();
     expect(screen.getByRole('button', { name: /run performance audit/i })).toBeDefined();
+  });
+
+  it('collapses the device accordion when toggled', () => {
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /devices/i }));
+
+    expect(screen.queryByTestId('perf-device-toggle-iphone-14')).toBeNull();
   });
 
   it('shows hint when no URL', () => {
@@ -206,15 +216,15 @@ describe('PerformancePanel', () => {
     });
   });
 
-  it('uses proxyUrl when available', async () => {
+  it('resolves proxyUrl to an absolute URL when available', async () => {
     mockFetch.mockResolvedValueOnce(makeAuditResponse());
 
-    render(<PerformancePanel currentUrl="http://localhost:3000" proxyUrl="http://localhost:5000/proxy/abc123/http://localhost:3000" />);
+    render(<PerformancePanel currentUrl="http://localhost:3000" proxyUrl="/api/proxy/abc123/" />);
     fireEvent.click(screen.getByTestId('run-performance-audit'));
 
     await waitFor(() => {
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.url).toBe('http://localhost:5000/proxy/abc123/http://localhost:3000');
+      expect(body.url).toBe('http://localhost:5000/api/proxy/abc123/');
     });
   });
 
@@ -311,5 +321,12 @@ describe('PerformancePanel', () => {
     render(<PerformancePanel currentUrl="http://localhost:3000" />);
 
     expect(screen.getByText('Add your project path to see exact source lines and suggested code fixes.')).toBeDefined();
+  });
+
+  it('renders performance disclaimer text', () => {
+    render(<PerformancePanel currentUrl="http://localhost:3000" />);
+
+    expect(screen.getByText(/Performance results are approximate/)).toBeDefined();
+    expect(screen.getByText(/Lighthouse, Chrome DevTools, or WebPageTest/)).toBeDefined();
   });
 });

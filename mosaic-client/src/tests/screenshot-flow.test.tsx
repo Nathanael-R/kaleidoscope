@@ -111,6 +111,33 @@ describe('Screenshot capture', () => {
       const captureBtn = screen.getByRole('button', { name: /Capture 0 Screenshots/ });
       expect(captureBtn).toBeDisabled();
     });
+
+    it('should send includeMockup when the option is enabled', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ screenshots: [] }),
+      });
+
+      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
+
+      fireEvent.click(screen.getByTestId('include-mockup-checkbox'));
+      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
+
+      await waitFor(() => {
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+        expect(body.includeMockup).toBe(true);
+        expect(body.fullPage).toBe(false);
+      });
+    });
+
+    it('should disable full page capture when mockups are enabled', () => {
+      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
+
+      fireEvent.click(screen.getByTestId('include-mockup-checkbox'));
+
+      expect(screen.getByLabelText('Full page capture')).toBeDisabled();
+      expect(screen.getByText(/Mockup captures use the visible device viewport/)).toBeInTheDocument();
+    });
   });
 
   describe('capturing with regular URL', () => {

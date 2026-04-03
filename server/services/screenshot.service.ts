@@ -1,4 +1,4 @@
-import type { Page } from 'playwright-core';
+import type { BrowserContext, Page } from 'playwright-core';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { getSharedBrowser, closeSharedBrowser } from './browser.service.js';
@@ -6,9 +6,11 @@ import {
   DEVICE_IDS,
   DEVICE_MAP,
   getDeviceConfigs,
+  getDeviceContextOptions,
   hasDeviceConfig,
   type DeviceConfig,
 } from './device-catalog.js';
+import { renderMockupScreenshot } from './screenshot-mockup.js';
 
 export const SCREENSHOT_DEVICE_MAP = DEVICE_MAP;
 
@@ -27,6 +29,7 @@ export interface ScreenshotRequest {
   devices: string[];
   outputDir: string;
   fullPage?: boolean;
+  includeMockup?: boolean;
 }
 
 export interface ScreenshotResult {
@@ -38,7 +41,7 @@ export interface ScreenshotResult {
 
 class ScreenshotService {
   async capture(request: ScreenshotRequest): Promise<ScreenshotResult[]> {
-    const { url, devices, outputDir, fullPage = false } = request;
+    const { url, devices, outputDir, fullPage = false, includeMockup = false } = request;
 
     // Ensure output directory exists
     const absDir = resolve(outputDir);
@@ -56,29 +59,44 @@ class ScreenshotService {
         continue;
       }
 
+      let context: BrowserContext | null = null;
       let page: Page | null = null;
       try {
-        page = await browser.newPage();
-        await page.setViewportSize({ width: config.width, height: config.height });
+        context = await browser.newContext(getDeviceContextOptions(config));
+        page = await context.newPage();
         await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
 
         // Small delay for final renders
         await page.waitForTimeout(500);
 
         const timestamp = Date.now();
-        const filename = `${config.id}-${timestamp}.png`;
+        const filename = `${config.id}-${timestamp}${includeMockup ? '-mockup' : ''}.png`;
         const filepath = join(absDir, filename);
 
-        await page.screenshot({
-          path: filepath,
-          fullPage,
-        });
+        let width = config.width;
+        let height = config.height;
+
+        if (includeMockup) {
+          const screenshotBuffer = await page.screenshot({
+            fullPage: false,
+            type: 'png',
+          });
+
+          const mockupSize = await renderMockupScreenshot(browser, config, screenshotBuffer, filepath);
+          width = mockupSize.width;
+          height = mockupSize.height;
+        } else {
+          await page.screenshot({
+            path: filepath,
+            fullPage,
+          });
+        }
 
         results.push({
           device: config.name,
           path: filepath,
-          width: config.width,
-          height: config.height,
+          width,
+          height,
         });
       } catch (error) {
         console.error(`Screenshot failed for ${config.name}:`, error);
@@ -90,6 +108,7 @@ class ScreenshotService {
         });
       } finally {
         if (page) await page.close();
+        if (context) await context.close();
       }
     }
 

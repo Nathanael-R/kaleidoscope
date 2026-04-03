@@ -163,6 +163,24 @@ test('POST /api/performance/audit rejects invalid device IDs with normalized err
   assert.ok(body.validDeviceIds.includes('iphone-14'));
 });
 
+test('POST /api/performance/audit allows loopback URLs and continues validation', async () => {
+  const { status, body } = await requestJson('/api/performance/audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://localhost:5173',
+      devices: ['not-a-real-device'],
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.equal(typeof body.error, 'string');
+  assert.match(body.error, /Invalid device IDs:/);
+  assert.equal(body.requestId, 'test-request-id');
+  assert.ok(Array.isArray(body.validDeviceIds));
+  assert.ok(body.validDeviceIds.includes('iphone-14'));
+});
+
 test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {
   const { status, body } = await requestJson('/api/inspect/session', {
     method: 'POST',

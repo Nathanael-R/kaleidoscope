@@ -1,6 +1,10 @@
-import type { Page } from 'playwright-core';
+import type { BrowserContext, Page } from 'playwright-core';
 import { getSharedBrowser } from './browser.service.js';
-import { DEVICE_MAP, type DeviceConfig } from './device-catalog.js';
+import {
+  DEVICE_MAP,
+  getDeviceContextOptions,
+  type DeviceConfig,
+} from './device-catalog.js';
 import { mapIssuesToSource, type SourceHint } from './source-mapper.service.js';
 
 export interface WebVitals {
@@ -460,10 +464,11 @@ class PerformanceService {
         continue;
       }
 
+      let context: BrowserContext | null = null;
       let page: Page | null = null;
       try {
-        page = await browser.newPage();
-        await page.setViewportSize({ width: config.width, height: config.height });
+        context = await browser.newContext(getDeviceContextOptions(config));
+        page = await context.newPage();
 
         // Navigate with networkidle to ensure all resources are loaded
         await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
@@ -516,6 +521,7 @@ class PerformanceService {
         });
       } finally {
         if (page) await page.close();
+        if (context) await context.close();
       }
     }
 

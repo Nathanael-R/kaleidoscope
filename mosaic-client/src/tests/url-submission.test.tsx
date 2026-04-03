@@ -220,12 +220,12 @@ describe('URL submission', () => {
   });
 
   describe('auth section visibility', () => {
-    it('hides auth wizard when no URL is entered', () => {
+    it('keeps auth wizard hidden when no URL is entered', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
       expect(screen.queryByTestId('auth-wizard-toggle')).not.toBeInTheDocument();
     });
 
-    it('shows auth wizard after URL is entered', async () => {
+    it('keeps auth wizard hidden after URL is entered', async () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
       fireEvent.change(screen.getByTestId('input-url'), {
@@ -233,7 +233,7 @@ describe('URL submission', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('auth-wizard-toggle')).toBeInTheDocument();
+        expect(screen.queryByTestId('auth-wizard-toggle')).not.toBeInTheDocument();
       }, { timeout: 5000 });
     });
   });

@@ -1,6 +1,5 @@
 import { Smartphone, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
 import { usePreviewStore } from "@/store/preview-store";
 import { useState } from "react";
 
@@ -9,7 +8,6 @@ const DARK_MODE_ANIMATION_DURATION = 350;
 
 export default function Header() {
   const { darkMode, toggleDarkMode } = usePreviewStore();
-  const [location] = useLocation();
   const [darkModeAnimating, setDarkModeAnimating] = useState(false);
 
   const handleDarkModeToggle = () => {
@@ -31,19 +29,6 @@ export default function Header() {
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
             Kaleidoscope
           </h1>
-          <nav className="flex items-center space-x-1 ml-6" aria-label="Main navigation">
-            <Link href="/">
-              <Button
-                variant={location === "/" ? "secondary" : "ghost"}
-                size="sm"
-                className="text-sm h-8 transition-all duration-150 active:scale-95"
-                aria-current={location === "/" ? "page" : undefined}
-              >
-                <Smartphone className="w-4 h-4 mr-1.5" />
-                <span className="hidden md:inline">Preview</span>
-              </Button>
-            </Link>
-          </nav>
         </div>
         <div className="flex items-center space-x-4">
           <Button

@@ -18,7 +18,6 @@ import type { InspectResult } from "@/lib/inspect";
 
 const TunnelButton = lazy(() => import("@/components/tunnel-button"));
 const LiveReloadToggle = lazy(() => import("@/components/live-reload-toggle"));
-const AuthWizard = lazy(() => import("@/components/auth-wizard"));
 const ScreenshotPanel = lazy(() => import("@/components/screenshot-panel"));
 const PerformancePanel = lazy(() => import("@/components/performance-panel"));
 const InspectPanel = lazy(() => import("@/components/inspect-panel"));
@@ -121,8 +120,6 @@ export default function Sidebar({
     viewMode,
     onViewModeToggle,
     onReload,
-    onAuthCapture,
-    onProxyUrl,
     proxyUrl,
   } = previewControls;
   const {
@@ -440,18 +437,6 @@ export default function Sidebar({
                 onToggle={onToggleInspect}
                 result={inspectResult}
                 error={inspectError}
-              />
-            </Suspense>
-          </Section>
-        )}
-
-        {hasUrlContext && (
-          <Section title="Authentication" icon={Globe} defaultOpen>
-            <Suspense fallback={<SectionLoadingFallback label="authentication tools" />}>
-              <AuthWizard
-                onAuthCapture={onAuthCapture || (() => {})}
-                onProxyUrl={onProxyUrl}
-                currentUrl={panelUrl}
               />
             </Suspense>
           </Section>

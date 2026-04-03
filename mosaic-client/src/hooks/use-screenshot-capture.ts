@@ -20,6 +20,7 @@ interface UseScreenshotCaptureOptions {
 interface CaptureScreenshotsOptions {
   devices: string[];
   fullPage?: boolean;
+  includeMockup?: boolean;
 }
 
 type ScreenshotCaptureCompleted<TScreenshot extends DownloadableScreenshot> = {
@@ -52,7 +53,7 @@ export function useScreenshotCapture<TScreenshot extends DownloadableScreenshot>
   const directoryHandleRef = useRef<FileSystemDirectoryHandleLike | null>(null);
 
   const captureScreenshots = useCallback(
-    async ({ devices, fullPage = false }: CaptureScreenshotsOptions): Promise<ScreenshotCaptureOutcome<TScreenshot>> => {
+    async ({ devices, fullPage = false, includeMockup = false }: CaptureScreenshotsOptions): Promise<ScreenshotCaptureOutcome<TScreenshot>> => {
       if (!currentUrl || devices.length === 0) {
         return { status: "aborted" };
       }
@@ -90,6 +91,7 @@ export function useScreenshotCapture<TScreenshot extends DownloadableScreenshot>
             url: proxyUrl || currentUrl,
             devices,
             fullPage,
+            includeMockup,
           }),
         });
 

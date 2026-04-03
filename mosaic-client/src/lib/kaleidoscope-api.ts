@@ -1,6 +1,6 @@
 export const KALEIDOSCOPE_CLIENT_HEADER_NAME = 'X-Kaleidoscope-Client';
 const KALEIDOSCOPE_CLIENT_HEADER_VALUE = 'mosaic-client';
-const CONFIGURED_API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const CONFIGURED_API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
 function isAbsoluteUrl(value: string): boolean {
   return /^[a-z][a-z\d+\-.]*:\/\//i.test(value);
@@ -14,10 +14,6 @@ export function withKaleidoscopeClientHeaders(headers?: HeadersInit): Headers {
 
 export function resolveKaleidoscopeApiUrl(pathOrUrl: string): string {
   if (isAbsoluteUrl(pathOrUrl)) {
-    return pathOrUrl;
-  }
-
-  if (!CONFIGURED_API_BASE) {
     return pathOrUrl;
   }
 
