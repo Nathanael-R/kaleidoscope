@@ -11,8 +11,49 @@ import ScreenshotPanel from '@/components/screenshot-panel';
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+const showDirectoryPickerMock = vi.fn();
+const directoryPermissionMock = vi.fn();
+const directoryHandleMock = {
+  queryPermission: vi.fn(),
+  requestPermission: directoryPermissionMock,
+  getFileHandle: vi.fn().mockResolvedValue({
+    createWritable: vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    }),
+  }),
+};
+
+Object.defineProperty(window, 'showDirectoryPicker', {
+  configurable: true,
+  writable: true,
+  value: showDirectoryPickerMock,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  showDirectoryPickerMock.mockReset();
+  directoryHandleMock.queryPermission.mockImplementation(function () {
+    if (this !== directoryHandleMock) {
+      throw new TypeError('Illegal invocation');
+    }
+
+    return Promise.resolve('prompt' satisfies PermissionState);
+  });
+  directoryPermissionMock.mockImplementation(function () {
+    if (this !== directoryHandleMock) {
+      throw new TypeError('Illegal invocation');
+    }
+
+    return Promise.resolve('granted' satisfies PermissionState);
+  });
+  directoryHandleMock.getFileHandle.mockResolvedValue({
+    createWritable: vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    }),
+  });
+  showDirectoryPickerMock.mockImplementation(() => Promise.resolve(directoryHandleMock));
 });
 
 describe('Screenshot capture', () => {
@@ -73,6 +114,64 @@ describe('Screenshot capture', () => {
   });
 
   describe('capturing with regular URL', () => {
+    it('should open the directory picker before requesting screenshots', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ screenshots: [] }),
+      });
+
+      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
+
+      await waitFor(() => {
+        expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+        expect(directoryPermissionMock).toHaveBeenCalledTimes(1);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      expect(showDirectoryPickerMock.mock.invocationCallOrder[0]).toBeLessThan(mockFetch.mock.invocationCallOrder[0]);
+      expect(directoryPermissionMock.mock.invocationCallOrder[0]).toBeLessThan(mockFetch.mock.invocationCallOrder[0]);
+    });
+
+    it('should stop before requesting screenshots when directory permission is denied', async () => {
+      directoryPermissionMock.mockResolvedValueOnce('denied');
+
+      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Permission to save screenshots was denied.')).toBeInTheDocument();
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should allow retrying after the picker is cancelled', async () => {
+      showDirectoryPickerMock.mockRejectedValueOnce(Object.assign(new Error('cancelled'), { name: 'AbortError' }));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ screenshots: [] }),
+      });
+
+      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
+
+      const captureButton = screen.getByRole('button', { name: /Capture 3 Screenshots/ });
+      fireEvent.click(captureButton);
+
+      await waitFor(() => {
+        expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      fireEvent.click(captureButton);
+
+      await waitFor(() => {
+        expect(showDirectoryPickerMock).toHaveBeenCalledTimes(2);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('should send the current URL to the screenshot API', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Download, Loader2, CheckCircle, XCircle } from "lucide-react";
-import { kaleidoscopeFetch, resolveKaleidoscopeApiUrl } from "@/lib/kaleidoscope-api";
 import { devices } from "@/lib/devices";
+import { useScreenshotCapture } from "@/hooks/use-screenshot-capture";
 
 interface ScreenshotResult {
   device: string;
@@ -17,23 +17,6 @@ interface ScreenshotPanelProps {
   proxyUrl?: string | null;
 }
 
-interface FileSystemWritableFileStreamLike {
-  write: (data: Blob) => Promise<void>;
-  close: () => Promise<void>;
-}
-
-interface FileSystemFileHandleLike {
-  createWritable: () => Promise<FileSystemWritableFileStreamLike>;
-}
-
-interface FileSystemDirectoryHandleLike {
-  getFileHandle: (name: string, options: { create: boolean }) => Promise<FileSystemFileHandleLike>;
-}
-
-type DirectoryPickerWindow = Window & typeof globalThis & {
-  showDirectoryPicker?: () => Promise<FileSystemDirectoryHandleLike>;
-};
-
 const DEVICE_OPTIONS = devices.map(device => ({
   id: device.id,
   name: device.name,
@@ -46,11 +29,19 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     "ipad",
     "desktop",
   ]);
-  const [capturing, setCapturing] = useState(false);
+  const [fullPage, setFullPage] = useState(false);
   const [results, setResults] = useState<ScreenshotResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [fullPage, setFullPage] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const { isCapturing: capturing, captureScreenshots } = useScreenshotCapture<ScreenshotResult>({
+    currentUrl,
+    proxyUrl,
+    onCaptureStart: () => {
+      setError(null);
+      setResults([]);
+      setSaveNote(null);
+    },
+  });
 
   const toggleDevice = (id: string) => {
     setSelectedDevices((prev) =>
@@ -66,79 +57,47 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     setSelectedDevices([]);
   };
 
-  const downloadScreenshots = async (screenshots: ScreenshotResult[]) => {
-    setSaveNote(null);
-    if (typeof window === "undefined") {
-      setSaveNote("Screenshots saved to ./screenshots/");
-      return;
-    }
-
-    const showDirectoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
-    if (typeof showDirectoryPicker !== "function") {
-      setSaveNote("Screenshots saved to ./screenshots/");
-      return;
-    }
-
-    try {
-      const directoryHandle = await showDirectoryPicker();
-      const targets = screenshots.filter((shot) => shot.url && !shot.path.startsWith("ERROR:"));
-      await Promise.all(
-        targets.map(async (shot) => {
-          const response = await fetch(resolveKaleidoscopeApiUrl(shot.url as string));
-          if (!response.ok) {
-            throw new Error(`Failed to download ${shot.url}`);
-          }
-          const blob = await response.blob();
-          const fileName = shot.path.split(/[\\/]/).pop() || "screenshot.png";
-          const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-        })
-      );
-      setSaveNote("Downloaded to selected folder.");
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        return;
-      }
-      setError(err instanceof Error ? err.message : "Failed to save screenshots");
-    }
-  };
-
-  const captureScreenshots = async () => {
+  const handleCaptureScreenshots = async () => {
     if (!currentUrl || selectedDevices.length === 0) return;
 
-    setCapturing(true);
-    setError(null);
-    setResults([]);
-    setSaveNote(null);
+    const outcome = await captureScreenshots({
+      devices: selectedDevices,
+      fullPage,
+    });
 
-    try {
-      const res = await kaleidoscopeFetch(resolveKaleidoscopeApiUrl('/api/screenshots'), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: proxyUrl || currentUrl,
-          devices: selectedDevices,
-          fullPage,
-        }),
-      });
+    if (outcome.status === "aborted") {
+      return;
+    }
 
-      if (!res.ok) {
-        const data = (await res.json()) as { error: string };
-        throw new Error(data.error || "Failed to capture screenshots");
+    if (outcome.status === "failed") {
+      setError(outcome.message);
+      return;
+    }
+
+    setResults(outcome.screenshots);
+
+    if (outcome.summary.downloadableCount === 0) {
+      setSaveNote("No downloadable screenshots were produced. Check the per-device results below.");
+      return;
+    }
+
+    if (!outcome.usedDirectoryHandle) {
+      setSaveNote("Screenshots saved to ./screenshots/");
+      return;
+    }
+
+    if (outcome.summary.failures.length > 0) {
+      if (outcome.summary.savedCount > 0) {
+        setSaveNote(`Downloaded ${outcome.summary.savedCount} screenshot(s); ${outcome.summary.failures.length} failed.`);
+        setError(outcome.summary.failures[0]?.message ?? "Some screenshots could not be saved.");
+        return;
       }
 
-      const data = (await res.json()) as {
-        screenshots: ScreenshotResult[];
-      };
-      setResults(data.screenshots);
-      await downloadScreenshots(data.screenshots);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Screenshot capture failed");
-    } finally {
-      setCapturing(false);
+      setError(outcome.summary.failures[0]?.message ?? "Failed to save screenshots");
+      return;
     }
+
+    setSaveNote(`Downloaded ${outcome.summary.savedCount} screenshot(s) to selected folder.`);
   };
 
   return (
@@ -192,7 +151,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
 
       {/* Capture Button */}
       <Button
-        onClick={captureScreenshots}
+        onClick={handleCaptureScreenshots}
         disabled={capturing || !currentUrl || selectedDevices.length === 0}
         className="w-full"
         size="sm"
@@ -223,12 +182,26 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       {/* Results */}
       {results.length > 0 && (
         <div className="space-y-2">
+          {(() => {
+            const successfulResults = results.filter((result) => !result.path.startsWith('ERROR:'));
+            const failedResults = results.length - successfulResults.length;
+
+            return (
+              <>
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-green-500" />
             <span className="text-xs font-medium text-green-700">
-              {results.length} screenshots captured
+              {successfulResults.length} screenshot{successfulResults.length === 1 ? '' : 's'} captured
             </span>
           </div>
+          {failedResults > 0 && (
+            <p className="text-xs text-amber-700">
+              {failedResults} screenshot{failedResults === 1 ? '' : 's'} failed during capture.
+            </p>
+          )}
+              </>
+            );
+          })()}
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {results.map((result, i) => (
               <div
