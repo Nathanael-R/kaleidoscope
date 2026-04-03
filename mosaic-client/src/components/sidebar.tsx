@@ -13,7 +13,6 @@ import {
   Columns, Pin, X, Globe, Clock, Activity,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import type { AuthCookie, ProxySession } from "@/hooks/use-auth-proxy";
 import type { InspectResult } from "@/lib/inspect";
 
 const TunnelButton = lazy(() => import("@/components/tunnel-button"));
@@ -36,8 +35,6 @@ interface SidebarProps {
     viewMode: 'single' | 'comparison';
     onViewModeToggle: () => void;
     onReload?: () => void;
-    onAuthCapture?: (cookies: AuthCookie[]) => void;
-    onProxyUrl?: (proxyUrl: string | null, session: ProxySession | null) => void;
     proxyUrl?: string | null;
   };
   inspectControls: {

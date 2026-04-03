@@ -15,8 +15,6 @@ export default function PreviewWorkspacePane({
   viewMode,
   handleViewModeToggle,
   handleReload,
-  handleAuthCapture,
-  handleProxyUrl,
   proxyUrl,
   effectiveProxyUrl,
   inspectEnabled,
@@ -48,8 +46,6 @@ export default function PreviewWorkspacePane({
           viewMode,
           onViewModeToggle: handleViewModeToggle,
           onReload: handleReload,
-          onAuthCapture: handleAuthCapture,
-          onProxyUrl: handleProxyUrl,
           proxyUrl,
         }}
         inspectControls={{

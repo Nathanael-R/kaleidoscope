@@ -28,8 +28,6 @@ export interface PreviewWorkspaceController {
   viewMode: "single" | "comparison";
   handleViewModeToggle: () => void;
   handleReload: () => void;
-  handleAuthCapture: () => void;
-  handleProxyUrl: (url: string | null) => void;
   proxyUrl: string | null;
   effectiveProxyUrl: string | null;
   inspectEnabled: boolean;
@@ -129,21 +127,6 @@ export function usePreviewWorkspace(
   const handleReload = useCallback(() => {
     setReloadTrigger((previous) => previous + 1);
   }, []);
-
-  const handleAuthCapture = useCallback(() => {
-    setReloadTrigger((previous) => previous + 1);
-  }, []);
-
-  const handleProxyUrl = useCallback(
-    (url: string | null) => {
-      setProxyUrl(url);
-
-      if (url) {
-        setReloadTrigger((previous) => previous + 1);
-      }
-    },
-    [setProxyUrl]
-  );
 
   const clearInspect = useCallback(() => {
     setInspectEnabled(false);
@@ -336,8 +319,6 @@ export function usePreviewWorkspace(
     viewMode,
     handleViewModeToggle,
     handleReload,
-    handleAuthCapture,
-    handleProxyUrl,
     proxyUrl,
     effectiveProxyUrl,
     inspectEnabled,
