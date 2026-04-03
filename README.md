@@ -106,11 +106,16 @@ Example MCP config:
     "kaleidoscope": {
       "command": "npx",
       "args": ["tsx", "src/index.ts"],
-      "cwd": "/path/to/Kaleidoscope/mcp-server"
+      "cwd": "/path/to/Kaleidoscope/mcp-server",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "https://your-kaleidoscope-api.example.com"
+      }
     }
   }
 }
 ```
+
+Leave `KALEIDOSCOPE_SERVER_URL` unset for local development. The MCP server defaults to `http://localhost:5000` when the API is running on the same machine.
 
 Core tools:
 

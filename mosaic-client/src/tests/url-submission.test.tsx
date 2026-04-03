@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+vi.mock('@/components/screenshot-panel', () => ({
+  default: ({ currentUrl }: { currentUrl: string }) => (
+    <div data-testid="screenshot-panel-current-url">{currentUrl}</div>
+  ),
+}));
+
 import Sidebar from '@/components/sidebar';
 import { devices } from '@/lib/devices';
 
@@ -45,9 +52,18 @@ describe('URL submission', () => {
   });
 
   describe('protocol auto-prepend', () => {
+    it('defaults to local mode for a blank sidebar', () => {
+      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
+
+      expect(screen.getByTestId('url-mode-local')).toHaveClass('bg-white');
+      expect(screen.getByTestId('url-mode-production')).not.toHaveClass('bg-white');
+      expect(screen.getByTestId('input-url')).toHaveAttribute('placeholder', 'localhost:3000 or just 3000');
+    });
+
     it('prepends https:// to bare production domains', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
+      fireEvent.click(screen.getByTestId('url-mode-production'));
       fireEvent.change(screen.getByTestId('input-url'), {
         target: { value: 'beautifulteachers.com' },
       });
@@ -61,6 +77,7 @@ describe('URL submission', () => {
     it('keeps http:// URLs unchanged', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
+      fireEvent.click(screen.getByTestId('url-mode-production'));
       fireEvent.change(screen.getByTestId('input-url'), {
         target: { value: 'http://localhost:3000' },
       });
@@ -72,6 +89,7 @@ describe('URL submission', () => {
     it('keeps https:// URLs unchanged', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
+      fireEvent.click(screen.getByTestId('url-mode-production'));
       fireEvent.change(screen.getByTestId('input-url'), {
         target: { value: 'https://mysite.com/dashboard' },
       });
@@ -96,13 +114,24 @@ describe('URL submission', () => {
     it('turns a bare local port into a localhost URL in local mode', () => {
       render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
 
-      fireEvent.click(screen.getByTestId('url-mode-local'));
       fireEvent.change(screen.getByTestId('input-url'), {
         target: { value: '3000' },
       });
       fireEvent.click(screen.getByTestId('button-load-url'));
 
       expect(defaultProps.onLoadUrl).toHaveBeenCalledWith('http://localhost:3000');
+    });
+
+    it('passes a normalized local URL into the screenshot panel', async () => {
+      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
+
+      fireEvent.change(screen.getByTestId('input-url'), {
+        target: { value: '3000' },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('screenshot-panel-current-url')).toHaveTextContent('http://localhost:3000');
+      });
     });
   });
 

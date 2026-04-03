@@ -126,7 +126,7 @@ export default function Sidebar({
   onToggleInspect,
 }: SidebarProps) {
   const [urlInput, setUrlInput] = useState("");
-  const [urlMode, setUrlMode] = useState<PreviewTargetMode>('production');
+  const [urlMode, setUrlMode] = useState<PreviewTargetMode>('local');
   const [urlError, setUrlError] = useState<string | null>(null);
   const {
     data: recentUrls = [],
@@ -151,6 +151,8 @@ export default function Sidebar({
 
   const { normalizedUrl, error: normalizedUrlError } = normalizePreviewUrl(urlInput, urlMode);
   const previewUrl = normalizedUrlError ? null : normalizedUrl;
+  const panelUrl = previewUrl ?? currentUrl;
+  const hasUrlContext = Boolean(currentUrl || urlInput.trim());
   const currentPort = previewUrl ? getPortFromUrl(previewUrl) : 3000;
   const [showCollapsedContent, setShowCollapsedContent] = useState(isCollapsed);
   const [showExpandedContent, setShowExpandedContent] = useState(!isCollapsed);
@@ -424,7 +426,7 @@ export default function Sidebar({
           </Suspense>
         </Section>
 
-        {urlInput && (
+        {hasUrlContext && (
           <Section title="Inspect" icon={Activity} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="inspect tools" />}>
               <InspectPanel
@@ -443,30 +445,30 @@ export default function Sidebar({
           </Section>
         )}
 
-        {urlInput && (
+        {hasUrlContext && (
           <Section title="Authentication" icon={Globe} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="authentication tools" />}>
               <AuthWizard
                 onAuthCapture={onAuthCapture || (() => {})}
                 onProxyUrl={onProxyUrl}
-                currentUrl={urlInput}
+                currentUrl={panelUrl}
               />
             </Suspense>
           </Section>
         )}
 
-        {urlInput && (
+        {hasUrlContext && (
           <Section title="Screenshots" icon={Globe} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="screenshots" />}>
-              <ScreenshotPanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+              <ScreenshotPanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
             </Suspense>
           </Section>
         )}
 
-        {urlInput && (
+        {hasUrlContext && (
           <Section title="Performance" icon={Activity}>
             <Suspense fallback={<SectionLoadingFallback label="performance tools" />}>
-              <PerformancePanel currentUrl={urlInput} proxyUrl={proxyUrl} />
+              <PerformancePanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
             </Suspense>
           </Section>
         )}
