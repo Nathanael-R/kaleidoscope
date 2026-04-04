@@ -222,6 +222,12 @@ If you prefer the CLI, add it like this and then adjust `cwd` in `config.toml` a
 codex mcp add kaleidoscope -- npx tsx src/index.ts
 ```
 
+Or use the published package form once it is installed from npm:
+
+```bash
+codex mcp add kaleidoscope -- npx -y kaleidoscope-mcp-server
+```
+
 Core tools:
 
 - `preview_responsive`

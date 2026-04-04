@@ -4,15 +4,45 @@
   "type": "module",
   "description": "MCP server for Kaleidoscope - responsive design preview tool",
   "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "kaleidoscope",
+    "responsive",
+    "screenshots",
+    "playwright"
+  ],
+  "homepage": "https://github.com/Nathanael-R/kaleidoscope#readme",
+  "bugs": {
+    "url": "https://github.com/Nathanael-R/kaleidoscope/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nathanael-R/kaleidoscope.git",
+    "directory": "mcp-server"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
-    "kaleidoscope-mcp": "./dist/index.js"
+    "kaleidoscope-mcp": "dist/index.js"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "node dist/index.js",
     "check": "node ./scripts/typecheck.mjs",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run build && npm run check && npm test",
+    "publish:check": "npm run prepublishOnly && npm publish --dry-run --access public",
+    "publish:public": "npm publish --access public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
