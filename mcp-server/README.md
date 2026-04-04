@@ -26,19 +26,92 @@ The executable name is:
 kaleidoscope-mcp
 ```
 
+Or install it globally first:
+
+```bash
+npm install -g kaleidoscope-mcp-server
+```
+
 ## MCP client config
 
-Example stdio config:
+### Claude Code
+
+Project-scoped `.mcp.json`:
 
 ```json
 {
-  "command": "npx",
-  "args": ["-y", "kaleidoscope-mcp-server"],
-  "env": {
-    "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "npx",
+      "args": ["-y", "kaleidoscope-mcp-server"],
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
   }
 }
 ```
+
+If you installed the package globally, you can also use:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "kaleidoscope-mcp",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+CLI form:
+
+```bash
+claude mcp add --transport stdio kaleidoscope --scope project -- npx -y kaleidoscope-mcp-server
+```
+
+### Codex `config.toml`
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "npx"
+args = ["-y", "kaleidoscope-mcp-server"]
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+```
+
+If you installed the package globally:
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "kaleidoscope-mcp"
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+```
+
+### Codex desktop connector UI
+
+Use these values in the MCP connector form:
+
+- Name: `kaleidoscope`
+- Transport: `STDIO`
+- Command to launch: `npx`
+- Arguments: `-y`, `kaleidoscope-mcp-server`
+- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
+- Working directory: leave blank
+
+If you installed the package globally, use `kaleidoscope-mcp` as the command and leave arguments empty.
 
 ## Environment
 
@@ -61,18 +134,6 @@ npm run build
 npm run check
 npm test
 ```
-
-## Publish to npm
-
-Run this exact flow from `mcp-server/`:
-
-```bash
-npm adduser
-npm run publish:check
-npm run publish:public
-```
-
-`publish:check` runs the build, typecheck, tests, and an `npm publish --dry-run --access public` pass before the real publish.
 
 More detailed usage and testing notes live in the main repository:
 
