@@ -75,6 +75,32 @@ export function toFileUri(filePath: string): string | null {
   }
 }
 
+export function toMarkdownImagePath(filePath: string): string | null {
+  if (!filePath) {
+    return null;
+  }
+
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  if (/^[A-Za-z]:\//.test(normalizedPath)) {
+    return `/${normalizedPath}`;
+  }
+
+  if (normalizedPath.startsWith('/')) {
+    return normalizedPath;
+  }
+
+  return null;
+}
+
+export function toMarkdownImageTag(filePath: string, altText: string): string | null {
+  const markdownPath = toMarkdownImagePath(filePath);
+  if (!markdownPath) {
+    return null;
+  }
+
+  return `![${altText}](<${markdownPath}>)`;
+}
+
 export async function buildScreenshotContent(
   screenshots: ScreenshotArtifact[],
 ): Promise<{ content: ContentBlock[]; inlineImageCount: number }> {

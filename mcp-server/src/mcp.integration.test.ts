@@ -324,17 +324,27 @@ test('capture_screenshots returns structured metadata and rich content', async (
       fileUri: string | null;
       preferredDisplayPath: string | null;
       preferredDisplayUri: string | null;
+      chatDisplayPath: string | null;
+      markdownImageTag: string | null;
       downloadUrl: string | null;
     }>;
     inlineImageCount: number;
     displayAdvice: string;
   };
   assert.equal(structured.inlineImageCount, 1);
-  assert.match(structured.displayAdvice, /Prefer preferredDisplayPath or preferredDisplayUri/i);
+  assert.match(structured.displayAdvice, /markdownImageTag/i);
   assert.equal(structured.screenshots[0]?.path, screenshotPath);
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
   assert.equal(structured.screenshots[0]?.preferredDisplayPath, screenshotPath);
   assert.match(structured.screenshots[0]?.preferredDisplayUri ?? '', /^file:/);
+  assert.equal(
+    structured.screenshots[0]?.chatDisplayPath,
+    `/${screenshotPath.replace(/\\/g, '/')}`,
+  );
+  assert.equal(
+    structured.screenshots[0]?.markdownImageTag,
+    `![Desktop HD preview](</${screenshotPath.replace(/\\/g, '/')}>)`,
+  );
   assert.equal(
     structured.screenshots[0]?.downloadUrl,
     `${apiBaseUrl}/api/screenshots-files/desktop-test.png`,

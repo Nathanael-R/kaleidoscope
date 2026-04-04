@@ -247,7 +247,7 @@ Current MCP status:
 
 - Tools return structured MCP responses instead of plain text only.
 - `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
-- `capture_screenshots` returns screenshot metadata, preferred local display paths, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `capture_screenshots` returns screenshot metadata, preferred local display paths, chat-ready Markdown display paths, ready-to-paste `markdownImageTag` snippets, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
 - `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
 - `mcp-server` includes stdio integration tests for the registered MCP tools.
 

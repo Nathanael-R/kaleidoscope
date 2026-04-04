@@ -9,6 +9,8 @@ import {
   createStructuredResult,
   formatToolError,
   toFileUri,
+  toMarkdownImagePath,
+  toMarkdownImageTag,
 } from '../tool-utils.js';
 
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
@@ -30,6 +32,8 @@ const screenshotEntrySchema = z.object({
   fileUri: z.string().nullable(),
   preferredDisplayPath: z.string().nullable(),
   preferredDisplayUri: z.string().nullable(),
+  chatDisplayPath: z.string().nullable(),
+  markdownImageTag: z.string().nullable(),
   downloadUrl: z.string().nullable(),
   width: z.number(),
   height: z.number(),
@@ -70,6 +74,8 @@ interface ScreenshotEntryResult {
   fileUri: string | null;
   preferredDisplayPath: string | null;
   preferredDisplayUri: string | null;
+  chatDisplayPath: string | null;
+  markdownImageTag: string | null;
   downloadUrl: string | null;
   width: number;
   height: number;
@@ -140,8 +146,8 @@ export function registerScreenshotTools(server: McpServer) {
     {
       description:
         'Capture screenshots of a URL across multiple device viewport sizes. ' +
-        'Returns screenshot metadata, local file paths, file URIs, and inline previews when practical. ' +
-        'For user-visible rendering in chat, prefer the local file path or file URI over localhost download URLs. ' +
+        'Returns screenshot metadata, local file paths, file URIs, chat-ready local markdown paths, and inline previews when practical. ' +
+        'For reliable user-visible rendering in chat, use markdownImageTag or chatDisplayPath instead of localhost download URLs or transient image viewers. ' +
         'Requires Kaleidoscope server to be running.',
       inputSchema: screenshotInputSchema as z.ZodRawShape,
       outputSchema: screenshotOutputSchema as z.ZodRawShape,
@@ -178,12 +184,15 @@ export function registerScreenshotTools(server: McpServer) {
 
         const screenshots = data.screenshots.map((screenshot) => {
           const error = screenshot.path.startsWith('ERROR:') ? screenshot.path : null;
+          const chatDisplayPath = error ? null : toMarkdownImagePath(screenshot.path);
           return {
             device: screenshot.device,
             path: screenshot.path,
             fileUri: error ? null : toFileUri(screenshot.path),
             preferredDisplayPath: error ? null : screenshot.path,
             preferredDisplayUri: error ? null : toFileUri(screenshot.path),
+            chatDisplayPath,
+            markdownImageTag: error ? null : toMarkdownImageTag(screenshot.path, `${screenshot.device} preview`),
             downloadUrl: screenshot.url ? new URL(screenshot.url, KALEIDOSCOPE_SERVER).toString() : null,
             width: screenshot.width,
             height: screenshot.height,
@@ -198,8 +207,8 @@ export function registerScreenshotTools(server: McpServer) {
           count: screenshots.length,
           inlineImageCount,
           displayAdvice:
-            'Prefer preferredDisplayPath or preferredDisplayUri when showing screenshots to users. ' +
-            'Localhost downloadUrl links may not render in every chat client.',
+            'For reliable chat rendering, paste markdownImageTag directly into the response or use chatDisplayPath inside a Markdown image tag. ' +
+            'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
           screenshots,
         };
 
@@ -219,7 +228,7 @@ export function registerScreenshotTools(server: McpServer) {
         if (inlineImageCount > 0) {
           lines.push(`Inline previews attached: ${inlineImageCount}.`);
         }
-        lines.push('Prefer local file paths or file URIs when showing screenshots in chat; localhost links can be flaky.');
+        lines.push('For reliable chat rendering, use markdownImageTag or chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
 
         return createStructuredResult(result, lines.join('\n'), screenshotContent);
       } catch (error) {
