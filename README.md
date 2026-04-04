@@ -120,6 +120,8 @@ For a real deployment, replace `http://localhost:5000` with the public origin se
 2. Enter a target URL such as `https://example.com` or `http://localhost:3000`.
 3. Switch devices, pin devices for comparison mode, or capture screenshots.
 
+For a follow-along workflow while an agent is making changes, load your local app URL in Kaleidoscope and turn on the `Live Reload` toggle. Trusted local sessions can automatically refresh as files change.
+
 ### Auth Preview
 
 For authenticated pages, use the auth panel in the sidebar. Kaleidoscope can create a server-side proxy session with cookies or safe custom headers, then load the proxied page inside the preview.
@@ -230,6 +232,7 @@ codex mcp add kaleidoscope -- npx -y kaleidoscope-mcp-server
 
 Core tools:
 
+- `kaleidoscope_list_devices`
 - `preview_responsive`
 - `capture_screenshots`
 - `preview_with_auth`
@@ -243,7 +246,8 @@ Core tools:
 Current MCP status:
 
 - Tools return structured MCP responses instead of plain text only.
-- `capture_screenshots` returns screenshot metadata, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
+- `capture_screenshots` returns screenshot metadata, preferred local display paths, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
 - `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
 - `mcp-server` includes stdio integration tests for the registered MCP tools.
 

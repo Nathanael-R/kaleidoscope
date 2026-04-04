@@ -4,7 +4,7 @@ import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/sdk/typ
 import { processManager } from './process-manager.js';
 
 const MAX_INLINE_IMAGE_BYTES = 1_500_000;
-const MAX_INLINE_IMAGES = 2;
+const MAX_INLINE_IMAGES = 4;
 
 export interface ScreenshotArtifact {
   device: string;

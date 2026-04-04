@@ -232,10 +232,31 @@ test('lists tools with output schemas', async () => {
   const tools = await client.listTools();
   const toolMap = new Map(tools.tools.map((tool) => [tool.name, tool]));
 
-  assert.equal(toolMap.size, 9);
+  assert.equal(toolMap.size, 10);
+  assert.ok(toolMap.get('kaleidoscope_list_devices')?.outputSchema);
   assert.ok(toolMap.get('preview_responsive')?.outputSchema);
   assert.ok(toolMap.get('capture_screenshots')?.outputSchema);
   assert.ok(toolMap.get('inspect_element_source')?.outputSchema);
+});
+
+test('kaleidoscope_list_devices returns device presets and defaults', async () => {
+  assert.ok(client, 'client should be connected');
+
+  const result = await client.callTool({
+    name: 'kaleidoscope_list_devices',
+    arguments: {},
+  });
+
+  assert.equal(result.isError, undefined);
+  const structured = result.structuredContent as {
+    defaultCaptureDevices: string[];
+    devices: Array<{ id: string; isDefault: boolean }>;
+  };
+
+  assert.deepEqual(structured.defaultCaptureDevices, ['iphone-14', 'ipad', 'desktop']);
+  assert.ok(structured.devices.some((device) => device.id === 'iphone-14' && device.isDefault));
+  assert.ok(structured.devices.some((device) => device.id === 'desktop' && device.isDefault));
+  assert.ok(structured.devices.some((device) => device.id === 'desktop-4k' && !device.isDefault));
 });
 
 test('preview_responsive returns structured content', async () => {
@@ -298,12 +319,22 @@ test('capture_screenshots returns structured metadata and rich content', async (
   assert.ok(contentTypes.includes('image'));
 
   const structured = result.structuredContent as {
-    screenshots: Array<{ path: string; fileUri: string | null; downloadUrl: string | null }>;
+    screenshots: Array<{
+      path: string;
+      fileUri: string | null;
+      preferredDisplayPath: string | null;
+      preferredDisplayUri: string | null;
+      downloadUrl: string | null;
+    }>;
     inlineImageCount: number;
+    displayAdvice: string;
   };
   assert.equal(structured.inlineImageCount, 1);
+  assert.match(structured.displayAdvice, /Prefer preferredDisplayPath or preferredDisplayUri/i);
   assert.equal(structured.screenshots[0]?.path, screenshotPath);
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
+  assert.equal(structured.screenshots[0]?.preferredDisplayPath, screenshotPath);
+  assert.match(structured.screenshots[0]?.preferredDisplayUri ?? '', /^file:/);
   assert.equal(
     structured.screenshots[0]?.downloadUrl,
     `${apiBaseUrl}/api/screenshots-files/desktop-test.png`,

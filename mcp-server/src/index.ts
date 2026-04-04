@@ -9,7 +9,7 @@ import { registerInspectTools } from './tools/inspect.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
-  version: '1.0.0',
+  version: '1.1.0',
 });
 
 // Register all tools

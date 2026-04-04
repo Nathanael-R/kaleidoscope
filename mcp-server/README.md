@@ -6,6 +6,7 @@ MCP server for [Kaleidoscope](https://github.com/Nathanael-R/kaleidoscope), a re
 
 - start and stop Kaleidoscope services
 - report service status
+- list the available screenshot device presets
 - prepare responsive preview sessions
 - capture screenshots across multiple devices
 - create authenticated proxy previews and inject mock data
@@ -123,7 +124,7 @@ If you installed the package globally, use `kaleidoscope-mcp` as the command and
 ## Notes
 
 - This package talks to the Kaleidoscope server API; it is not a standalone screenshot service by itself.
-- Rich screenshot responses use MCP `structuredContent`, `resource_link`, and inline `image` blocks when the client supports them.
+- Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and preferred local display paths when the client supports them.
 - Inspect remains selector-based and is limited to loopback/dev targets.
 
 ## Development
