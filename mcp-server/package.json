@@ -11,7 +11,8 @@
     "dev": "tsx src/index.ts",
     "build": "esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "node dist/index.js",
-    "check": "node ./scripts/typecheck.mjs"
+    "check": "node ./scripts/typecheck.mjs",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

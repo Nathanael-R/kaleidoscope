@@ -234,6 +234,13 @@ Core tools:
 - `kaleidoscope_start`
 - `kaleidoscope_stop`
 
+Current MCP status:
+
+- Tools return structured MCP responses instead of plain text only.
+- `capture_screenshots` returns screenshot metadata, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
+- `mcp-server` includes stdio integration tests for the registered MCP tools.
+
 ## Scripts
 
 ```bash
@@ -246,6 +253,7 @@ npm run dev:all
 npm run lint
 npm run check
 npm run test:ci
+npm --prefix mcp-server test
 
 # Full local suites
 npm run test:unit
@@ -254,6 +262,15 @@ npm run test:e2e:ui
 
 # Browser install for screenshots and Playwright
 npm run install:browsers
+
+# GitHub CLI wrapper for shells where gh is not on PATH
+npm run gh -- --version
+```
+
+Windows-only video helper:
+
+```powershell
+.\scripts\Invoke-FfmpegVideoTool.ps1 -InputFile .\input.webm -OutputFile .\output.webm -SpeedMultiplier 1.08 -Overwrite
 ```
 
 ## Security Notes

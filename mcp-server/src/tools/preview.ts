@@ -3,41 +3,167 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { processManager } from '../process-manager.js';
 import { DEVICE_IDS } from '../../../shared/devices.js';
 import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
+import {
+  createErrorResult,
+  createStructuredResult,
+  formatToolError,
+} from '../tool-utils.js';
 
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 
-async function formatToolError(action: string, error: unknown): Promise<string> {
-  const reason = error instanceof Error ? error.message : String(error);
-  try {
-    const status = await processManager.getStatus();
-    return [
-      `Error ${action}: ${reason}`,
-      '',
-      'Current service status:',
-      `  Client: ${status.client.running ? 'running' : 'stopped'} (${status.client.url})`,
-      `  Server: ${status.server.running ? 'running' : 'stopped'} (${status.server.url})`,
-    ].join('\n');
-  } catch {
-    return `Error ${action}: ${reason}`;
+const serviceStatusSchema = z.object({
+  running: z.boolean(),
+  pid: z.number().nullable(),
+  port: z.number().nullable(),
+  url: z.string().nullable(),
+});
+
+const tunnelSchema = z.object({
+  port: z.number(),
+  url: z.string(),
+  status: z.string(),
+});
+
+const previewOutputSchema = {
+  url: z.string().url(),
+  clientUrl: z.string().url(),
+  devices: z.array(z.string()),
+  tunnelUrl: z.string().url().nullable(),
+  services: z.object({
+    client: serviceStatusSchema,
+    server: serviceStatusSchema,
+  }),
+  warnings: z.array(z.string()),
+  instructions: z.array(z.string()),
+};
+
+const statusOutputSchema = {
+  client: serviceStatusSchema,
+  server: serviceStatusSchema,
+  tunnels: z.array(tunnelSchema),
+};
+
+const previewInputSchema = {
+  url: z.string().url().describe('The URL to preview (e.g. http://localhost:3000)'),
+  devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
+    'Optional list of device IDs to preview. Defaults to all devices. ' +
+    'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k',
+  ),
+  tunnel: z.boolean().optional().describe(
+    'If true, creates a public tunnel URL for the target so it can be shared',
+  ),
+} satisfies z.ZodRawShape;
+
+const stopOutputSchema = {
+  stopped: z.boolean(),
+  message: z.string(),
+} satisfies z.ZodRawShape;
+
+interface ServiceStatusResult {
+  running: boolean;
+  pid: number | null;
+  port: number | null;
+  url: string | null;
+}
+
+interface TunnelResult {
+  port: number;
+  url: string;
+  status: string;
+}
+
+interface PreviewResult {
+  url: string;
+  clientUrl: string;
+  devices: string[];
+  tunnelUrl: string | null;
+  services: {
+    client: ServiceStatusResult;
+    server: ServiceStatusResult;
+  };
+  warnings: string[];
+  instructions: string[];
+}
+
+interface StatusResult {
+  client: ServiceStatusResult;
+  server: ServiceStatusResult;
+  tunnels: TunnelResult[];
+}
+
+function normalizeServiceStatus(status: {
+  running: boolean;
+  pid?: number;
+  port?: number;
+  url?: string;
+}): ServiceStatusResult {
+  return {
+    running: status.running,
+    pid: status.pid ?? null,
+    port: status.port ?? null,
+    url: status.url ?? null,
+  };
+}
+
+function formatPreviewText(result: PreviewResult): string {
+  const lines = [
+    `Preview ready for: ${result.url}`,
+    `Kaleidoscope UI: ${result.clientUrl}`,
+    '',
+    'Device previews:',
+    ...result.devices.map((deviceId) => `  - ${deviceId}`),
+  ];
+
+  if (result.tunnelUrl) {
+    lines.push('', `Public tunnel URL: ${result.tunnelUrl}`);
   }
+
+  if (result.warnings.length > 0) {
+    lines.push('', 'Warnings:');
+    lines.push(...result.warnings.map((warning) => `  - ${warning}`));
+  }
+
+  lines.push('', ...result.instructions);
+  return lines.join('\n');
+}
+
+function formatStatusText(result: StatusResult): string {
+  const lines = [
+    'Kaleidoscope Status:',
+    `  Client: ${result.client.running ? 'Running' : 'Stopped'} (${result.client.url})`,
+    `  Server: ${result.server.running ? 'Running' : 'Stopped'} (${result.server.url})`,
+  ];
+
+  if (result.tunnels.length > 0) {
+    lines.push('  Active tunnels:');
+    for (const tunnel of result.tunnels) {
+      lines.push(`    - Port ${tunnel.port}: ${tunnel.url} (${tunnel.status})`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 export function registerPreviewTools(server: McpServer) {
-  // @ts-expect-error MCP SDK server.tool() causes TS2589 with complex zod schemas
-  server.tool(
+  const registerTool = server.registerTool.bind(server) as (
+    name: string,
+    config: {
+      description: string;
+      inputSchema: z.ZodRawShape;
+      outputSchema: z.ZodRawShape;
+    },
+    handler: (args: any) => Promise<ReturnType<typeof createStructuredResult> | ReturnType<typeof createErrorResult>>,
+  ) => void;
+
+  registerTool(
     'preview_responsive',
-    'Open a URL for responsive preview across multiple device sizes in Kaleidoscope. ' +
-    'Returns the Kaleidoscope UI URL and status of each device preview. ' +
-    'Automatically starts Kaleidoscope services if not running.',
     {
-      url: z.string().url().describe('The URL to preview (e.g. http://localhost:3000)'),
-      devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
-        'Optional list of device IDs to preview. Defaults to all devices. ' +
-        'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k'
-      ),
-      tunnel: z.boolean().optional().describe(
-        'If true, creates a public tunnel URL for the target so it can be shared'
-      ),
+      description:
+        'Open a URL for responsive preview across multiple device sizes in Kaleidoscope. ' +
+        'Returns the Kaleidoscope UI URL and status of each device preview. ' +
+        'Automatically starts Kaleidoscope services if not running.',
+      inputSchema: previewInputSchema as z.ZodRawShape,
+      outputSchema: previewOutputSchema as z.ZodRawShape,
     },
     async ({ url, devices: selectedDevices, tunnel }) => {
       try {
@@ -47,24 +173,16 @@ export function registerPreviewTools(server: McpServer) {
         }
 
         const clientUrl = status.client.url;
-
-        // Check health
         const healthRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/health`);
         if (!healthRes.ok) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: 'Kaleidoscope server is not responding. Please start it manually with `npm run dev:all` from the Kaleidoscope directory.',
-            }],
-          };
+          return createErrorResult(
+            'Kaleidoscope server is not responding. Please start it manually with `npm run dev:all` from the Kaleidoscope directory.',
+          );
         }
 
-        const results: string[] = [];
-        results.push(`Preview ready for: ${url}`);
-        results.push(`Kaleidoscope UI: ${clientUrl}`);
-        results.push('');
+        let tunnelUrl: string | null = null;
+        const warnings: string[] = [];
 
-        // Create tunnel if requested
         if (tunnel) {
           try {
             const portMatch = url.match(/:(\d+)/);
@@ -78,141 +196,130 @@ export function registerPreviewTools(server: McpServer) {
 
             if (tunnelRes.ok) {
               const tunnelData = await tunnelRes.json() as { tunnel: { url: string } };
-              results.push(`Public tunnel URL: ${tunnelData.tunnel.url}`);
-              results.push('Share this URL with others to view the preview remotely.');
-              results.push('');
+              tunnelUrl = tunnelData.tunnel.url;
+            } else {
+              warnings.push('Could not create a public tunnel. Localhost preview still works.');
             }
           } catch {
-            results.push('Warning: Could not create tunnel. Localhost preview still works.');
-            results.push('');
+            warnings.push('Could not create a public tunnel. Localhost preview still works.');
           }
         }
 
-        // List device previews
-        const devicesToShow = selectedDevices ?? [...ALL_DEVICE_IDS];
-        results.push('Device previews:');
-        for (const deviceId of devicesToShow) {
-          results.push(`  - ${deviceId}`);
-        }
-        results.push('');
-        results.push(`Open Kaleidoscope at ${clientUrl} and enter the URL to see previews across all devices.`);
+        const devices = selectedDevices ?? [...ALL_DEVICE_IDS];
+        const result: PreviewResult = {
+          url,
+          clientUrl,
+          devices,
+          tunnelUrl,
+          services: {
+            client: normalizeServiceStatus(status.client),
+            server: normalizeServiceStatus(status.server),
+          },
+          warnings,
+          instructions: [
+            `Open Kaleidoscope at ${clientUrl} and enter the URL to see previews across all devices.`,
+          ],
+        };
 
-        return {
-          content: [{
-            type: 'text' as const,
-            text: results.join('\n'),
-          }],
-        };
+        return createStructuredResult(result, formatPreviewText(result));
       } catch (error) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: await formatToolError('setting up preview', error),
-          }],
-          isError: true,
-        };
+        return createErrorResult(await formatToolError('setting up preview', error));
       }
-    }
+    },
   );
 
-  server.tool(
+  registerTool(
     'kaleidoscope_status',
-    'Check if Kaleidoscope services are running and get their URLs.',
-    {},
+    {
+      description: 'Check if Kaleidoscope services are running and get their URLs.',
+      inputSchema: {},
+      outputSchema: statusOutputSchema as z.ZodRawShape,
+    },
     async () => {
       try {
         const status = await processManager.getStatus();
         const serverReachable = await processManager.isServerReachable();
+        const tunnels: Array<{ port: number; url: string; status: string }> = [];
 
-        const lines = [
-          'Kaleidoscope Status:',
-          `  Client: ${status.client.running ? 'Running' : 'Stopped'} (${status.client.url})`,
-          `  Server: ${serverReachable ? 'Running' : 'Stopped'} (${status.server.url})`,
-        ];
-
-        // Check for active tunnels
         if (serverReachable) {
           try {
             const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel`);
             if (tunnelRes.ok) {
               const data = await tunnelRes.json() as { tunnels: Array<{ port: number; url: string; status: string }> };
-              if (data.tunnels.length > 0) {
-                lines.push('  Active tunnels:');
-                for (const t of data.tunnels) {
-                  lines.push(`    - Port ${t.port}: ${t.url} (${t.status})`);
-                }
-              }
+              tunnels.push(...data.tunnels);
             }
           } catch {
-            // ignore tunnel check errors
+            // Ignore tunnel inspection errors.
           }
         }
 
-        return {
-          content: [{ type: 'text' as const, text: lines.join('\n') }],
+        const result: StatusResult = {
+          client: normalizeServiceStatus(status.client),
+          server: {
+            ...normalizeServiceStatus(status.server),
+            running: serverReachable,
+          },
+          tunnels,
         };
+
+        return createStructuredResult(result, formatStatusText(result));
       } catch (error) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: await formatToolError('checking status', error),
-          }],
-          isError: true,
-        };
+        return createErrorResult(await formatToolError('checking status', error));
       }
-    }
+    },
   );
 
-  server.tool(
+  registerTool(
     'kaleidoscope_start',
-    'Start Kaleidoscope services (client + server). Idempotent - safe to call even if already running.',
-    {},
+    {
+      description:
+        'Start Kaleidoscope services (client + server). Idempotent - safe to call even if already running.',
+      inputSchema: {},
+      outputSchema: statusOutputSchema as z.ZodRawShape,
+    },
     async () => {
       try {
         const status = await processManager.startAll();
-        return {
-          content: [{
-            type: 'text' as const,
-            text: [
-              'Kaleidoscope started successfully!',
-              `  Client: ${status.client.url}`,
-              `  Server: ${status.server.url}`,
-              '',
-              'Open the client URL in a browser to use the preview tool.',
-            ].join('\n'),
-          }],
+        const result: StatusResult = {
+          client: normalizeServiceStatus(status.client),
+          server: normalizeServiceStatus(status.server),
+          tunnels: [] as Array<{ port: number; url: string; status: string }>,
         };
+
+        return createStructuredResult(
+          result,
+          [
+            'Kaleidoscope started successfully!',
+            `  Client: ${result.client.url}`,
+            `  Server: ${result.server.url}`,
+            '',
+            'Open the client URL in a browser to use the preview tool.',
+          ].join('\n'),
+        );
       } catch (error) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: await formatToolError('starting Kaleidoscope', error),
-          }],
-          isError: true,
-        };
+        return createErrorResult(await formatToolError('starting Kaleidoscope', error));
       }
-    }
+    },
   );
 
-  server.tool(
+  registerTool(
     'kaleidoscope_stop',
-    'Stop all Kaleidoscope services.',
-    {},
+    {
+      description: 'Stop all Kaleidoscope services.',
+      inputSchema: {},
+      outputSchema: stopOutputSchema as z.ZodRawShape,
+    },
     async () => {
       try {
         await processManager.stopAll();
-        return {
-          content: [{ type: 'text' as const, text: 'Kaleidoscope services stopped.' }],
+        const result = {
+          stopped: true,
+          message: 'Kaleidoscope services stopped.',
         };
+        return createStructuredResult(result, result.message);
       } catch (error) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: await formatToolError('stopping services', error),
-          }],
-          isError: true,
-        };
+        return createErrorResult(await formatToolError('stopping services', error));
       }
-    }
+    },
   );
 }

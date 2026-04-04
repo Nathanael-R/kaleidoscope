@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const FRONTEND_PORT = process.env.PLAYWRIGHT_FRONTEND_PORT ?? '4173';
 const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
+const SAMPLE_SITE_PORT = process.env.PLAYWRIGHT_SAMPLE_SITE_PORT ?? '3000';
+const SAMPLE_SITE_URL = `http://localhost:${SAMPLE_SITE_PORT}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -46,8 +48,8 @@ export default defineConfig({
       timeout: 120 * 1000,
     },
     {
-      command: 'cd examples/sample-site && npm run dev',
-      url: 'http://localhost:3000',
+      command: `cd examples/sample-site && npx cross-env PORT=${SAMPLE_SITE_PORT} npm run dev`,
+      url: SAMPLE_SITE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
