@@ -216,6 +216,7 @@ tool_timeout_sec = 60
 
 [mcp_servers.kaleidoscope.env]
 KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+KALEIDOSCOPE_WALKTHROUGH_DIR = "c:/Code/my-app/walkthroughs"
 ```
 
 If you prefer the CLI, add it like this and then adjust `cwd` in `config.toml` afterward:
@@ -235,6 +236,7 @@ Core tools:
 - `kaleidoscope_list_devices`
 - `preview_responsive`
 - `capture_screenshots`
+- `record_walkthrough`
 - `preview_with_auth`
 - `inject_mock_data`
 - `discover_page_elements`
@@ -247,9 +249,20 @@ Current MCP status:
 
 - Tools return structured MCP responses instead of plain text only.
 - `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
-- `capture_screenshots` returns screenshot metadata, preferred local display paths, chat-ready Markdown display paths, ready-to-paste `markdownImageTag` snippets, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `capture_screenshots` returns screenshot metadata, preferred local display paths, chat-ready absolute Markdown display paths, per-image `markdownImageTag` values, a top-level `readyToPasteMarkdown` array, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- The chat-ready paths are OS-agnostic absolute local paths: `C:/...` on Windows, `/Users/...` or `/home/...` on macOS/Linux, and `//server/share/...` for UNC network shares.
+- For the most reliable chat rendering in Codex, paste an entry from `readyToPasteMarkdown` directly into the response instead of reconstructing an image tag from `downloadUrl`.
+- `record_walkthrough` records a local `.webm` walkthrough with scripted clicks, typing, hover, scroll, and navigation steps, plus an optional cursor overlay for clearer demos.
+- `record_walkthrough` accepts either structured `steps` or a simpler one-command-per-line `script` format such as `click #save` and `type "hello@example.com" into #email`.
+- `record_walkthrough` saves to `output_dir` when you pass one, otherwise to `KALEIDOSCOPE_WALKTHROUGH_DIR` when configured, otherwise to `./walkthroughs`.
 - `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
 - `mcp-server` includes stdio integration tests for the registered MCP tools.
+
+For `record_walkthrough`, make sure Playwright Chromium is installed on the machine running the MCP server:
+
+```bash
+npx playwright install chromium
+```
 
 ## Scripts
 

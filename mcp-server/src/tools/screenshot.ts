@@ -51,6 +51,7 @@ const screenshotOutputSchema = {
   count: z.number(),
   inlineImageCount: z.number(),
   displayAdvice: z.string(),
+  readyToPasteMarkdown: z.array(z.string()),
   screenshots: z.array(screenshotEntrySchema),
 };
 
@@ -88,6 +89,7 @@ interface ScreenshotOutput {
   count: number;
   inlineImageCount: number;
   displayAdvice: string;
+  readyToPasteMarkdown: string[];
   screenshots: ScreenshotEntryResult[];
 }
 
@@ -201,14 +203,18 @@ export function registerScreenshotTools(server: McpServer) {
         });
 
         const { content: screenshotContent, inlineImageCount } = await buildScreenshotContent(screenshots);
+        const readyToPasteMarkdown = screenshots.flatMap((screenshot) => (
+          screenshot.markdownImageTag ? [screenshot.markdownImageTag] : []
+        ));
         const result: ScreenshotOutput = {
           url,
           outputDirectory: outputDir,
           count: screenshots.length,
           inlineImageCount,
           displayAdvice:
-            'For reliable chat rendering, paste markdownImageTag directly into the response or use chatDisplayPath inside a Markdown image tag. ' +
+            'For reliable chat rendering, paste a value from readyToPasteMarkdown directly into the response, or use markdownImageTag/chatDisplayPath from each screenshot entry. ' +
             'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
+          readyToPasteMarkdown,
           screenshots,
         };
 
@@ -228,7 +234,14 @@ export function registerScreenshotTools(server: McpServer) {
         if (inlineImageCount > 0) {
           lines.push(`Inline previews attached: ${inlineImageCount}.`);
         }
-        lines.push('For reliable chat rendering, use markdownImageTag or chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
+        if (readyToPasteMarkdown.length > 0) {
+          lines.push('');
+          lines.push('Ready-to-paste Markdown image tags:');
+          for (const markdownTag of readyToPasteMarkdown) {
+            lines.push(markdownTag);
+          }
+        }
+        lines.push('For reliable chat rendering, use readyToPasteMarkdown or markdownImageTag/chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
 
         return createStructuredResult(result, lines.join('\n'), screenshotContent);
       } catch (error) {

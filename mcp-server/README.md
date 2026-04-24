@@ -9,6 +9,7 @@ MCP server for [Kaleidoscope](https://github.com/Nathanael-R/kaleidoscope), a re
 - list the available screenshot device presets
 - prepare responsive preview sessions
 - capture screenshots across multiple devices
+- record scripted walkthrough videos with a visible cursor overlay
 - create authenticated proxy previews and inject mock data
 - discover likely page elements from natural-language queries
 - inspect a page element by CSS selector and return structured source metadata
@@ -120,11 +121,31 @@ If you installed the package globally, use `kaleidoscope-mcp` as the command and
   Defaults to `http://localhost:5000`.
 - `KALEIDOSCOPE_CLIENT_PORT`
   Optional preferred local client port for status and startup checks.
+- `KALEIDOSCOPE_WALKTHROUGH_DIR`
+  Optional default output directory for `record_walkthrough`. Used when the tool call omits `output_dir`.
 
 ## Notes
 
 - This package talks to the Kaleidoscope server API; it is not a standalone screenshot service by itself.
-- Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and preferred local display paths when the client supports them.
+- Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and absolute local display paths when the client supports them.
+- Screenshot tool responses include per-image `markdownImageTag` values plus a top-level `readyToPasteMarkdown` array so agents can paste a working Markdown image tag directly into chat on Windows, macOS, Linux, or UNC network shares.
+- `record_walkthrough` saves local `.webm` files and returns them as `resource_link` artifacts plus absolute local paths. It supports structured `click`, `hover`, `type`, `press`, `wait`, `scroll`, `goto`, and `select` steps, or a simpler one-command-per-line `script` format.
+- `record_walkthrough` resolves its save location in this order: explicit `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`.
+- `record_walkthrough` requires Playwright Chromium to be installed on the host machine:
+
+```bash
+npx playwright install chromium
+```
+
+Example `script` input for `record_walkthrough`:
+
+```text
+click #open-settings
+type "hello@example.com" into #email
+click button[type="submit"]
+wait 800ms
+```
+
 - Inspect remains selector-based and is limited to loopback/dev targets.
 
 ## Development

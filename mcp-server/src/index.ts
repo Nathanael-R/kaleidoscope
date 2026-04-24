@@ -6,6 +6,7 @@ import { registerPreviewTools } from './tools/preview.js';
 import { registerScreenshotTools } from './tools/screenshot.js';
 import { registerProxyTools } from './tools/proxy.js';
 import { registerInspectTools } from './tools/inspect.js';
+import { registerWalkthroughTools } from './tools/walkthrough.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
@@ -17,6 +18,7 @@ registerPreviewTools(server);
 registerScreenshotTools(server);
 registerProxyTools(server);
 registerInspectTools(server);
+registerWalkthroughTools(server);
 
 // Start the server
 async function main() {

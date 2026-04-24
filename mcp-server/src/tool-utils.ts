@@ -82,7 +82,11 @@ export function toMarkdownImagePath(filePath: string): string | null {
 
   const normalizedPath = filePath.replace(/\\/g, '/');
   if (/^[A-Za-z]:\//.test(normalizedPath)) {
-    return `/${normalizedPath}`;
+    return normalizedPath;
+  }
+
+  if (normalizedPath.startsWith('//')) {
+    return normalizedPath;
   }
 
   if (normalizedPath.startsWith('/')) {

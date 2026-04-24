@@ -1,15 +1,21 @@
 import { createServer } from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KALEIDOSCOPE_SERVER } from './kaleidoscope-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = resolve(__dirname, '..', '..');
+const SOURCE_PROJECT_ROOT = resolve(__dirname, '..', '..');
+const DIST_PROJECT_ROOT = resolve(__dirname, '..', '..', '..');
+const PROJECT_ROOT = existsSync(resolve(SOURCE_PROJECT_ROOT, 'server'))
+  ? SOURCE_PROJECT_ROOT
+  : DIST_PROJECT_ROOT;
 const DEFAULT_CLIENT_PORTS = [5173, 5174, 4173];
 const KALEIDOSCOPE_CLIENT_TITLE = '<title>Kaleidoscope</title>';
 const KALEIDOSCOPE_CLIENT_ROOT = '<div id="root"></div>';
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+const IS_WINDOWS = process.platform === 'win32';
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
@@ -18,6 +24,74 @@ function isLoopbackHostname(hostname: string): boolean {
 
 export function isKaleidoscopeClientHtml(html: string): boolean {
   return html.includes(KALEIDOSCOPE_CLIENT_TITLE) && html.includes(KALEIDOSCOPE_CLIENT_ROOT);
+}
+
+export interface ResolvedSpawnCommand {
+  command: string;
+  args: string[];
+  shell: boolean;
+}
+
+function windowsShellCommand(command: string, args: string[]): ResolvedSpawnCommand {
+  return {
+    command,
+    args,
+    shell: true,
+  };
+}
+
+export function resolveLocalBinCommand(
+  binName: string,
+  args: string[],
+  cwd: string,
+): ResolvedSpawnCommand {
+  const executableNames = IS_WINDOWS
+    ? [`${binName}.cmd`, `${binName}.exe`, binName]
+    : [binName];
+  const binDirs = [
+    join(cwd, 'node_modules', '.bin'),
+    join(PROJECT_ROOT, 'node_modules', '.bin'),
+    join(PROJECT_ROOT, 'mcp-server', 'node_modules', '.bin'),
+  ];
+
+  for (const binDir of binDirs) {
+    for (const executableName of executableNames) {
+      const candidate = join(binDir, executableName);
+      if (!existsSync(candidate)) {
+        continue;
+      }
+
+      if (IS_WINDOWS && candidate.toLowerCase().endsWith('.cmd')) {
+        return windowsShellCommand(candidate, args);
+      }
+
+      return {
+        command: candidate,
+        args,
+        shell: false,
+      };
+    }
+  }
+
+  if (IS_WINDOWS) {
+    return windowsShellCommand(binName, args);
+  }
+
+  return {
+    command: binName,
+    args,
+    shell: false,
+  };
+}
+
+function appendNodeBinPath(env: NodeJS.ProcessEnv, ...roots: string[]): NodeJS.ProcessEnv {
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
+  const binPaths = roots.map((root) => join(root, 'node_modules', '.bin'));
+  const currentPath = env[pathKey];
+  return {
+    ...env,
+    [pathKey]: [binPaths, currentPath].flat().filter(Boolean).join(IS_WINDOWS ? ';' : ':'),
+  };
 }
 
 export interface ServiceStatus {
@@ -224,10 +298,20 @@ class ProcessManager {
     this.serverLogTail = '';
     let spawnErrorMessage: string | null = null;
 
-    this.serverProcess = spawn('npx', ['tsx', 'index.ts'], {
-      cwd: resolve(PROJECT_ROOT, 'server'),
-      env: { ...process.env, PORT: String(this.serverPort), NODE_ENV: 'development' },
+    const serverCwd = resolve(PROJECT_ROOT, 'server');
+    const serverCommand = resolveLocalBinCommand('tsx', ['index.ts'], serverCwd);
+
+    this.serverProcess = spawn(serverCommand.command, serverCommand.args, {
+      cwd: serverCwd,
+      env: appendNodeBinPath(
+        { ...process.env, PORT: String(this.serverPort), NODE_ENV: 'development' },
+        serverCwd,
+        PROJECT_ROOT,
+        resolve(PROJECT_ROOT, 'mcp-server'),
+      ),
       stdio: 'pipe',
+      shell: serverCommand.shell,
+      detached: IS_WINDOWS,
     });
 
     this.serverProcess.on('error', (error: Error) => {
@@ -269,10 +353,24 @@ class ProcessManager {
     this.clientLogTail = '';
     let spawnErrorMessage: string | null = null;
 
-    this.clientProcess = spawn('npx', ['vite', '--host', '0.0.0.0', '--port', String(this.clientPort), '--strictPort'], {
-      cwd: resolve(PROJECT_ROOT, 'mosaic-client'),
-      env: { ...process.env },
+    const clientCwd = resolve(PROJECT_ROOT, 'mosaic-client');
+    const clientCommand = resolveLocalBinCommand(
+      'vite',
+      ['--host', '0.0.0.0', '--port', String(this.clientPort), '--strictPort'],
+      clientCwd,
+    );
+
+    this.clientProcess = spawn(clientCommand.command, clientCommand.args, {
+      cwd: clientCwd,
+      env: appendNodeBinPath(
+        { ...process.env },
+        clientCwd,
+        PROJECT_ROOT,
+        resolve(PROJECT_ROOT, 'mcp-server'),
+      ),
       stdio: 'pipe',
+      shell: clientCommand.shell,
+      detached: IS_WINDOWS,
     });
 
     this.clientProcess.on('error', (error: Error) => {
@@ -310,12 +408,32 @@ class ProcessManager {
 
   async stopAll(): Promise<void> {
     if (this.clientProcess && this.clientProcess.exitCode === null) {
-      this.clientProcess.kill('SIGTERM');
+      this.stopProcessTree(this.clientProcess);
       this.clientProcess = null;
     }
     if (this.serverProcess && this.serverProcess.exitCode === null) {
-      this.serverProcess.kill('SIGTERM');
+      this.stopProcessTree(this.serverProcess);
       this.serverProcess = null;
+    }
+  }
+
+  private stopProcessTree(processRef: ChildProcess): void {
+    if (!processRef.pid) {
+      return;
+    }
+
+    if (IS_WINDOWS) {
+      spawn('taskkill', ['/pid', String(processRef.pid), '/t', '/f'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      return;
+    }
+
+    try {
+      process.kill(-processRef.pid, 'SIGTERM');
+    } catch {
+      processRef.kill('SIGTERM');
     }
   }
 

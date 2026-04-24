@@ -232,11 +232,12 @@ test('lists tools with output schemas', async () => {
   const tools = await client.listTools();
   const toolMap = new Map(tools.tools.map((tool) => [tool.name, tool]));
 
-  assert.equal(toolMap.size, 10);
+  assert.equal(toolMap.size, 11);
   assert.ok(toolMap.get('kaleidoscope_list_devices')?.outputSchema);
   assert.ok(toolMap.get('preview_responsive')?.outputSchema);
   assert.ok(toolMap.get('capture_screenshots')?.outputSchema);
   assert.ok(toolMap.get('inspect_element_source')?.outputSchema);
+  assert.ok(toolMap.get('record_walkthrough')?.outputSchema);
 });
 
 test('kaleidoscope_list_devices returns device presets and defaults', async () => {
@@ -330,24 +331,37 @@ test('capture_screenshots returns structured metadata and rich content', async (
     }>;
     inlineImageCount: number;
     displayAdvice: string;
+    readyToPasteMarkdown: string[];
   };
   assert.equal(structured.inlineImageCount, 1);
-  assert.match(structured.displayAdvice, /markdownImageTag/i);
+  assert.match(structured.displayAdvice, /readyToPasteMarkdown/i);
   assert.equal(structured.screenshots[0]?.path, screenshotPath);
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
   assert.equal(structured.screenshots[0]?.preferredDisplayPath, screenshotPath);
   assert.match(structured.screenshots[0]?.preferredDisplayUri ?? '', /^file:/);
   assert.equal(
     structured.screenshots[0]?.chatDisplayPath,
-    `/${screenshotPath.replace(/\\/g, '/')}`,
+    screenshotPath.replace(/\\/g, '/'),
   );
   assert.equal(
     structured.screenshots[0]?.markdownImageTag,
-    `![Desktop HD preview](</${screenshotPath.replace(/\\/g, '/')}>)`,
+    `![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`,
+  );
+  assert.deepEqual(
+    structured.readyToPasteMarkdown,
+    [`![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`],
   );
   assert.equal(
     structured.screenshots[0]?.downloadUrl,
     `${apiBaseUrl}/api/screenshots-files/desktop-test.png`,
+  );
+
+  const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
+  const primaryTextBlock = content.find((item) => item.type === 'text');
+  assert.match(primaryTextBlock?.text ?? '', /Ready-to-paste Markdown image tags:/);
+  assert.match(
+    primaryTextBlock?.text ?? '',
+    new RegExp(`!\\[Desktop HD preview\\]\\(<${screenshotPath.replace(/\\/g, '/').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>\\)`),
   );
 });
 
