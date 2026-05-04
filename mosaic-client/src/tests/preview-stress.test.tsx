@@ -87,7 +87,7 @@ describe('Preview stress test', () => {
     });
 
     const [requestUrl, requestInit] = mockFetch.mock.calls[0];
-    expect(requestUrl).toBe('/api/screenshots');
+    expect(requestUrl).toBe('http://localhost:5000/api/screenshots');
 
     const headers = new Headers(requestInit.headers);
     expect(headers.get('Content-Type')).toBe('application/json');
