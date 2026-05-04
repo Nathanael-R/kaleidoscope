@@ -1,4 +1,5 @@
 import { mkdir, rename } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import { chromium, type Locator, type Page } from 'playwright';
@@ -16,6 +17,7 @@ const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 const DEFAULT_DEVICE_ID = 'desktop';
 const DEFAULT_OUTPUT_DIR = './walkthroughs';
 const WALKTHROUGH_OUTPUT_DIR_ENV = 'KALEIDOSCOPE_WALKTHROUGH_DIR';
+const DEFAULT_ARTIFACT_MODE = 'deliverable';
 const DEFAULT_SLOW_MO_MS = 180;
 const DEFAULT_WAIT_AFTER_STEP_MS = 350;
 const MAX_RECORDING_EDGE = 1280;
@@ -201,6 +203,9 @@ const walkthroughInputSchema = {
   output_dir: z.string().optional().describe(
     `Directory to save recorded videos. Defaults to ${DEFAULT_OUTPUT_DIR}`,
   ),
+  artifact_mode: z.enum(['deliverable', 'inspection']).optional().describe(
+    'Artifact intent. deliverable uses output_dir/env/defaults; inspection defaults to the OS temp directory unless output_dir is provided.',
+  ),
   include_cursor: z.boolean().optional().describe(
     'If true, inject a visible cursor overlay with click pulses into the recording. Default: true',
   ),
@@ -214,6 +219,7 @@ const walkthroughInputSchema = {
 
 const walkthroughOutputSchema = {
   url: z.string().url(),
+  artifactMode: z.enum(['deliverable', 'inspection']),
   deviceId: z.string(),
   deviceName: z.string(),
   viewport: z.object({
@@ -236,6 +242,7 @@ const walkthroughOutputSchema = {
 
 type WalkthroughStep = z.infer<typeof walkthroughStepSchema>;
 type WalkthroughRequest = z.infer<typeof walkthroughRequestSchema>;
+type ArtifactMode = 'deliverable' | 'inspection';
 
 const walkthroughRequestSchema = z.object({
   url: z.string().url(),
@@ -243,6 +250,7 @@ const walkthroughRequestSchema = z.object({
   script: z.string().optional(),
   device: z.enum(ALL_DEVICE_IDS).optional(),
   output_dir: z.string().optional(),
+  artifact_mode: z.enum(['deliverable', 'inspection']).optional(),
   include_cursor: z.boolean().optional(),
   slow_mo_ms: z.number().int().min(0).max(1000).optional(),
   name: z.string().optional(),
@@ -261,6 +269,7 @@ const walkthroughRequestSchema = z.object({
 
 interface WalkthroughResult {
   url: string;
+  artifactMode: ArtifactMode;
   deviceId: string;
   deviceName: string;
   viewport: {
@@ -291,10 +300,17 @@ export function sanitizeWalkthroughFileStem(input: string): string {
   return normalized || 'walkthrough';
 }
 
-export function resolveWalkthroughOutputDir(explicitOutputDir?: string): string {
+export function resolveWalkthroughOutputDir(
+  explicitOutputDir?: string,
+  artifactMode: ArtifactMode = DEFAULT_ARTIFACT_MODE,
+): string {
   const explicit = explicitOutputDir?.trim();
   if (explicit) {
     return explicit;
+  }
+
+  if (artifactMode === 'inspection') {
+    return tmpdir();
   }
 
   const configured = process.env[WALKTHROUGH_OUTPUT_DIR_ENV]?.trim();
@@ -628,7 +644,8 @@ export function registerWalkthroughTools(server: McpServer) {
         'Record a scripted video walkthrough of a page using Playwright. ' +
         'Useful for feature demos, bug reproductions, or showing a flow with a visible cursor overlay. ' +
         'Returns the saved local video path plus metadata for the captured walkthrough. ' +
-        `Uses output_dir when provided, otherwise ${WALKTHROUGH_OUTPUT_DIR_ENV}, otherwise ${DEFAULT_OUTPUT_DIR}.`,
+        `Deliverable recordings use output_dir when provided, otherwise ${WALKTHROUGH_OUTPUT_DIR_ENV}, otherwise ${DEFAULT_OUTPUT_DIR}. ` +
+        'Inspection recordings default to the OS temp directory unless output_dir is provided.',
       inputSchema: walkthroughInputSchema as z.ZodRawShape,
       outputSchema: walkthroughOutputSchema as z.ZodRawShape,
     },
@@ -642,8 +659,9 @@ export function registerWalkthroughTools(server: McpServer) {
 
       const { url, device: deviceId, output_dir, include_cursor, slow_mo_ms, name } = request;
       const steps = resolveWalkthroughSteps(request);
+      const artifactMode = request.artifact_mode ?? DEFAULT_ARTIFACT_MODE;
       const device = getDevice(deviceId);
-      const outputDirectory = path.resolve(resolveWalkthroughOutputDir(output_dir));
+      const outputDirectory = path.resolve(resolveWalkthroughOutputDir(output_dir, artifactMode));
       const recordingSize = scaleRecordingSize(device.width, device.height);
       const fileStem = sanitizeWalkthroughFileStem(name ?? `${device.id}-${new URL(url).hostname}`);
       const finalVideoPath = path.join(outputDirectory, `${fileStem}-${timestampSuffix()}.webm`);
@@ -701,6 +719,7 @@ export function registerWalkthroughTools(server: McpServer) {
 
         const result: WalkthroughResult = {
           url,
+          artifactMode,
           deviceId: device.id,
           deviceName: device.name,
           viewport: {
@@ -716,8 +735,9 @@ export function registerWalkthroughTools(server: McpServer) {
           stepSummaries: steps.map((step) => summarizeWalkthroughStep(step)),
           cursorOverlayEnabled,
           displayAdvice:
-            'Open the local video file from videoPath or fileUri to review the walkthrough. ' +
-            'Some MCP clients will show the attached resource link, but not every chat surface can inline-play video yet.',
+            artifactMode === 'inspection'
+              ? 'This walkthrough was saved as an inspection artifact in a temporary location. Use videoPath or fileUri to review it while debugging. Some MCP clients will show the attached resource link, but not every chat surface can inline-play video yet.'
+              : 'Open the local video file from videoPath or fileUri to review the walkthrough. Some MCP clients will show the attached resource link, but not every chat surface can inline-play video yet.',
         };
 
         const content: ContentBlock[] = [];
@@ -733,6 +753,7 @@ export function registerWalkthroughTools(server: McpServer) {
 
         const lines = [
           `Walkthrough recorded for: ${url}`,
+          `Artifact mode: ${artifactMode}`,
           `Device: ${device.name} (${device.width}x${device.height})`,
           `Saved video: ${finalVideoPath}`,
           '',

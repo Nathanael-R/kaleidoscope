@@ -250,11 +250,12 @@ Current MCP status:
 - Tools return structured MCP responses instead of plain text only.
 - `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
 - `capture_screenshots` returns screenshot metadata, preferred local display paths, chat-ready absolute Markdown display paths, per-image `markdownImageTag` values, a top-level `readyToPasteMarkdown` array, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `capture_screenshots` accepts device IDs and common device names, so agents can request `devices: ["iphone-14"]` or `devices: ["iPhone 14"]` for the same iPhone 14 capture.
 - The chat-ready paths are OS-agnostic absolute local paths: `C:/...` on Windows, `/Users/...` or `/home/...` on macOS/Linux, and `//server/share/...` for UNC network shares.
 - For the most reliable chat rendering in Codex, paste an entry from `readyToPasteMarkdown` directly into the response instead of reconstructing an image tag from `downloadUrl`.
 - `record_walkthrough` records a local `.webm` walkthrough with scripted clicks, typing, hover, scroll, and navigation steps, plus an optional cursor overlay for clearer demos.
 - `record_walkthrough` accepts either structured `steps` or a simpler one-command-per-line `script` format such as `click #save` and `type "hello@example.com" into #email`.
-- `record_walkthrough` saves to `output_dir` when you pass one, otherwise to `KALEIDOSCOPE_WALKTHROUGH_DIR` when configured, otherwise to `./walkthroughs`.
+- `record_walkthrough` supports deliverable and inspection artifact modes. Deliverables save to `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`; inspection recordings default to the OS temp directory unless `output_dir` is provided.
 - `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
 - `mcp-server` includes stdio integration tests for the registered MCP tools.
 

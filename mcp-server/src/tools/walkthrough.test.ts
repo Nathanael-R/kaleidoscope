@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
 import {
   parseWalkthroughScript,
   resolveWalkthroughOutputDir,
@@ -72,6 +73,8 @@ test('resolveWalkthroughOutputDir prefers explicit input, then env, then default
     process.env.KALEIDOSCOPE_WALKTHROUGH_DIR = './configured-walkthroughs';
     assert.equal(resolveWalkthroughOutputDir(undefined), './configured-walkthroughs');
     assert.equal(resolveWalkthroughOutputDir('./explicit-walkthroughs'), './explicit-walkthroughs');
+    assert.equal(resolveWalkthroughOutputDir(undefined, 'inspection'), tmpdir());
+    assert.equal(resolveWalkthroughOutputDir('./explicit-inspection', 'inspection'), './explicit-inspection');
   } finally {
     if (previous === undefined) {
       delete process.env.KALEIDOSCOPE_WALKTHROUGH_DIR;

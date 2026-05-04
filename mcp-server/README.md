@@ -129,8 +129,9 @@ If you installed the package globally, use `kaleidoscope-mcp` as the command and
 - This package talks to the Kaleidoscope server API; it is not a standalone screenshot service by itself.
 - Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and absolute local display paths when the client supports them.
 - Screenshot tool responses include per-image `markdownImageTag` values plus a top-level `readyToPasteMarkdown` array so agents can paste a working Markdown image tag directly into chat on Windows, macOS, Linux, or UNC network shares.
+- `capture_screenshots` accepts both device IDs and common names. For example, `devices: ["iphone-14"]`, `devices: ["iPhone 14"]`, and `devices: ["iphone14"]` all resolve to the iPhone 14 preset.
 - `record_walkthrough` saves local `.webm` files and returns them as `resource_link` artifacts plus absolute local paths. It supports structured `click`, `hover`, `type`, `press`, `wait`, `scroll`, `goto`, and `select` steps, or a simpler one-command-per-line `script` format.
-- `record_walkthrough` resolves its save location in this order: explicit `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`.
+- `record_walkthrough` supports `artifact_mode: "deliverable"` and `artifact_mode: "inspection"`. Deliverables resolve their save location as explicit `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`. Inspection recordings default to the OS temp directory unless `output_dir` is provided.
 - `record_walkthrough` requires Playwright Chromium to be installed on the host machine:
 
 ```bash

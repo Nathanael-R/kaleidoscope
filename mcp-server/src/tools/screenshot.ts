@@ -13,8 +13,37 @@ import {
   toMarkdownImageTag,
 } from '../tool-utils.js';
 
-const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 const DEFAULT_CAPTURE_DEVICES = ['iphone-14', 'ipad', 'desktop'] as const;
+
+function normalizeDeviceLookupKey(input: string): string {
+  return input.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+const DEVICE_ALIASES = new Map<string, string>(
+  DEVICES.flatMap((device) => {
+    const entries: Array<[string, string]> = [
+      [device.id, device.id],
+      [device.name, device.id],
+      [device.id.replace(/-/g, ' '), device.id],
+    ];
+
+    return entries.map(([alias, id]) => [normalizeDeviceLookupKey(alias), id]);
+  }),
+);
+
+export function normalizeScreenshotDevices(requestedDevices: string[]): string[] {
+  return requestedDevices.map((requestedDevice) => {
+    const deviceId = DEVICE_ALIASES.get(normalizeDeviceLookupKey(requestedDevice));
+    if (!deviceId) {
+      throw new Error(
+        `Unknown device "${requestedDevice}". Use kaleidoscope_list_devices to see supported devices. ` +
+        `Available device IDs: ${DEVICE_IDS.join(', ')}`,
+      );
+    }
+
+    return deviceId;
+  });
+}
 
 const deviceCatalogEntrySchema = z.object({
   id: z.string(),
@@ -57,9 +86,10 @@ const screenshotOutputSchema = {
 
 const screenshotInputSchema = {
   url: z.string().url().describe('The URL to screenshot'),
-  devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
-    'Device viewports to capture. Defaults to iphone-14, ipad, desktop. ' +
-    'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k',
+  devices: z.array(z.string()).optional().describe(
+    'Device viewports to capture. Accepts device IDs or names, for example "iphone-14" or "iPhone 14". ' +
+    'Defaults to iphone-14, ipad, desktop. ' +
+    `Available IDs: ${DEVICE_IDS.join(', ')}`,
   ),
   output_dir: z.string().optional().describe(
     'Directory to save screenshots. Defaults to ./screenshots/',
@@ -161,7 +191,9 @@ export function registerScreenshotTools(server: McpServer) {
           await processManager.startServer();
         }
 
-        const devicesToCapture = selectedDevices ?? DEFAULT_CAPTURE_DEVICES;
+        const devicesToCapture = selectedDevices
+          ? normalizeScreenshotDevices(selectedDevices)
+          : [...DEFAULT_CAPTURE_DEVICES];
         const outputDir = output_dir ?? './screenshots';
 
         const screenshotRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/screenshots`, {
