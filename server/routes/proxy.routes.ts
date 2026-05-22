@@ -5,6 +5,53 @@ import { validateCookies, validateProxyTargetUrl, validateRequestHeaders } from 
 import { sendError } from '../utils/http.js';
 
 const router = Router();
+const MAX_MOCK_ROUTES = 50;
+const MAX_MOCK_PATTERN_LENGTH = 200;
+const MAX_MOCK_RESPONSE_BYTES = 250_000;
+const MAX_TOTAL_MOCK_BYTES = 1_000_000;
+
+function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanitized?: Array<{ pattern: string; response: unknown }> } {
+  if (!Array.isArray(mocks)) {
+    return { valid: false, reason: 'mocks array is required' };
+  }
+
+  if (mocks.length > MAX_MOCK_ROUTES) {
+    return { valid: false, reason: `Maximum ${MAX_MOCK_ROUTES} mock routes per session` };
+  }
+
+  let totalBytes = 0;
+  const sanitized: Array<{ pattern: string; response: unknown }> = [];
+  for (const [index, mock] of mocks.entries()) {
+    if (!mock || typeof mock !== 'object') {
+      return { valid: false, reason: `mock at index ${index} must be an object` };
+    }
+
+    const candidate = mock as { pattern?: unknown; response?: unknown };
+    if (typeof candidate.pattern !== 'string' || candidate.pattern.trim().length === 0) {
+      return { valid: false, reason: `mock at index ${index} must include a non-empty pattern` };
+    }
+
+    const pattern = candidate.pattern.trim();
+    if (pattern.length > MAX_MOCK_PATTERN_LENGTH || !pattern.startsWith('/')) {
+      return { valid: false, reason: `mock pattern at index ${index} must start with / and be ${MAX_MOCK_PATTERN_LENGTH} characters or fewer` };
+    }
+
+    const encoded = JSON.stringify(candidate.response);
+    const byteLength = Buffer.byteLength(encoded ?? 'null', 'utf8');
+    if (byteLength > MAX_MOCK_RESPONSE_BYTES) {
+      return { valid: false, reason: `mock response at index ${index} exceeds ${MAX_MOCK_RESPONSE_BYTES} bytes` };
+    }
+
+    totalBytes += byteLength;
+    if (totalBytes > MAX_TOTAL_MOCK_BYTES) {
+      return { valid: false, reason: `mock responses exceed ${MAX_TOTAL_MOCK_BYTES} total bytes` };
+    }
+
+    sanitized.push({ pattern, response: candidate.response });
+  }
+
+  return { valid: true, sanitized };
+}
 
 /**
  * POST /api/proxy/session
@@ -22,7 +69,7 @@ router.post('/session', async (req: Request, res: Response) => {
       return sendError(res, 400, 'url is required');
     }
 
-    const validation = await validateProxyTargetUrl(url);
+    const validation = await validateProxyTargetUrl(url, { allowLoopback: true });
     if (!validation.allowed) {
       return sendError(res, 400, validation.reason);
     }
@@ -49,12 +96,8 @@ router.post('/session', async (req: Request, res: Response) => {
         targetUrl: session.targetUrl,
       },
     });
-  } catch (error) {
-    return sendError(
-      res,
-      500,
-      error instanceof Error ? error.message : 'Failed to create proxy session',
-    );
+  } catch {
+    return sendError(res, 500, 'Failed to create proxy session');
   }
 });
 
@@ -115,8 +158,9 @@ router.post('/session/:id/mock', (req: Request, res: Response) => {
     mocks: Array<{ pattern: string; response: unknown }>;
   };
 
-  if (!mocks || !Array.isArray(mocks)) {
-    return sendError(res, 400, 'mocks array is required');
+  const validation = validateMocks(mocks);
+  if (!validation.valid || !validation.sanitized) {
+    return sendError(res, 400, validation.reason ?? 'Invalid mocks');
   }
 
   const session = proxyService.getSession(id);
@@ -124,12 +168,12 @@ router.post('/session/:id/mock', (req: Request, res: Response) => {
     return sendError(res, 404, 'Session not found');
   }
 
-  proxyService.setMockRoutes(id, mocks);
+  proxyService.setMockRoutes(id, validation.sanitized);
 
   res.json({
     success: true,
-    mockCount: mocks.length,
-    message: `${mocks.length} mock route(s) registered. API responses matching these patterns will return mock data.`,
+    mockCount: validation.sanitized.length,
+    message: `${validation.sanitized.length} mock route(s) registered. API responses matching these patterns will return mock data.`,
   });
 });
 

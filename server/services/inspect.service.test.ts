@@ -16,7 +16,7 @@ test('inspectService prefers exact element-source results when available', () =>
   try {
     const result = inspectService.resolve({
       url: 'http://localhost:3000',
-      sourceDir,
+      sourceDir: tempDir,
       device: {
         id: 'iphone-16',
         name: 'iPhone 16',
@@ -52,6 +52,54 @@ test('inspectService prefers exact element-source results when available', () =>
     assert.equal(result.source?.code, 'return <button id="save">Save</button>;');
     assert.equal(result.source?.context?.startLine, 1);
     assert.match(result.source?.context?.snippet ?? '', /return <button id="save">Save<\/button>;/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('inspectService does not read absolute runtime paths outside sourceDir', () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'inspect-boundary-'));
+  const sourceDir = join(tempDir, 'app');
+  const outsideDir = join(tempDir, 'outside');
+  const outsideFile = join(outsideDir, 'secret.txt');
+
+  mkdirSync(sourceDir, { recursive: true });
+  mkdirSync(outsideDir, { recursive: true });
+  writeFileSync(outsideFile, ['secret-one', 'secret-two'].join('\n'));
+
+  try {
+    const result = inspectService.resolve({
+      url: 'http://localhost:3000',
+      sourceDir,
+      device: null,
+      selection: {
+        selector: '#save',
+        tagName: 'button',
+        text: 'Save',
+        title: 'Checkout',
+        pageUrl: 'http://localhost:3000/checkout',
+        elementSource: {
+          componentName: 'SaveButton',
+          source: {
+            filePath: outsideFile,
+            lineNumber: 2,
+            columnNumber: 1,
+            componentName: 'SaveButton',
+          },
+          stack: [{
+            filePath: outsideFile,
+            lineNumber: 1,
+            columnNumber: 1,
+            componentName: 'SecretFrame',
+          }],
+        },
+      },
+    });
+
+    assert.equal(result.source?.filePath, 'secret.txt');
+    assert.equal(result.source?.code, null);
+    assert.equal(result.source?.context, null);
+    assert.equal(result.stack[0]?.filePath, 'secret.txt');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

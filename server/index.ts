@@ -23,6 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const port = parseInt(process.env.PORT || '5000', 10);
+const host = process.env.HOST?.trim() || '127.0.0.1';
 const isProduction = process.env.NODE_ENV === 'production';
 const configuredCorsOrigin = process.env.CORS_ORIGIN;
 const allowedRequestHeaders = [
@@ -59,6 +60,10 @@ function isAllowedOrigin(origin: string): boolean {
 
 if (isProduction && !configuredCorsOrigin) {
   throw new Error('CORS_ORIGIN must be set in production');
+}
+
+if (!host || host.includes('/') || host.includes('\\') || host.includes('\0')) {
+  throw new Error('HOST must be a hostname or IP address, such as 127.0.0.1 or 0.0.0.0');
 }
 
 app.use(express.json({ limit: '1mb' }));
@@ -241,7 +246,7 @@ app.use((req, res, next) => {
   // Error handler (must be registered after routes and static files)
   app.use((err: Error & { status?: number; statusCode?: number }, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const message = status >= 500 ? "Internal Server Error" : err.message || "Internal Server Error";
     const requestId = res.locals.requestId as string | undefined;
     sendError(res, status, message);
     logServerError(err, { requestId, path: req.path, method: req.method });
@@ -270,14 +275,14 @@ app.use((req, res, next) => {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  httpServer.listen(port, "0.0.0.0", () => {
+  httpServer.listen(port, host, () => {
     const timestamp = new Date().toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       second: "2-digit",
       hour12: true,
     });
-    console.log(`${timestamp} [express] Kaleidoscope server running on port ${port}`);
+    console.log(`${timestamp} [express] Kaleidoscope server running on ${host}:${port}`);
     console.log(`${timestamp} [express] health check: /api/health`);
   });
 })();

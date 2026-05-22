@@ -119,13 +119,16 @@ test('inspect resolve returns device metadata and source context', async () => {
     '}',
   ].join('\n'));
 
+  const previousWorkspaceRoot = process.env.KALEIDOSCOPE_WORKSPACE_ROOT;
+  process.env.KALEIDOSCOPE_WORKSPACE_ROOT = tempDir;
+
   try {
     const response = await fetch(`${apiBaseUrl}/api/inspect/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: targetBaseUrl,
-        sourceDir,
+        sourceDir: tempDir,
         device: {
           id: 'iphone-16',
           name: 'iPhone 16',
@@ -162,7 +165,7 @@ test('inspect resolve returns device metadata and source context', async () => {
       };
     };
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 200, JSON.stringify(body));
     assert.equal(body.success, true);
     assert.equal(body.result.page.title, 'Inspect Target');
     assert.equal(body.result.page.url, `${targetBaseUrl}/checkout`);
@@ -171,6 +174,11 @@ test('inspect resolve returns device metadata and source context', async () => {
     assert.equal(body.result.source?.context?.startLine, 1);
     assert.match(body.result.source?.context?.snippet ?? '', /return <button id="save">Save<\/button>;/);
   } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.KALEIDOSCOPE_WORKSPACE_ROOT;
+    } else {
+      process.env.KALEIDOSCOPE_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -186,6 +194,9 @@ test('inspect selector resolves an element directly from the page using a CSS se
     '  return <div id="root">hello</div>;',
     '}',
   ].join('\n'));
+
+  const previousWorkspaceRoot = process.env.KALEIDOSCOPE_WORKSPACE_ROOT;
+  process.env.KALEIDOSCOPE_WORKSPACE_ROOT = tempDir;
 
   try {
     const response = await fetch(`${apiBaseUrl}/api/inspect/selector`, {
@@ -215,13 +226,18 @@ test('inspect selector resolves an element directly from the page using a CSS se
       };
     };
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 200, JSON.stringify(body));
     assert.equal(body.success, true);
     assert.equal(body.result.selector, '#root');
     assert.equal(body.result.page.title, 'Inspect Target');
     assert.equal(body.result.device?.id, 'desktop');
     assert.match(body.result.source?.context?.snippet ?? '', /<div id="root">hello<\/div>/);
   } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.KALEIDOSCOPE_WORKSPACE_ROOT;
+    } else {
+      process.env.KALEIDOSCOPE_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -278,7 +294,7 @@ test('inspect discover returns high-confidence candidates for a natural-language
     }>;
   };
 
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, JSON.stringify(body));
   assert.equal(body.success, true);
   assert.equal(body.query, 'save button');
   assert.equal(body.page.title, 'Checkout');

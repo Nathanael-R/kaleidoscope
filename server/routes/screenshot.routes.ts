@@ -10,6 +10,7 @@ import {
 } from '../services/screenshot.service.js';
 import { isAllowedHttpUrl } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
+import { logServerError } from '../utils/logger.js';
 
 const router = Router();
 
@@ -54,6 +55,13 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    if (
+      outputDir !== undefined
+      && (typeof outputDir !== 'string' || outputDir.length > 120 || outputDir.includes('\0'))
+    ) {
+      return sendError(res, 400, 'outputDir must be a safe directory name of 120 characters or fewer');
+    }
+
     const safeOutputDir = sanitizeOutputDir(outputDir);
 
     const results = await screenshotService.capture({
@@ -84,12 +92,12 @@ router.post('/', async (req: Request, res: Response) => {
       count: screenshots.length,
     });
   } catch (error) {
-    console.error('Screenshot error:', error);
-    return sendError(
-      res,
-      500,
-      error instanceof Error ? error.message : 'Failed to capture screenshots',
-    );
+    logServerError(error, {
+      requestId: res.locals.requestId as string | undefined,
+      path: req.path,
+      method: req.method,
+    });
+    return sendError(res, 500, 'Failed to capture screenshots');
   }
 });
 

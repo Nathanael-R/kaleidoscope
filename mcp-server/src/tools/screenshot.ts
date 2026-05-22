@@ -93,8 +93,8 @@ const screenshotInputSchema = {
     'Defaults to iphone-14, ipad, desktop. ' +
     `Available IDs: ${DEVICE_IDS.join(', ')}`,
   ),
-  output_dir: z.string().optional().describe(
-    'Directory to save screenshots. Defaults to ./screenshots/',
+  output_dir: z.string().max(120).optional().describe(
+    'Directory name to save screenshots under the configured screenshot root. Defaults to ./screenshots/. Path traversal is rejected by the server.',
   ),
   full_page: z.boolean().optional().describe(
     'Capture full scrollable page instead of just the viewport. Default: false',

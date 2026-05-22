@@ -98,11 +98,11 @@ class ScreenshotService {
           width,
           height,
         });
-      } catch (error) {
-        console.error(`Screenshot failed for ${config.name}:`, error);
+      } catch {
+        console.error(`Screenshot failed for ${config.name}.`);
         results.push({
           device: config.name,
-          path: `ERROR: ${error instanceof Error ? error.message : String(error)}`,
+          path: 'ERROR: Screenshot capture failed for this device.',
           width: config.width,
           height: config.height,
         });

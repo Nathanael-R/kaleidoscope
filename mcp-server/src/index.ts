@@ -10,7 +10,7 @@ import { registerWalkthroughTools } from './tools/walkthrough.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
-  version: '1.1.0',
+  version: '1.2.1',
 });
 
 // Register all tools
@@ -28,6 +28,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`Fatal error: ${error}\n`);
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`Fatal error: ${message.replace(/\r?\n/g, ' ').slice(0, 500)}\n`);
   process.exit(1);
 });

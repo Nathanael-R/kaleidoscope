@@ -185,8 +185,12 @@ export function registerPreviewTools(server: McpServer) {
 
         if (tunnel) {
           try {
-            const portMatch = url.match(/:(\d+)/);
-            const port = portMatch ? parseInt(portMatch[1], 10) : 3000;
+            const parsedPreviewUrl = new URL(url);
+            const port = parsedPreviewUrl.port
+              ? parseInt(parsedPreviewUrl.port, 10)
+              : parsedPreviewUrl.protocol === 'https:'
+                ? 443
+                : 80;
 
             const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel/create`, {
               method: 'POST',

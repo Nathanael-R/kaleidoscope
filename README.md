@@ -143,98 +143,16 @@ The tunnel panel uses external tunnel binaries rather than bundling a JS tunnel 
 
 ## MCP Server
 
-The MCP server lives in [mcp-server](mcp-server) and exposes tools for preview, screenshots, auth proxy sessions, selector discovery, and source inspection.
+The MCP server lives in [mcp-server](mcp-server) and exposes tools for preview, screenshots, walkthrough videos, auth proxy sessions, selector discovery, and source inspection.
 
-For external users, the recommended setup is:
-
-1. Install the published MCP package:
+For normal users, use the npm package. It includes the MCP server, Kaleidoscope backend, and built web client, so users do not need to clone this repo.
 
 ```bash
 npm install -g kaleidoscope-mcp-server
-```
-
-2. Launch the installed executable directly in your MCP client:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "kaleidoscope-mcp",
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
-3. Install Playwright Chromium once on the same machine before asking for screenshots or walkthroughs:
-
-```bash
 npx playwright install chromium
 ```
 
-If you are working from a repo checkout instead, use a source-based MCP config like this:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "npx",
-      "args": ["tsx", "src/index.ts"],
-      "cwd": "/path/to/Kaleidoscope/mcp-server",
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "https://your-kaleidoscope-api.example.com"
-      }
-    }
-  }
-}
-```
-
-Leave `KALEIDOSCOPE_SERVER_URL` unset for local development. The MCP server defaults to `http://localhost:5000` when the API is running on the same machine.
-
-### Claude Code
-
-Claude Code can run Kaleidoscope as a local stdio MCP server.
-
-For the published npm package, the most reliable setup is to install it once and launch `kaleidoscope-mcp` directly instead of relying on `npx` at runtime:
-
-```bash
-npm install -g kaleidoscope-mcp-server
-```
-
-Windows:
-
-```bash
-claude mcp add --transport stdio kaleidoscope --scope project -- cmd /c npx tsx src/index.ts
-```
-
-Then set the working directory and optional API URL in `.mcp.json` at the repo root:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "cmd",
-      "args": ["/c", "npx", "tsx", "src/index.ts"],
-      "cwd": "c:/Code/kaleidoscope/mcp-server",
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
-macOS or Linux:
-
-```bash
-claude mcp add --transport stdio kaleidoscope --scope project -- npx tsx src/index.ts
-```
-
-Then use the same `.mcp.json` shape, but with `command: "npx"` and `args: ["tsx", "src/index.ts"]`.
-
-For the published package form, prefer:
+Recommended MCP config for Claude Desktop, Claude Code, Cursor, Windsurf, VS Code, and similar stdio clients:
 
 ```json
 {
@@ -249,39 +167,7 @@ For the published package form, prefer:
 }
 ```
 
-### Codex
-
-Codex can also run Kaleidoscope as a local stdio MCP server.
-
-Add this to `.codex/config.toml` in the repo or your user config:
-
-```toml
-[mcp_servers.kaleidoscope]
-command = "npx"
-args = ["tsx", "src/index.ts"]
-cwd = "c:/Code/kaleidoscope/mcp-server"
-enabled = true
-startup_timeout_sec = 20
-tool_timeout_sec = 60
-
-[mcp_servers.kaleidoscope.env]
-KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
-KALEIDOSCOPE_WALKTHROUGH_DIR = "c:/Code/my-app/walkthroughs"
-```
-
-If you prefer the CLI, add it like this and then adjust `cwd` in `config.toml` afterward:
-
-```bash
-codex mcp add kaleidoscope -- npx tsx src/index.ts
-```
-
-For the published package form, install it once and use the real executable:
-
-```bash
-npm install -g kaleidoscope-mcp-server
-```
-
-Then configure Codex like this:
+Codex `config.toml`:
 
 ```toml
 [mcp_servers.kaleidoscope]
@@ -292,48 +178,58 @@ tool_timeout_sec = 60
 
 [mcp_servers.kaleidoscope.env]
 KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
-KALEIDOSCOPE_WALKTHROUGH_DIR = "c:/Code/my-app/walkthroughs"
 ```
 
-If you still want the CLI helper, use:
+Use `kaleidoscope-mcp` directly on Windows instead of wrapping `npx` in `cmd /c`. This avoids shell-path failures such as `spawn C:\Windows\system32\cmd.exe ENOENT`.
+
+If you are developing from this repo checkout, run from `mcp-server`:
 
 ```bash
-codex mcp add kaleidoscope -- kaleidoscope-mcp
+npm install
+npm run build
+npm test
 ```
 
-Core tools:
+Source-checkout MCP config:
 
-- `kaleidoscope_list_devices`
-- `preview_responsive`
-- `capture_screenshots`
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
+      "cwd": "/path/to/kaleidoscope/mcp-server",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+Useful MCP tools:
+
+- `kaleidoscope_status`, `kaleidoscope_start`, `kaleidoscope_stop`
+- `kaleidoscope_list_devices`, `preview_responsive`, `capture_screenshots`
 - `record_walkthrough`
-- `preview_with_auth`
-- `inject_mock_data`
-- `discover_page_elements`
-- `inspect_element_source`
-- `kaleidoscope_status`
-- `kaleidoscope_start`
-- `kaleidoscope_stop`
+- `preview_with_auth`, `inject_mock_data`
+- `discover_page_elements`, `inspect_element_source`
 
-Current MCP status:
+Important environment variables:
 
-- Tools return structured MCP responses instead of plain text only.
-- `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
-- `capture_screenshots` returns screenshot metadata, preferred local display paths, a top-level `primaryMarkdownImageTag`, per-image `markdownImageTag` values, a `readyToPasteMarkdown` array, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
-- `capture_screenshots` accepts device IDs and common device names, so agents can request `devices: ["iphone-14"]` or `devices: ["iPhone 14"]` for the same iPhone 14 capture.
-- The chat-ready paths are OS-agnostic absolute local paths: `C:/...` on Windows, `/Users/...` or `/home/...` on macOS/Linux, and `//server/share/...` for UNC network shares.
-- For the most reliable chat rendering in Codex, paste `primaryMarkdownImageTag` directly into the response instead of describing the capture or reconstructing an image tag from `downloadUrl`.
-- `record_walkthrough` records a local `.webm` walkthrough with scripted clicks, typing, hover, scroll, and navigation steps, plus an optional cursor overlay for clearer demos.
-- `record_walkthrough` accepts either structured `steps` or a simpler one-command-per-line `script` format such as `click #save` and `type "hello@example.com" into #email`.
-- `record_walkthrough` supports deliverable and inspection artifact modes. Deliverables save to `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`; inspection recordings default to the OS temp directory unless `output_dir` is provided.
-- `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
-- `mcp-server` includes stdio integration tests for the registered MCP tools.
+- `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root. `source_dir` must stay inside this directory.
+- `KALEIDOSCOPE_ARTIFACT_ROOT`: allowed root for walkthrough `output_dir`.
+- `KALEIDOSCOPE_WALKTHROUGH_DIR`: default walkthrough output directory.
+- `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout.
+- `KALEIDOSCOPE_PROXY_TIMEOUT_MS` and `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy safety limits.
 
-For screenshots and `record_walkthrough`, make sure Playwright Chromium is installed on the machine running the MCP server before you ask an agent to capture anything. External users should run:
+Verification after install:
 
-```bash
-npx playwright install chromium
-```
+1. Ask the MCP client to run `kaleidoscope_status`.
+2. Run `kaleidoscope_start`.
+3. Run `kaleidoscope_list_devices`.
+
+For detailed cross-platform setup, see [COMPATIBILITY.md](COMPATIBILITY.md). For audit results, see [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
 
 ## Scripts
 
@@ -370,9 +266,12 @@ Windows-only video helper:
 ## Security Notes
 
 - Production mode requires `CORS_ORIGIN`.
-- Local management APIs are restricted to trusted Kaleidoscope clients.
-- Inspect mode is limited to loopback targets.
+- The local API binds to `127.0.0.1` by default. Docker sets `HOST=0.0.0.0` explicitly.
+- Local management APIs are restricted to trusted Kaleidoscope clients and should not be exposed to untrusted networks.
+- Inspect mode is limited to loopback targets, and source reads must stay under `KALEIDOSCOPE_WORKSPACE_ROOT`.
+- Walkthrough output directories must stay under `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`.
 - Auth proxy sessions are temporary and cleaned up automatically.
+- Public tunnels created with `cloudflared` or `ngrok` should be treated as public URLs.
 
 ## Repository Layout
 

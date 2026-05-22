@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import path from 'path';
-import { existsSync } from 'fs';
 import { performanceService } from '../services/performance.service.js';
 import { isAllowedHttpUrl } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
 import { logServerError } from '../utils/logger.js';
 import { DEVICE_IDS } from '../../shared/devices.js';
+import { resolveSourceDirectory } from '../utils/path-policy.js';
 
 const router = Router();
 
@@ -50,10 +49,17 @@ router.post('/audit', async (req: Request, res: Response) => {
 
     // Validate sourceDir — must be an absolute path that exists, no traversal
     let safeSourceDir: string | undefined;
-    if (sourceDir && typeof sourceDir === 'string') {
-      const resolved = path.resolve(sourceDir);
-      if (existsSync(resolved) && !resolved.includes('..')) {
-        safeSourceDir = resolved;
+    if (sourceDir !== undefined) {
+      if (typeof sourceDir !== 'string') {
+        return sendError(res, 400, 'sourceDir must be a string when provided');
+      }
+
+      if (sourceDir.trim()) {
+        const result = resolveSourceDirectory(sourceDir);
+        if (!result.ok || !result.path) {
+          return sendError(res, 400, result.error ?? 'sourceDir is invalid');
+        }
+        safeSourceDir = result.path;
       }
     }
 
@@ -74,11 +80,7 @@ router.post('/audit', async (req: Request, res: Response) => {
       method: req.method,
     });
 
-    return sendError(
-      res,
-      500,
-      error instanceof Error ? error.message : 'Failed to run performance audit',
-    );
+    return sendError(res, 500, 'Failed to run performance audit');
   }
 });
 
