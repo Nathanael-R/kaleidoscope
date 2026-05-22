@@ -229,8 +229,6 @@ Verification after install:
 2. Run `kaleidoscope_start`.
 3. Run `kaleidoscope_list_devices`.
 
-For detailed cross-platform setup, see [COMPATIBILITY.md](COMPATIBILITY.md). For audit results, see [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
-
 ## Scripts
 
 ```bash
