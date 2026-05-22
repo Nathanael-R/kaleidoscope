@@ -165,7 +165,7 @@ test('inspect resolve returns device metadata and source context', async () => {
       };
     };
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 200, JSON.stringify(body));
     assert.equal(body.success, true);
     assert.equal(body.result.page.title, 'Inspect Target');
     assert.equal(body.result.page.url, `${targetBaseUrl}/checkout`);
@@ -226,7 +226,7 @@ test('inspect selector resolves an element directly from the page using a CSS se
       };
     };
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 200, JSON.stringify(body));
     assert.equal(body.success, true);
     assert.equal(body.result.selector, '#root');
     assert.equal(body.result.page.title, 'Inspect Target');
@@ -294,7 +294,7 @@ test('inspect discover returns high-confidence candidates for a natural-language
     }>;
   };
 
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, JSON.stringify(body));
   assert.equal(body.success, true);
   assert.equal(body.query, 'save button');
   assert.equal(body.page.title, 'Checkout');
