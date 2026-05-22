@@ -153,6 +153,8 @@ For external users, the recommended setup is:
 npm install -g kaleidoscope-mcp-server
 ```
 
+The npm package includes the Kaleidoscope backend and built web client, so external users do not need to download this repo. When a tool needs Kaleidoscope and nothing is already running on `KALEIDOSCOPE_SERVER_URL`, the MCP starts the packaged runtime automatically.
+
 2. Launch the installed executable directly in your MCP client:
 
 ```json

@@ -34,6 +34,8 @@ You can still run it ad hoc with `npx` if you want:
 npx -y kaleidoscope-mcp-server
 ```
 
+The npm package includes a packaged Kaleidoscope backend and built web client. When the MCP tools need Kaleidoscope and nothing is already running at `KALEIDOSCOPE_SERVER_URL`, the MCP can start that packaged runtime itself; users do not need to clone this repository for normal screenshot and preview usage.
+
 ## MCP client config
 
 ### Claude Code
@@ -120,13 +122,13 @@ If you prefer `npx`, use `npx` with arguments `-y`, `kaleidoscope-mcp-server`.
 - `KALEIDOSCOPE_SERVER_URL`
   Defaults to `http://localhost:5000`.
 - `KALEIDOSCOPE_CLIENT_PORT`
-  Optional preferred local client port for status and startup checks.
+  Optional preferred local client port for repo-checkout development. Npm-installed packaged runtime serves the client from `KALEIDOSCOPE_SERVER_URL`.
 - `KALEIDOSCOPE_WALKTHROUGH_DIR`
   Optional default output directory for `record_walkthrough`. Used when the tool call omits `output_dir`.
 
 ## Notes
 
-- This package talks to the Kaleidoscope server API; it is not a standalone screenshot service by itself.
+- The published npm package includes the Kaleidoscope app runtime. In a source checkout, the MCP still starts the local development server and Vite client.
 - Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and absolute local display paths when the client supports them.
 - Screenshot tool responses include a top-level `primaryMarkdownImageTag`, per-image `markdownImageTag` values, and a `readyToPasteMarkdown` array so agents can paste a working Markdown image tag directly into chat on Windows, macOS, Linux, or UNC network shares.
 - `capture_screenshots` accepts both device IDs and common names. For example, `devices: ["iphone-14"]`, `devices: ["iPhone 14"]`, and `devices: ["iphone14"]` all resolve to the iPhone 14 preset.

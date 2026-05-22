@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KALEIDOSCOPE_SERVER } from './kaleidoscope-api.js';
@@ -8,14 +8,70 @@ import { KALEIDOSCOPE_SERVER } from './kaleidoscope-api.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE_PROJECT_ROOT = resolve(__dirname, '..', '..');
 const DIST_PROJECT_ROOT = resolve(__dirname, '..', '..', '..');
-const PROJECT_ROOT = existsSync(resolve(SOURCE_PROJECT_ROOT, 'server'))
-  ? SOURCE_PROJECT_ROOT
-  : DIST_PROJECT_ROOT;
 const DEFAULT_CLIENT_PORTS = [5173, 5174, 4173];
 const KALEIDOSCOPE_CLIENT_TITLE = '<title>Kaleidoscope</title>';
 const KALEIDOSCOPE_CLIENT_ROOT = '<div id="root"></div>';
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
 const IS_WINDOWS = process.platform === 'win32';
+const PACKAGED_APP_ROOT_CANDIDATE = resolve(__dirname, 'app');
+
+function hasKaleidoscopeAppSource(projectRoot: string): boolean {
+  return (
+    existsSync(resolve(projectRoot, 'server', 'index.ts'))
+    && existsSync(resolve(projectRoot, 'mosaic-client', 'package.json'))
+  );
+}
+
+function resolveProjectRoot(): string | null {
+  if (hasKaleidoscopeAppSource(SOURCE_PROJECT_ROOT)) {
+    return SOURCE_PROJECT_ROOT;
+  }
+
+  if (hasKaleidoscopeAppSource(DIST_PROJECT_ROOT)) {
+    return DIST_PROJECT_ROOT;
+  }
+
+  return null;
+}
+
+const PROJECT_ROOT = resolveProjectRoot();
+
+function hasPackagedAppRuntime(appRoot: string): boolean {
+  return (
+    existsSync(resolve(appRoot, 'server', 'index.js'))
+    && existsSync(resolve(appRoot, 'public', 'index.html'))
+  );
+}
+
+const PACKAGED_APP_ROOT = hasPackagedAppRuntime(PACKAGED_APP_ROOT_CANDIDATE)
+  ? PACKAGED_APP_ROOT_CANDIDATE
+  : null;
+
+function shouldUsePackagedAppRuntime(): boolean {
+  return PROJECT_ROOT === null && PACKAGED_APP_ROOT !== null;
+}
+
+function requireProjectRoot(): string {
+  if (PROJECT_ROOT) {
+    return PROJECT_ROOT;
+  }
+
+  throw new Error(
+    'Kaleidoscope cannot auto-start local services because neither app source directories nor a packaged app runtime were found next to this MCP server. ' +
+    'Reinstall the kaleidoscope-mcp-server npm package, or start the Kaleidoscope app manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
+  );
+}
+
+function requirePackagedAppRoot(): string {
+  if (PACKAGED_APP_ROOT) {
+    return PACKAGED_APP_ROOT;
+  }
+
+  throw new Error(
+    'Kaleidoscope cannot auto-start from npm because the packaged app runtime is missing. ' +
+    'Reinstall the kaleidoscope-mcp-server npm package, or start the Kaleidoscope app manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
+  );
+}
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
@@ -40,6 +96,35 @@ function windowsShellCommand(command: string, args: string[]): ResolvedSpawnComm
   };
 }
 
+function resolveWindowsCmdShim(command: string, args: string[]): ResolvedSpawnCommand | null {
+  if (!IS_WINDOWS || !command.toLowerCase().endsWith('.cmd')) {
+    return null;
+  }
+
+  let shimContents: string;
+  try {
+    shimContents = readFileSync(command, 'utf8');
+  } catch {
+    return null;
+  }
+
+  const match = shimContents.match(/"%_prog%"\s+"%dp0%\\([^"]+)"\s+%\*/i);
+  if (!match) {
+    return null;
+  }
+
+  const binEntryPoint = resolve(dirname(command), match[1]);
+  if (!existsSync(binEntryPoint)) {
+    return null;
+  }
+
+  return {
+    command: process.execPath,
+    args: [binEntryPoint, ...args],
+    shell: false,
+  };
+}
+
 export function resolveLocalBinCommand(
   binName: string,
   args: string[],
@@ -50,8 +135,12 @@ export function resolveLocalBinCommand(
     : [binName];
   const binDirs = [
     join(cwd, 'node_modules', '.bin'),
-    join(PROJECT_ROOT, 'node_modules', '.bin'),
-    join(PROJECT_ROOT, 'mcp-server', 'node_modules', '.bin'),
+    ...(PROJECT_ROOT
+      ? [
+        join(PROJECT_ROOT, 'node_modules', '.bin'),
+        join(PROJECT_ROOT, 'mcp-server', 'node_modules', '.bin'),
+      ]
+      : []),
   ];
 
   for (const binDir of binDirs) {
@@ -59,6 +148,11 @@ export function resolveLocalBinCommand(
       const candidate = join(binDir, executableName);
       if (!existsSync(candidate)) {
         continue;
+      }
+
+      const resolvedCmdShim = resolveWindowsCmdShim(candidate, args);
+      if (resolvedCmdShim) {
+        return resolvedCmdShim;
       }
 
       if (IS_WINDOWS && candidate.toLowerCase().endsWith('.cmd')) {
@@ -139,8 +233,12 @@ class ProcessManager {
   }
 
   private async isKaleidoscopeClientReachable(port: number): Promise<boolean> {
+    return this.isKaleidoscopeClientReachableAtUrl(`http://localhost:${port}/`);
+  }
+
+  private async isKaleidoscopeClientReachableAtUrl(url: string): Promise<boolean> {
     try {
-      const res = await fetch(`http://localhost:${port}/`);
+      const res = await fetch(url);
       if (!res.ok) {
         return false;
       }
@@ -167,6 +265,10 @@ class ProcessManager {
     }
 
     return null;
+  }
+
+  private getPackagedClientUrl(): string {
+    return new URL('/', this.serverUrl).toString().replace(/\/$/, '');
   }
 
   private isPortAvailable(port: number): Promise<boolean> {
@@ -260,16 +362,25 @@ class ProcessManager {
   }
 
   async getStatus(): Promise<KaleidoscopeStatus> {
-    const reachableClientPort = await this.findReachableClientPort();
-    const clientPort = reachableClientPort ?? this.clientPort;
     const serverReachable = await this.isServerReachable();
+    const usePackagedRuntime = shouldUsePackagedAppRuntime();
+    const packagedClientReachable = usePackagedRuntime
+      ? await this.isKaleidoscopeClientReachableAtUrl(this.getPackagedClientUrl())
+      : false;
+    const reachableClientPort = usePackagedRuntime ? null : await this.findReachableClientPort();
+    const clientPort = usePackagedRuntime
+      ? this.serverPort
+      : reachableClientPort ?? this.clientPort;
 
     return {
       client: {
-        running: (this.clientProcess !== null && this.clientProcess.exitCode === null) || reachableClientPort !== null,
+        running:
+          (this.clientProcess !== null && this.clientProcess.exitCode === null)
+          || reachableClientPort !== null
+          || packagedClientReachable,
         pid: this.clientProcess?.pid,
         port: clientPort,
-        url: `http://localhost:${clientPort}`,
+        url: usePackagedRuntime ? this.getPackagedClientUrl() : `http://localhost:${clientPort}`,
       },
       server: {
         running: (this.serverProcess !== null && this.serverProcess.exitCode === null) || serverReachable,
@@ -298,16 +409,43 @@ class ProcessManager {
     this.serverLogTail = '';
     let spawnErrorMessage: string | null = null;
 
-    const serverCwd = resolve(PROJECT_ROOT, 'server');
-    const serverCommand = resolveLocalBinCommand('tsx', ['index.ts'], serverCwd);
+    const packagedAppRoot = shouldUsePackagedAppRuntime() ? requirePackagedAppRoot() : null;
+    let serverCwd: string;
+    let serverCommand: ResolvedSpawnCommand;
+    let nodeBinRoots: string[];
+
+    if (packagedAppRoot) {
+      serverCwd = resolve(packagedAppRoot, 'server');
+      serverCommand = {
+        command: process.execPath,
+        args: [resolve(packagedAppRoot, 'server', 'index.js')],
+        shell: false,
+      };
+      nodeBinRoots = [serverCwd];
+    } else {
+      const projectRoot = requireProjectRoot();
+      serverCwd = resolve(projectRoot, 'server');
+      serverCommand = resolveLocalBinCommand('tsx', ['index.ts'], serverCwd);
+      nodeBinRoots = [serverCwd, projectRoot, resolve(projectRoot, 'mcp-server')];
+    }
+
+    const serverOrigin = new URL('/', this.serverUrl).toString().replace(/\/$/, '');
 
     this.serverProcess = spawn(serverCommand.command, serverCommand.args, {
       cwd: serverCwd,
       env: appendNodeBinPath(
-        { ...process.env, PORT: String(this.serverPort), NODE_ENV: 'development' },
-        serverCwd,
-        PROJECT_ROOT,
-        resolve(PROJECT_ROOT, 'mcp-server'),
+        {
+          ...process.env,
+          PORT: String(this.serverPort),
+          NODE_ENV: packagedAppRoot ? 'production' : 'development',
+          ...(packagedAppRoot
+            ? {
+              CORS_ORIGIN: process.env.CORS_ORIGIN ?? serverOrigin,
+              STATIC_DIR: process.env.STATIC_DIR ?? resolve(packagedAppRoot, 'public'),
+            }
+            : {}),
+        },
+        ...nodeBinRoots,
       ),
       stdio: 'pipe',
       shell: serverCommand.shell,
@@ -343,6 +481,20 @@ class ProcessManager {
   }
 
   async startClient(): Promise<void> {
+    if (shouldUsePackagedAppRuntime()) {
+      await this.startServer();
+      this.clientPort = this.serverPort;
+
+      try {
+        await this.waitForKaleidoscopeClientUrl(this.getPackagedClientUrl(), 10_000);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw this.formatStartupError('client', this.clientPort, reason, this.serverProcess, this.serverLogTail);
+      }
+
+      return;
+    }
+
     const reachableClientPort = await this.findReachableClientPort();
     if (reachableClientPort !== null) {
       this.clientPort = reachableClientPort;
@@ -353,7 +505,8 @@ class ProcessManager {
     this.clientLogTail = '';
     let spawnErrorMessage: string | null = null;
 
-    const clientCwd = resolve(PROJECT_ROOT, 'mosaic-client');
+    const projectRoot = requireProjectRoot();
+    const clientCwd = resolve(projectRoot, 'mosaic-client');
     const clientCommand = resolveLocalBinCommand(
       'vite',
       ['--host', '0.0.0.0', '--port', String(this.clientPort), '--strictPort'],
@@ -365,8 +518,8 @@ class ProcessManager {
       env: appendNodeBinPath(
         { ...process.env },
         clientCwd,
-        PROJECT_ROOT,
-        resolve(PROJECT_ROOT, 'mcp-server'),
+        projectRoot,
+        resolve(projectRoot, 'mcp-server'),
       ),
       stdio: 'pipe',
       shell: clientCommand.shell,
@@ -452,6 +605,25 @@ class ProcessManager {
         }
         if (Date.now() - start > timeoutMs) {
           reject(new Error(`Timeout waiting for ${url}`));
+          return;
+        }
+        setTimeout(check, 500);
+      };
+      check();
+    });
+  }
+
+  private waitForKaleidoscopeClientUrl(url: string, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const check = async () => {
+        if (await this.isKaleidoscopeClientReachableAtUrl(url)) {
+          resolve();
+          return;
+        }
+
+        if (Date.now() - start > timeoutMs) {
+          reject(new Error(`Timeout waiting for Kaleidoscope client at ${url}`));
           return;
         }
         setTimeout(check, 500);

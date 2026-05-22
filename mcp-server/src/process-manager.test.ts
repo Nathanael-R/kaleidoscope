@@ -56,6 +56,39 @@ test('resolveLocalBinCommand prefers locally installed binaries over npx-style P
   }
 });
 
+test('resolveLocalBinCommand avoids cmd.exe when a Windows cmd shim points to a node entry point', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const tempDir = join(tmpdir(), `kaleidoscope-cmd-shim-${Date.now()}`);
+  const binDir = join(tempDir, 'node_modules', '.bin');
+  const packageBinDir = join(tempDir, 'node_modules', 'tsx', 'dist');
+  mkdirSync(binDir, { recursive: true });
+  mkdirSync(packageBinDir, { recursive: true });
+
+  const shimPath = join(binDir, 'tsx.cmd');
+  const entryPoint = join(packageBinDir, 'cli.mjs');
+  writeFileSync(entryPoint, '', 'utf8');
+  writeFileSync(
+    shimPath,
+    [
+      '@ECHO off',
+      'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\..\\tsx\\dist\\cli.mjs" %*',
+    ].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const resolved = resolveLocalBinCommand('tsx', ['index.ts'], tempDir);
+    assert.equal(resolved.command, process.execPath);
+    assert.deepEqual(resolved.args, [entryPoint, 'index.ts']);
+    assert.equal(resolved.shell, false);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('resolveLocalBinCommand falls back to PATH lookup when no local binary exists', () => {
   const tempDir = join(tmpdir(), `kaleidoscope-empty-bin-${Date.now()}`);
   mkdirSync(tempDir, { recursive: true });
