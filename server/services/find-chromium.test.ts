@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 function makeExecutable(filePath: string) {
   writeFileSync(filePath, '');
@@ -56,6 +56,48 @@ test('findChromium discovers a browser inside PLAYWRIGHT_BROWSERS_PATH', async (
   try {
     const { findChromium } = await import('./find-chromium.js');
     assert.equal(findChromium(), executablePath);
+  } finally {
+    if (previousBrowsersPath) {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;
+    } else {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    }
+
+    if (previousExecutable) {
+      process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = previousExecutable;
+    } else {
+      delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    }
+
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('Chromium discovery supports modern macOS Playwright app bundles', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'playwright-mac-cache-'));
+  const executablePath = join(
+    tempDir,
+    'chromium-1217',
+    'chrome-mac-arm64',
+    'Google Chrome for Testing.app',
+    'Contents',
+    'MacOS',
+    'Google Chrome for Testing',
+  );
+  const previousBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  const previousExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
+  mkdirSync(dirname(executablePath), { recursive: true });
+  makeExecutable(executablePath);
+  process.env.PLAYWRIGHT_BROWSERS_PATH = tempDir;
+  delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
+  try {
+    const { findChromium } = await import('./find-chromium.js');
+    const { ensureChromium } = await import('./browser.service.js');
+
+    assert.equal(findChromium(), executablePath);
+    assert.equal(ensureChromium(), executablePath);
   } finally {
     if (previousBrowsersPath) {
       process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;

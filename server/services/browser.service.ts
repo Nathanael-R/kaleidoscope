@@ -41,15 +41,25 @@ function findChromiumPath(): string | null {
     browserPaths.push(join(process.env.LOCALAPPDATA, 'ms-playwright'));
   }
 
-  // Scan each potential Playwright cache for chromium-* directories
-  const chromiumBinDirs = ['chrome-linux', 'chrome-linux64', 'chrome-mac', 'chrome-win', 'chrome-win64'];
+  // Scan each potential Playwright cache for chromium-* directories.
+  const chromiumExecutableSuffixes = [
+    ['chrome-linux', 'chrome'],
+    ['chrome-linux64', 'chrome'],
+    ['chrome-win', 'chrome.exe'],
+    ['chrome-win64', 'chrome.exe'],
+    ['chrome-mac-x64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'],
+    ['chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'],
+    ['chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'],
+    ['chrome-mac', 'chrome'],
+  ];
+
   for (const dir of browserPaths) {
     try {
       const entries = readdirSync(dir);
       for (const entry of entries) {
         if (!entry.startsWith('chromium-')) continue;
-        for (const binDir of chromiumBinDirs) {
-          const candidate = join(dir, entry, binDir, process.platform === 'win32' ? 'chrome.exe' : 'chrome');
+        for (const suffix of chromiumExecutableSuffixes) {
+          const candidate = join(dir, entry, ...suffix);
           if (existsSync(candidate)) return candidate;
         }
       }
