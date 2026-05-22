@@ -15,12 +15,28 @@ import {
 
 const ALL_DEVICE_IDS = [...DEVICE_IDS] as [string, ...string[]];
 const DEFAULT_DEVICE_ID = 'desktop';
-const DEFAULT_OUTPUT_DIR = './walkthroughs';
+const DEFAULT_OUTPUT_DIR = 'walkthroughs';
 const WALKTHROUGH_OUTPUT_DIR_ENV = 'KALEIDOSCOPE_WALKTHROUGH_DIR';
+const ARTIFACT_ROOT_ENV = 'KALEIDOSCOPE_ARTIFACT_ROOT';
 const DEFAULT_ARTIFACT_MODE = 'deliverable';
 const DEFAULT_SLOW_MO_MS = 180;
 const DEFAULT_WAIT_AFTER_STEP_MS = 350;
 const MAX_RECORDING_EDGE = 1280;
+const MAX_WALKTHROUGH_STEPS = 50;
+const MAX_SCRIPT_CHARS = 10_000;
+const MAX_SELECTOR_CHARS = 1000;
+const MAX_TEXT_CHARS = 5000;
+const MAX_URL_CHARS = 2048;
+
+const urlSchema = z.string().url().max(MAX_URL_CHARS).refine((value) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}, 'Only http:// and https:// URLs are supported.');
+const selectorSchema = z.string().min(1).max(MAX_SELECTOR_CHARS);
 
 const cursorOverlayScript = `
 (() => {
@@ -131,27 +147,27 @@ const cursorOverlayScript = `
 
 const clickStepSchema = z.object({
   action: z.literal('click'),
-  selector: z.string(),
+  selector: selectorSchema,
   button: z.enum(['left', 'middle', 'right']).optional(),
   clickCount: z.number().int().min(1).max(3).optional(),
 });
 
 const hoverStepSchema = z.object({
   action: z.literal('hover'),
-  selector: z.string(),
+  selector: selectorSchema,
 });
 
 const typeStepSchema = z.object({
   action: z.literal('type'),
-  selector: z.string(),
-  text: z.string(),
+  selector: selectorSchema,
+  text: z.string().max(MAX_TEXT_CHARS),
   clear: z.boolean().optional(),
   delayMs: z.number().int().min(0).max(1000).optional(),
 });
 
 const pressStepSchema = z.object({
   action: z.literal('press'),
-  key: z.string(),
+  key: z.string().min(1).max(80),
 });
 
 const waitStepSchema = z.object({
@@ -167,13 +183,13 @@ const scrollStepSchema = z.object({
 
 const gotoStepSchema = z.object({
   action: z.literal('goto'),
-  url: z.string().url(),
+  url: urlSchema,
 });
 
 const selectStepSchema = z.object({
   action: z.literal('select'),
-  selector: z.string(),
-  value: z.string(),
+  selector: selectorSchema,
+  value: z.string().max(MAX_TEXT_CHARS),
 });
 
 const walkthroughStepSchema = z.discriminatedUnion('action', [
@@ -186,13 +202,14 @@ const walkthroughStepSchema = z.discriminatedUnion('action', [
   gotoStepSchema,
   selectStepSchema,
 ]);
+const walkthroughStepsSchema = z.array(walkthroughStepSchema).min(1).max(MAX_WALKTHROUGH_STEPS);
 
 const walkthroughInputSchema = {
-  url: z.string().url().describe('The page to open before recording starts.'),
-  steps: z.array(walkthroughStepSchema).min(1).optional().describe(
+  url: urlSchema.describe('The page to open before recording starts.'),
+  steps: walkthroughStepsSchema.optional().describe(
     'Ordered structured interaction steps. Supported actions: click, hover, type, press, wait, scroll, goto, select.',
   ),
-  script: z.string().optional().describe(
+  script: z.string().max(MAX_SCRIPT_CHARS).optional().describe(
     'Optional natural-language walkthrough script, one step per line. ' +
     'Examples: "click #save", "type \\"hello@example.com\\" into #email", "wait 800ms".',
   ),
@@ -200,8 +217,8 @@ const walkthroughInputSchema = {
     'Single device viewport to emulate. Defaults to desktop. ' +
     'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k',
   ),
-  output_dir: z.string().optional().describe(
-    `Directory to save recorded videos. Defaults to ${DEFAULT_OUTPUT_DIR}`,
+  output_dir: z.string().max(500).optional().describe(
+    `Directory to save recorded videos. Must stay inside ${ARTIFACT_ROOT_ENV} or ${WALKTHROUGH_OUTPUT_DIR_ENV}. Defaults to ${DEFAULT_OUTPUT_DIR}`,
   ),
   artifact_mode: z.enum(['deliverable', 'inspection']).optional().describe(
     'Artifact intent. deliverable uses output_dir/env/defaults; inspection defaults to the OS temp directory unless output_dir is provided.',
@@ -212,7 +229,7 @@ const walkthroughInputSchema = {
   slow_mo_ms: z.number().int().min(0).max(1000).optional().describe(
     `Optional Playwright slow-motion delay between low-level actions. Default: ${DEFAULT_SLOW_MO_MS}`,
   ),
-  name: z.string().optional().describe(
+  name: z.string().max(120).optional().describe(
     'Optional file name prefix for the saved walkthrough video.',
   ),
 } satisfies z.ZodRawShape;
@@ -245,15 +262,15 @@ type WalkthroughRequest = z.infer<typeof walkthroughRequestSchema>;
 type ArtifactMode = 'deliverable' | 'inspection';
 
 const walkthroughRequestSchema = z.object({
-  url: z.string().url(),
-  steps: z.array(walkthroughStepSchema).min(1).optional(),
-  script: z.string().optional(),
+  url: urlSchema,
+  steps: walkthroughStepsSchema.optional(),
+  script: z.string().max(MAX_SCRIPT_CHARS).optional(),
   device: z.enum(ALL_DEVICE_IDS).optional(),
-  output_dir: z.string().optional(),
+  output_dir: z.string().max(500).optional(),
   artifact_mode: z.enum(['deliverable', 'inspection']).optional(),
   include_cursor: z.boolean().optional(),
   slow_mo_ms: z.number().int().min(0).max(1000).optional(),
-  name: z.string().optional(),
+  name: z.string().max(120).optional(),
 }).superRefine((value, ctx) => {
   const hasSteps = Boolean(value.steps && value.steps.length > 0);
   const hasScript = Boolean(value.script?.trim());
@@ -300,25 +317,54 @@ export function sanitizeWalkthroughFileStem(input: string): string {
   return normalized || 'walkthrough';
 }
 
+function isPathInside(baseDir: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(baseDir), path.resolve(targetPath));
+  return relative === '' || (relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function containsTraversal(input: string): boolean {
+  return input.split(/[\\/]+/).some((segment) => segment === '..');
+}
+
+function resolveSafeOutputDir(explicitOutputDir: string, rootDir: string): string {
+  const explicit = explicitOutputDir.trim();
+  if (!explicit || explicit.includes('\0') || containsTraversal(explicit)) {
+    throw new Error('output_dir must be a safe directory path without null bytes or .. traversal segments.');
+  }
+
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(root, explicit);
+  if (!isPathInside(root, resolved)) {
+    throw new Error(`output_dir must stay inside ${ARTIFACT_ROOT_ENV} or ${WALKTHROUGH_OUTPUT_DIR_ENV}.`);
+  }
+
+  return resolved;
+}
+
 export function resolveWalkthroughOutputDir(
   explicitOutputDir?: string,
   artifactMode: ArtifactMode = DEFAULT_ARTIFACT_MODE,
 ): string {
   const explicit = explicitOutputDir?.trim();
-  if (explicit) {
-    return explicit;
-  }
 
   if (artifactMode === 'inspection') {
-    return tmpdir();
+    return explicit
+      ? resolveSafeOutputDir(explicit, process.env[ARTIFACT_ROOT_ENV]?.trim() || tmpdir())
+      : path.resolve(tmpdir(), 'kaleidoscope-walkthroughs');
   }
 
   const configured = process.env[WALKTHROUGH_OUTPUT_DIR_ENV]?.trim();
-  if (configured) {
-    return configured;
+  const root = process.env[ARTIFACT_ROOT_ENV]?.trim() || configured || process.cwd();
+
+  if (explicit) {
+    return resolveSafeOutputDir(explicit, root);
   }
 
-  return DEFAULT_OUTPUT_DIR;
+  if (configured) {
+    return path.resolve(configured);
+  }
+
+  return path.resolve(root, DEFAULT_OUTPUT_DIR);
 }
 
 export function scaleRecordingSize(width: number, height: number): { width: number; height: number } {
@@ -401,6 +447,10 @@ function parseWaitDuration(raw: string): number | null {
 }
 
 export function parseWalkthroughScript(script: string): WalkthroughStep[] {
+  if (script.length > MAX_SCRIPT_CHARS) {
+    throw new Error(`Walkthrough script must be ${MAX_SCRIPT_CHARS} characters or fewer.`);
+  }
+
   const steps: WalkthroughStep[] = [];
   const lines = script.split(/\r?\n/);
 
@@ -491,6 +541,10 @@ export function parseWalkthroughScript(script: string): WalkthroughStep[] {
 
   if (steps.length === 0) {
     throw new Error('Walkthrough script did not contain any actionable steps.');
+  }
+
+  if (steps.length > MAX_WALKTHROUGH_STEPS) {
+    throw new Error(`Walkthroughs are limited to ${MAX_WALKTHROUGH_STEPS} steps.`);
   }
 
   return steps;
@@ -607,7 +661,7 @@ async function performStep(page: Page, step: WalkthroughStep) {
       break;
 
     case 'goto':
-      await page.goto(step.url);
+      await page.goto(step.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await waitForPageSettled(page);
       break;
 
@@ -658,10 +712,20 @@ export function registerWalkthroughTools(server: McpServer) {
       }
 
       const { url, device: deviceId, output_dir, include_cursor, slow_mo_ms, name } = request;
-      const steps = resolveWalkthroughSteps(request);
+      let steps: WalkthroughStep[];
+      try {
+        steps = walkthroughStepsSchema.parse(resolveWalkthroughSteps(request));
+      } catch (error) {
+        return createErrorResult(error instanceof Error ? error.message : 'Invalid walkthrough steps.');
+      }
       const artifactMode = request.artifact_mode ?? DEFAULT_ARTIFACT_MODE;
       const device = getDevice(deviceId);
-      const outputDirectory = path.resolve(resolveWalkthroughOutputDir(output_dir, artifactMode));
+      let outputDirectory: string;
+      try {
+        outputDirectory = resolveWalkthroughOutputDir(output_dir, artifactMode);
+      } catch (error) {
+        return createErrorResult(error instanceof Error ? error.message : 'Invalid output_dir.');
+      }
       const recordingSize = scaleRecordingSize(device.width, device.height);
       const fileStem = sanitizeWalkthroughFileStem(name ?? `${device.id}-${new URL(url).hostname}`);
       const finalVideoPath = path.join(outputDirectory, `${fileStem}-${timestampSuffix()}.webm`);
@@ -695,7 +759,7 @@ export function registerWalkthroughTools(server: McpServer) {
 
         let video = page.video();
         try {
-          await page.goto(url);
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
           await waitForPageSettled(page);
 
           for (const step of steps as WalkthroughStep[]) {

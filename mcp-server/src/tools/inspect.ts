@@ -98,8 +98,8 @@ const inspectInputSchema = {
     'Optional device viewport to emulate before resolving the selector. ' +
     'If omitted, the page is inspected using the browser default viewport.',
   ),
-  source_dir: z.string().optional().describe(
-    'Optional source directory used for heuristic source matching when exact runtime metadata is unavailable.',
+  source_dir: z.string().max(500).optional().describe(
+    'Optional source directory used for heuristic source matching. Must be inside KALEIDOSCOPE_WORKSPACE_ROOT on the server.',
   ),
 } satisfies z.ZodRawShape;
 

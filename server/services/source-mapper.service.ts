@@ -23,11 +23,16 @@ const IGNORE_DIRS = new Set([
   'coverage', '.cache', '__pycache__', 'vendor',
 ]);
 
+const MAX_SOURCE_FILES = 500;
+const MAX_SOURCE_FILE_BYTES = 500_000;
+const MAX_TOTAL_SOURCE_BYTES = 25_000_000;
+
 /**
  * Recursively collect source files from a directory.
  */
-function collectSourceFiles(dir: string, maxFiles = 2000): string[] {
+function collectSourceFiles(dir: string, maxFiles = MAX_SOURCE_FILES): string[] {
   const files: string[] = [];
+  let totalBytes = 0;
 
   function walk(current: string) {
     if (files.length >= maxFiles) return;
@@ -51,8 +56,13 @@ function collectSourceFiles(dir: string, maxFiles = 2000): string[] {
         walk(fullPath);
       } else if (stat.isFile()) {
         const ext = entry.substring(entry.lastIndexOf('.'));
-        if (SOURCE_EXTENSIONS.has(ext) && stat.size < 500_000) {
+        if (
+          SOURCE_EXTENSIONS.has(ext)
+          && stat.size < MAX_SOURCE_FILE_BYTES
+          && totalBytes + stat.size <= MAX_TOTAL_SOURCE_BYTES
+        ) {
           files.push(fullPath);
+          totalBytes += stat.size;
         }
       }
     }

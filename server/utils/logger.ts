@@ -15,10 +15,21 @@ export function logApiRequest(meta: ApiLogMeta): void {
   }));
 }
 
+function sanitizeLogValue(value: string): string {
+  return value
+    .replace(/\r?\n/g, ' ')
+    .replace(process.cwd(), '<cwd>')
+    .slice(0, 1000);
+}
+
 export function logServerError(error: unknown, meta: { requestId?: string; path?: string; method?: string } = {}): void {
+  const includeStack = process.env.KALEIDOSCOPE_DEBUG_ERRORS === '1';
   const normalized = error instanceof Error
-    ? { message: error.message, stack: error.stack }
-    : { message: String(error) };
+    ? {
+        message: sanitizeLogValue(error.message),
+        ...(includeStack && error.stack ? { stack: sanitizeLogValue(error.stack) } : {}),
+      }
+    : { message: sanitizeLogValue(String(error)) };
 
   console.error(JSON.stringify({
     level: 'error',

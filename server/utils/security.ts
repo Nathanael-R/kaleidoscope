@@ -64,11 +64,19 @@ export async function validateProxyTargetUrl(
     return { allowed: false, reason: 'URL is invalid.' };
   }
 
+  if (url.length > 2048) {
+    return { allowed: false, reason: 'URL is too long.' };
+  }
+
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return {
       allowed: false,
       reason: `URL "${url}" is blocked because only http:// and https:// URLs are allowed.`,
     };
+  }
+
+  if (parsed.username || parsed.password) {
+    return { allowed: false, reason: 'URLs with embedded credentials are not allowed.' };
   }
 
   if (options.allowLoopback && isInspectableLocalUrl(url)) {
@@ -107,7 +115,10 @@ export async function validateProxyTargetUrl(
       };
     }
   } catch {
-    // Ignore DNS lookup failures to avoid blocking valid environments with custom DNS.
+    return {
+      allowed: false,
+      reason: `URL host "${hostname}" could not be resolved by DNS.`,
+    };
   }
 
   return { allowed: true, reason: 'Allowed public URL.' };

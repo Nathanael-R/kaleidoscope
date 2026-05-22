@@ -37,9 +37,8 @@ router.post('/create', async (req: Request, res: Response) => {
       success: true,
       tunnel: tunnelInfo
     });
-  } catch (error) {
-    console.error('Error creating tunnel:', error);
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to create tunnel');
+  } catch {
+    return sendError(res, 500, 'Failed to create tunnel');
   }
 });
 
@@ -98,9 +97,8 @@ router.delete('/:port', async (req: Request, res: Response) => {
       success: true,
       message: `Tunnel for port ${port} closed`
     });
-  } catch (error) {
-    console.error('Error closing tunnel:', error);
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to close tunnel');
+  } catch {
+    return sendError(res, 500, 'Failed to close tunnel');
   }
 });
 
@@ -116,9 +114,8 @@ router.delete('/', async (req: Request, res: Response) => {
       success: true,
       message: 'All tunnels closed'
     });
-  } catch (error) {
-    console.error('Error closing tunnels:', error);
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to close tunnels');
+  } catch {
+    return sendError(res, 500, 'Failed to close tunnels');
   }
 });
 
@@ -141,9 +138,8 @@ router.post('/auto-detect', async (req: Request, res: Response) => {
       tunnel: tunnelInfo,
       detectedPort: port
     });
-  } catch (error) {
-    console.error('Error auto-detecting and creating tunnel:', error);
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to auto-detect and create tunnel');
+  } catch {
+    return sendError(res, 500, 'Failed to auto-detect and create tunnel');
   }
 });
 

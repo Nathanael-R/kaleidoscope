@@ -47,7 +47,8 @@ function resolveRequestedPort() {
 }
 
 const requestedPort = resolveRequestedPort();
-const viteArgs = ['--host', '0.0.0.0'];
+const clientHost = process.env.KALEIDOSCOPE_CLIENT_HOST ?? '127.0.0.1';
+const viteArgs = ['--host', clientHost];
 
 if (requestedPort !== null) {
   viteArgs.push('--port', String(requestedPort), '--strictPort');
@@ -57,6 +58,8 @@ const child = spawn(process.execPath, [viteEntry, ...viteArgs], {
   cwd: clientRoot,
   env: process.env,
   stdio: 'inherit',
+  shell: false,
+  windowsHide: true,
 });
 
 child.on('exit', (code, signal) => {

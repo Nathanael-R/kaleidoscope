@@ -101,10 +101,10 @@ class WatcherService {
       .on('change', createHandler('change'))
       .on('unlink', createHandler('unlink'))
       .on('error', (error) => {
-        console.error(`[Watcher:${id}] Error:`, error);
+        console.error(`[Watcher:${id}] Error:`, error instanceof Error ? error.message : 'Watcher error');
       })
       .on('ready', () => {
-        console.log(`[Watcher:${id}] Ready. Watching ${paths.join(', ')}`);
+        console.log(`[Watcher:${id}] Ready. Watching ${paths.length} path(s)`);
       });
 
     this.watchers.set(id, watcher);

@@ -36,6 +36,36 @@ function resolveProjectRoot(): string | null {
 
 const PROJECT_ROOT = resolveProjectRoot();
 
+function sanitizeDiagnostics(input: string): string {
+  const sensitivePaths = [
+    process.cwd(),
+    PROJECT_ROOT,
+    SOURCE_PROJECT_ROOT,
+    DIST_PROJECT_ROOT,
+    process.env.HOME,
+    process.env.USERPROFILE,
+    process.env.TEMP,
+    process.env.TMP,
+  ].filter((value): value is string => Boolean(value));
+
+  let output = input.replace(/\r?\n/g, '\n');
+  for (const sensitivePath of sensitivePaths) {
+    output = output.split(sensitivePath).join('<path>');
+  }
+
+  return output.slice(0, 4000);
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function hasPackagedAppRuntime(appRoot: string): boolean {
   return (
     existsSync(resolve(appRoot, 'server', 'index.js'))
@@ -86,14 +116,6 @@ export interface ResolvedSpawnCommand {
   command: string;
   args: string[];
   shell: boolean;
-}
-
-function windowsShellCommand(command: string, args: string[]): ResolvedSpawnCommand {
-  return {
-    command,
-    args,
-    shell: true,
-  };
 }
 
 function resolveWindowsCmdShim(command: string, args: string[]): ResolvedSpawnCommand | null {
@@ -156,7 +178,10 @@ export function resolveLocalBinCommand(
       }
 
       if (IS_WINDOWS && candidate.toLowerCase().endsWith('.cmd')) {
-        return windowsShellCommand(candidate, args);
+        throw new Error(
+          `Unable to resolve Windows npm command shim for ${binName}. ` +
+          'Run npm install again, or use the published kaleidoscope-mcp-server package.',
+        );
       }
 
       return {
@@ -167,15 +192,10 @@ export function resolveLocalBinCommand(
     }
   }
 
-  if (IS_WINDOWS) {
-    return windowsShellCommand(binName, args);
-  }
-
-  return {
-    command: binName,
-    args,
-    shell: false,
-  };
+  throw new Error(
+    `Could not find local executable "${binName}" under node_modules/.bin. ` +
+    'Run npm install in the project before using source-checkout auto-start.',
+  );
 }
 
 function appendNodeBinPath(env: NodeJS.ProcessEnv, ...roots: string[]): NodeJS.ProcessEnv {
@@ -225,7 +245,7 @@ class ProcessManager {
 
   private async isReachable(url: string): Promise<boolean> {
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, 2_000);
       return res.ok || res.status < 500;
     } catch {
       return false;
@@ -238,7 +258,7 @@ class ProcessManager {
 
   private async isKaleidoscopeClientReachableAtUrl(url: string): Promise<boolean> {
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, 2_000);
       if (!res.ok) {
         return false;
       }
@@ -331,7 +351,7 @@ class ProcessManager {
   private appendLogTail(target: 'server' | 'client', chunk: string): void {
     const maxChars = 4000;
     const current = target === 'server' ? this.serverLogTail : this.clientLogTail;
-    const next = (current + chunk).slice(-maxChars);
+    const next = sanitizeDiagnostics(current + chunk).slice(-maxChars);
     if (target === 'server') {
       this.serverLogTail = next;
       return;
@@ -351,11 +371,11 @@ class ProcessManager {
     const signal = processRef?.signalCode;
     const diagnostics = [
       `Failed to start Kaleidoscope ${serviceName} on port ${port}.`,
-      `Reason: ${reason}`,
+      `Reason: ${sanitizeDiagnostics(reason)}`,
       `PID: ${pid ?? 'n/a'}`,
       `Exit code: ${exitCode ?? 'n/a'}`,
       `Signal: ${signal ?? 'n/a'}`,
-      logTail ? `Recent ${serviceName} logs:\n${logTail.trim()}` : `Recent ${serviceName} logs: n/a`,
+      logTail ? `Recent ${serviceName} logs:\n${sanitizeDiagnostics(logTail).trim()}` : `Recent ${serviceName} logs: n/a`,
     ].join('\n');
 
     return new Error(diagnostics);
@@ -437,6 +457,7 @@ class ProcessManager {
         {
           ...process.env,
           PORT: String(this.serverPort),
+          HOST: process.env.HOST ?? '127.0.0.1',
           NODE_ENV: packagedAppRoot ? 'production' : 'development',
           ...(packagedAppRoot
             ? {
@@ -450,6 +471,7 @@ class ProcessManager {
       stdio: 'pipe',
       shell: serverCommand.shell,
       detached: IS_WINDOWS,
+      windowsHide: true,
     });
 
     this.serverProcess.on('error', (error: Error) => {
@@ -509,7 +531,7 @@ class ProcessManager {
     const clientCwd = resolve(projectRoot, 'mosaic-client');
     const clientCommand = resolveLocalBinCommand(
       'vite',
-      ['--host', '0.0.0.0', '--port', String(this.clientPort), '--strictPort'],
+      ['--host', '127.0.0.1', '--port', String(this.clientPort), '--strictPort'],
       clientCwd,
     );
 
@@ -524,6 +546,7 @@ class ProcessManager {
       stdio: 'pipe',
       shell: clientCommand.shell,
       detached: IS_WINDOWS,
+      windowsHide: true,
     });
 
     this.clientProcess.on('error', (error: Error) => {
@@ -595,7 +618,7 @@ class ProcessManager {
       const start = Date.now();
       const check = async () => {
         try {
-          const res = await fetch(url);
+          const res = await fetchWithTimeout(url, 2_000);
           if (res.ok || res.status < 500) {
             resolve();
             return;

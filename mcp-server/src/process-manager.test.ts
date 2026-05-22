@@ -44,13 +44,34 @@ test('resolveLocalBinCommand prefers locally installed binaries over npx-style P
 
   const binFile = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
   const binPath = join(binDir, binFile);
-  writeFileSync(binPath, '', 'utf8');
+  if (process.platform === 'win32') {
+    const packageBinDir = join(tempDir, 'node_modules', 'tsx', 'dist');
+    mkdirSync(packageBinDir, { recursive: true });
+    const entryPoint = join(packageBinDir, 'cli.mjs');
+    writeFileSync(entryPoint, '', 'utf8');
+    writeFileSync(
+      binPath,
+      [
+        '@ECHO off',
+        'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%" "%dp0%\\..\\tsx\\dist\\cli.mjs" %*',
+      ].join('\n'),
+      'utf8',
+    );
+  } else {
+    writeFileSync(binPath, '', 'utf8');
+  }
 
   try {
     const resolved = resolveLocalBinCommand('tsx', ['index.ts'], tempDir);
-    assert.equal(resolved.command, binPath);
-    assert.deepEqual(resolved.args, ['index.ts']);
-    assert.equal(resolved.shell, process.platform === 'win32');
+    assert.equal(resolved.shell, false);
+    if (process.platform === 'win32') {
+      assert.equal(resolved.command, process.execPath);
+      assert.match(resolved.args[0] ?? '', /tsx/);
+      assert.deepEqual(resolved.args.slice(1), ['index.ts']);
+    } else {
+      assert.equal(resolved.command, binPath);
+      assert.deepEqual(resolved.args, ['index.ts']);
+    }
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -89,15 +110,15 @@ test('resolveLocalBinCommand avoids cmd.exe when a Windows cmd shim points to a 
   }
 });
 
-test('resolveLocalBinCommand falls back to PATH lookup when no local binary exists', () => {
+test('resolveLocalBinCommand reports missing local binaries instead of shelling out', () => {
   const tempDir = join(tmpdir(), `kaleidoscope-empty-bin-${Date.now()}`);
   mkdirSync(tempDir, { recursive: true });
 
   try {
-    const resolved = resolveLocalBinCommand('definitely-not-installed-kaleidoscope-bin', ['--version'], tempDir);
-    assert.equal(resolved.command, 'definitely-not-installed-kaleidoscope-bin');
-    assert.deepEqual(resolved.args, ['--version']);
-    assert.equal(resolved.shell, process.platform === 'win32');
+    assert.throws(
+      () => resolveLocalBinCommand('definitely-not-installed-kaleidoscope-bin', ['--version'], tempDir),
+      /Could not find local executable/i,
+    );
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

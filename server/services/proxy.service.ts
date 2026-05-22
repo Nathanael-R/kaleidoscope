@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { validateProxyTargetUrl } from '../utils/security.js';
 
 export interface ProxySession {
   id: string;
@@ -16,12 +17,63 @@ const BLOCKED_RESPONSE_HEADERS = [
   'x-frame-options',
   'content-security-policy',
   'content-security-policy-report-only',
+  'content-encoding',
 ];
 
 const INSPECT_RUNTIME_SNIPPET = [
   '<script src="/api/inspect/element-source.js" data-kaleidoscope-inspect-runtime></script>',
   '<script src="/api/inspect/bridge.js" data-kaleidoscope-inspect-runtime defer></script>',
 ].join('\n');
+
+const DEFAULT_PROXY_FETCH_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_PROXY_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const PROXY_FETCH_TIMEOUT_MS = readPositiveIntEnv('KALEIDOSCOPE_PROXY_TIMEOUT_MS', DEFAULT_PROXY_FETCH_TIMEOUT_MS);
+const MAX_PROXY_RESPONSE_BYTES = readPositiveIntEnv('KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES', DEFAULT_MAX_PROXY_RESPONSE_BYTES);
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function readResponseBuffer(response: Response, maxBytes: number): Promise<Buffer> {
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = Buffer.from(value);
+      totalBytes += chunk.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        throw new Error(`Proxy response exceeded ${maxBytes} bytes`);
+      }
+      chunks.push(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks, totalBytes);
+}
 
 class ProxyService {
   private sessions: Map<string, ProxySession> = new Map();
@@ -38,9 +90,10 @@ class ProxyService {
     } = {},
   ): ProxySession {
     const id = this.generateId();
+    const normalizedUrl = new URL(targetUrl).toString().replace(/\/$/, '');
     const session: ProxySession = {
       id,
-      targetUrl: targetUrl.replace(/\/$/, ''), // strip trailing slash
+      targetUrl: normalizedUrl,
       cookies,
       requestHeaders: options.requestHeaders ?? [],
       mockRoutes: new Map(),
@@ -162,7 +215,17 @@ class ProxyService {
     }
 
     // Build target URL
-    const targetUrl = `${session.targetUrl}${requestPath}`;
+    const targetUrl = new URL(requestPath, `${session.targetUrl}/`).toString();
+    const targetValidation = await validateProxyTargetUrl(targetUrl, { allowLoopback: true });
+    if (!targetValidation.allowed) {
+      return {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ error: 'Proxy target is not allowed' }),
+        authFailed: false,
+        wasMocked: false,
+      };
+    }
 
     // Build cookie header
     const cookieHeader = session.cookies
@@ -172,7 +235,7 @@ class ProxyService {
     // Build fetch headers
     const fetchHeaders: Record<string, string> = {};
     // Forward safe headers from original request
-    const safeHeaders = ['accept', 'accept-language', 'content-type', 'content-length'];
+    const safeHeaders = ['accept', 'accept-language', 'content-type'];
     for (const key of safeHeaders) {
       if (requestHeaders[key]) {
         fetchHeaders[key] = requestHeaders[key];
@@ -185,11 +248,14 @@ class ProxyService {
       fetchHeaders[header.name] = header.value;
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROXY_FETCH_TIMEOUT_MS);
     try {
       const fetchOptions: RequestInit = {
         method,
         headers: fetchHeaders,
         redirect: 'manual', // handle redirects ourselves to detect login redirects
+        signal: controller.signal,
       };
 
       if (requestBody && method !== 'GET' && method !== 'HEAD') {
@@ -212,21 +278,20 @@ class ProxyService {
         }
       });
 
-      // Add permissive CSP for iframe embedding
-      responseHeaders['x-frame-options'] = 'ALLOWALL';
+      responseHeaders['x-kaleidoscope-proxy'] = 'true';
 
       // Get response body
       const contentType = response.headers.get('content-type') || '';
+      const responseBuffer = await readResponseBuffer(response, MAX_PROXY_RESPONSE_BYTES);
       let body: string | Buffer;
 
       if (contentType.includes('text/html')) {
-        let html = await response.text();
+        let html = responseBuffer.toString('utf8');
         // Rewrite absolute URLs in HTML to go through proxy
         html = this.rewriteHtml(html, session);
         body = html;
       } else {
-        const arrayBuffer = await response.arrayBuffer();
-        body = Buffer.from(arrayBuffer);
+        body = responseBuffer;
       }
 
       return {
@@ -237,16 +302,18 @@ class ProxyService {
         wasMocked: false,
       };
     } catch (error) {
+      const timedOut = error instanceof Error && error.name === 'AbortError';
       return {
-        status: 502,
+        status: timedOut ? 504 : 502,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          error: 'Failed to reach target',
-          message: error instanceof Error ? error.message : String(error),
+          error: timedOut ? 'Target request timed out' : 'Failed to reach target',
         }),
         authFailed: false,
         wasMocked: false,
       };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -314,7 +381,7 @@ class ProxyService {
   private rewriteHtml(html: string, session: ProxySession): string {
     // Add a <base> tag to handle relative URLs
     // This makes the browser resolve relative URLs against the original target
-    const baseTag = `<base href="${session.targetUrl}/">`;
+    const baseTag = `<base href="${escapeHtmlAttribute(`${session.targetUrl}/`)}">`;
     const headInjection = session.mode === 'inspect'
       ? `${INSPECT_RUNTIME_SNIPPET}\n${baseTag}`
       : baseTag;

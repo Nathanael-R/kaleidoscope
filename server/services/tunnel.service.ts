@@ -183,7 +183,6 @@ class TunnelService {
         }
 
         settled = true;
-        clearTimeout(timeout);
         child.stdout.off('data', onData);
         child.stderr.off('data', onData);
         callback();
@@ -325,9 +324,9 @@ class TunnelService {
     const commonPorts = [3000, 5173, 5174, 4173, 8080, 4200, 8000, 3001];
 
     for (const port of commonPorts) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1000);
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 1000);
         await fetch(`http://localhost:${port}/`, {
           signal: controller.signal,
           redirect: 'manual',
@@ -335,6 +334,7 @@ class TunnelService {
         clearTimeout(timeout);
         return port; // Got a response — something is listening
       } catch {
+        clearTimeout(timeout);
         continue; // Connection refused or timed out — port not in use
       }
     }

@@ -1,12 +1,17 @@
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
 const workspaceRoot = resolve(import.meta.dirname, '..');
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const serverCommand = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : npmCommand;
-const serverArgs = process.platform === 'win32'
-  ? ['/d', '/s', '/c', 'npm run dev:server']
-  : ['run', 'dev:server'];
+const npmCliCandidates = [
+  process.env.npm_execpath,
+  process.platform === 'win32'
+    ? resolve(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+    : null,
+].filter(Boolean);
+const npmCliPath = npmCliCandidates.find((candidate) => existsSync(candidate));
+const serverCommand = npmCliPath ? process.execPath : 'npm';
+const serverArgs = npmCliPath ? [npmCliPath, 'run', 'dev:server'] : ['run', 'dev:server'];
 
 function parsePortArg(argv) {
   for (let index = 0; index < argv.length; index += 1) {
@@ -80,6 +85,8 @@ const client = spawn(
       ...(requestedPort !== null ? { KALEIDOSCOPE_CLIENT_PORT: String(requestedPort) } : {}),
     },
     stdio: ['inherit', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   },
 );
 
@@ -88,8 +95,13 @@ const server = spawn(
   serverArgs,
   {
     cwd: workspaceRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      HOST: process.env.HOST ?? '127.0.0.1',
+    },
     stdio: ['inherit', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   },
 );
 

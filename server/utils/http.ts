@@ -10,8 +10,9 @@ export function sendError(
   error: string,
   extras: Record<string, unknown> = {},
 ): Response {
+  const safeError = error.replace(/\r?\n/g, ' ').slice(0, 1000);
   return res.status(status).json({
-    error,
+    error: safeError,
     requestId: getRequestId(res),
     ...extras,
   });

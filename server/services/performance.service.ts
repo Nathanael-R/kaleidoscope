@@ -495,16 +495,16 @@ class PerformanceService {
             for (const [index, hint] of hints) {
               issues[index].sourceHint = hint;
             }
-          } catch (err) {
-            console.warn('Source mapping failed (non-fatal):', err);
+          } catch {
+            console.warn('Source mapping failed (non-fatal).');
           }
         }
 
         const score = calculateScore(metrics.vitals, metrics.domNodeCount);
 
         results.push({ device: config, vitals: metrics.vitals, issues, score });
-      } catch (error) {
-        console.error(`Performance audit failed for ${config.name}:`, error);
+      } catch {
+        console.error(`Performance audit failed for ${config.name}.`);
         results.push({
           device: config,
           vitals: {
@@ -515,7 +515,7 @@ class PerformanceService {
           issues: [{
             type: 'error',
             severity: 'critical',
-            message: `Audit failed: ${error instanceof Error ? error.message : String(error)}`,
+            message: 'Audit failed for this device.',
           }],
           score: 0,
         });

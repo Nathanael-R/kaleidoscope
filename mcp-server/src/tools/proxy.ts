@@ -13,6 +13,11 @@ const mockPatternSchema = z.object({
   responsePreview: z.string(),
 });
 
+const MAX_MOCK_ROUTES = 50;
+const MAX_MOCK_PATTERN_LENGTH = 200;
+const MAX_COOKIE_COUNT = 50;
+const MAX_COOKIE_VALUE_LENGTH = 4096;
+
 const previewWithAuthOutputSchema = {
   sessionId: z.string(),
   targetUrl: z.string().url(),
@@ -30,23 +35,23 @@ const injectMockDataOutputSchema = {
 };
 
 const previewWithAuthInputSchema = {
-  url: z.string().url().describe(
+  url: z.string().url().max(2048).describe(
     'The target URL to proxy (e.g., http://localhost:3000/dashboard)',
   ),
   cookies: z.array(z.object({
-    name: z.string().describe('Cookie name (e.g., session_token)'),
-    value: z.string().describe('Cookie value'),
-  })).optional().describe(
+    name: z.string().min(1).max(128).describe('Cookie name (e.g., session_token)'),
+    value: z.string().max(MAX_COOKIE_VALUE_LENGTH).describe('Cookie value'),
+  })).max(MAX_COOKIE_COUNT).optional().describe(
     'Auth cookies to inject. Get these from the browser DevTools -> Application -> Cookies.',
   ),
 } satisfies z.ZodRawShape;
 
 const injectMockDataInputSchema = {
-  session_id: z.string().describe(
+  session_id: z.string().regex(/^proxy_[0-9a-f-]{36}$/i).describe(
     'The proxy session ID from preview_with_auth',
   ),
   mocks: z.array(z.object({
-    pattern: z.string().describe(
+    pattern: z.string().min(1).max(MAX_MOCK_PATTERN_LENGTH).describe(
       'URL path pattern to match. Supports * wildcards and :param placeholders. ' +
       'Examples: "/api/users", "/api/users/*", "/api/posts/:id"',
     ),
@@ -54,7 +59,7 @@ const injectMockDataInputSchema = {
       'The mock response data. Can be any JSON value (object, array, string, etc). ' +
       'Should match the shape the frontend expects from this endpoint.',
     ),
-  })).describe(
+  })).max(MAX_MOCK_ROUTES).describe(
     'Array of mock routes. Each has a URL pattern and a response to return.',
   ),
 } satisfies z.ZodRawShape;
@@ -128,7 +133,7 @@ export function registerProxyTools(server: McpServer) {
 
         await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/proxy/session/${data.session.id}/status`);
 
-        await fetch(`${KALEIDOSCOPE_SERVER}${data.session.proxyUrl}/`, {
+        await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}${data.session.proxyUrl}/`, {
           redirect: 'manual',
         });
 
@@ -211,7 +216,7 @@ export function registerProxyTools(server: McpServer) {
 
         const data = await mockRes.json() as { mockCount: number; message: string };
         const normalizedMocks = mocks.map((mock: { pattern: string; response: unknown }) => {
-          const responsePreview = JSON.stringify(mock.response);
+          const responsePreview = JSON.stringify(mock.response) ?? 'undefined';
           return {
             pattern: mock.pattern,
             responsePreview: responsePreview.length > 80

@@ -23,5 +23,8 @@ COPY . .
 # Expose port
 EXPOSE 5000
 
+# Docker needs the server to bind beyond loopback; local non-Docker runs default to 127.0.0.1.
+ENV HOST=0.0.0.0
+
 # Start development server
 CMD ["npm", "run", "dev"]

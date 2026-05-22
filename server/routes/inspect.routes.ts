@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { inspectBridgeScript } from '../services/inspect-bridge-script.js';
 import { getSharedBrowser } from '../services/browser.service.js';
 import {
@@ -15,6 +15,7 @@ import {
 import { proxyService } from '../services/proxy.service.js';
 import { isInspectableLocalUrl } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
+import { resolveSourceDirectory } from '../utils/path-policy.js';
 
 const router = Router();
 const require = createRequire(import.meta.url);
@@ -470,6 +471,10 @@ router.post('/resolve', (req: Request, res: Response) => {
     return sendError(res, 400, 'url is required');
   }
 
+  if (!isInspectableLocalUrl(url)) {
+    return sendError(res, 400, 'Inspect mode only supports local/dev loopback URLs.');
+  }
+
   if (sourceDir !== undefined && typeof sourceDir !== 'string') {
     return sendError(res, 400, 'sourceDir must be a string when provided');
   }
@@ -486,10 +491,11 @@ router.post('/resolve', (req: Request, res: Response) => {
 
   let resolvedSourceDir: string | undefined;
   if (typeof sourceDir === 'string' && sourceDir.trim().length > 0) {
-    resolvedSourceDir = path.resolve(sourceDir.trim());
-    if (!existsSync(resolvedSourceDir)) {
-      return sendError(res, 400, 'sourceDir must exist');
+    const result = resolveSourceDirectory(sourceDir);
+    if (!result.ok || !result.path) {
+      return sendError(res, 400, result.error ?? 'sourceDir is invalid');
     }
+    resolvedSourceDir = result.path;
   }
 
   const result = inspectService.resolve({
@@ -533,10 +539,11 @@ router.post('/selector', async (req: Request, res: Response) => {
 
   let resolvedSourceDir: string | undefined;
   if (typeof sourceDir === 'string' && sourceDir.trim().length > 0) {
-    resolvedSourceDir = path.resolve(sourceDir.trim());
-    if (!existsSync(resolvedSourceDir)) {
-      return sendError(res, 400, 'sourceDir must exist');
+    const result = resolveSourceDirectory(sourceDir);
+    if (!result.ok || !result.path) {
+      return sendError(res, 400, result.error ?? 'sourceDir is invalid');
     }
+    resolvedSourceDir = result.path;
   }
 
   try {
@@ -553,8 +560,8 @@ router.post('/selector', async (req: Request, res: Response) => {
     });
 
     return res.json({ success: true, result });
-  } catch (error) {
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to inspect selector');
+  } catch {
+    return sendError(res, 500, 'Failed to inspect selector');
   }
 });
 
@@ -597,8 +604,8 @@ router.post('/discover', async (req: Request, res: Response) => {
       query: query.trim(),
       candidates: discovery.candidates,
     });
-  } catch (error) {
-    return sendError(res, 500, error instanceof Error ? error.message : 'Failed to discover inspect candidates');
+  } catch {
+    return sendError(res, 500, 'Failed to discover inspect candidates');
   }
 });
 

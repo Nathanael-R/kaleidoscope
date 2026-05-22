@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   parseWalkthroughScript,
   resolveWalkthroughOutputDir,
@@ -65,21 +67,35 @@ test('parseWalkthroughScript rejects unsupported lines', () => {
 
 test('resolveWalkthroughOutputDir prefers explicit input, then env, then default', () => {
   const previous = process.env.KALEIDOSCOPE_WALKTHROUGH_DIR;
+  const previousArtifactRoot = process.env.KALEIDOSCOPE_ARTIFACT_ROOT;
+  const artifactRoot = mkdtempSync(path.join(tmpdir(), 'walkthrough-artifacts-'));
 
   try {
     delete process.env.KALEIDOSCOPE_WALKTHROUGH_DIR;
-    assert.equal(resolveWalkthroughOutputDir(undefined), './walkthroughs');
+    process.env.KALEIDOSCOPE_ARTIFACT_ROOT = artifactRoot;
+    assert.equal(resolveWalkthroughOutputDir(undefined), path.join(artifactRoot, 'walkthroughs'));
 
-    process.env.KALEIDOSCOPE_WALKTHROUGH_DIR = './configured-walkthroughs';
-    assert.equal(resolveWalkthroughOutputDir(undefined), './configured-walkthroughs');
-    assert.equal(resolveWalkthroughOutputDir('./explicit-walkthroughs'), './explicit-walkthroughs');
-    assert.equal(resolveWalkthroughOutputDir(undefined, 'inspection'), tmpdir());
-    assert.equal(resolveWalkthroughOutputDir('./explicit-inspection', 'inspection'), './explicit-inspection');
+    const configuredRoot = path.join(artifactRoot, 'configured-walkthroughs');
+    process.env.KALEIDOSCOPE_WALKTHROUGH_DIR = configuredRoot;
+    delete process.env.KALEIDOSCOPE_ARTIFACT_ROOT;
+    assert.equal(resolveWalkthroughOutputDir(undefined), configuredRoot);
+    assert.equal(resolveWalkthroughOutputDir('explicit-walkthroughs'), path.join(configuredRoot, 'explicit-walkthroughs'));
+    assert.equal(resolveWalkthroughOutputDir(undefined, 'inspection'), path.join(tmpdir(), 'kaleidoscope-walkthroughs'));
+    assert.equal(resolveWalkthroughOutputDir('explicit-inspection', 'inspection'), path.join(tmpdir(), 'explicit-inspection'));
+    assert.throws(() => resolveWalkthroughOutputDir('../escape'), /output_dir must be a safe directory path/i);
   } finally {
     if (previous === undefined) {
       delete process.env.KALEIDOSCOPE_WALKTHROUGH_DIR;
     } else {
       process.env.KALEIDOSCOPE_WALKTHROUGH_DIR = previous;
     }
+
+    if (previousArtifactRoot === undefined) {
+      delete process.env.KALEIDOSCOPE_ARTIFACT_ROOT;
+    } else {
+      process.env.KALEIDOSCOPE_ARTIFACT_ROOT = previousArtifactRoot;
+    }
+
+    rmSync(artifactRoot, { recursive: true, force: true });
   }
 });

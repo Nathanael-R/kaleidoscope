@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { findSourceHint } from './source-mapper.service.js';
 import { isInspectableLocalUrl } from '../utils/security.js';
+import { isPathInside } from '../utils/path-policy.js';
 
 export interface InspectStackFrame {
   filePath: string;
@@ -75,45 +76,67 @@ interface ResolveInspectRequest {
 
 function getDisplayPath(absolutePath: string, sourceDir?: string): string {
   if (!sourceDir) {
-    return absolutePath;
+    return path.basename(absolutePath);
   }
 
-  const candidates = [
-    path.relative(sourceDir, absolutePath),
-    path.relative(path.dirname(sourceDir), absolutePath),
-  ];
-
-  for (const candidate of candidates) {
-    if (candidate && !candidate.startsWith('..') && !path.isAbsolute(candidate)) {
-      return candidate;
-    }
+  const relative = path.relative(sourceDir, absolutePath);
+  if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+    return relative.replace(/\\/g, '/');
   }
 
-  return absolutePath;
+  return path.basename(absolutePath);
 }
 
 function resolveCandidatePath(filePath: string, sourceDir?: string): string | null {
   const candidates: string[] = [];
 
-  if (path.isAbsolute(filePath)) {
-    candidates.push(path.normalize(filePath));
+  if (!sourceDir) {
+    return null;
   }
 
-  if (sourceDir) {
+  const sourceRoot = path.resolve(sourceDir);
+
+  if (path.isAbsolute(filePath)) {
+    const normalized = path.normalize(filePath);
+    if (isPathInside(sourceRoot, normalized)) {
+      candidates.push(normalized);
+    }
+  } else {
     const cleaned = filePath.replace(/^[./\\]+/, '');
-    if (cleaned) {
-      candidates.push(path.resolve(sourceDir, cleaned));
-      candidates.push(path.resolve(path.dirname(sourceDir), cleaned));
+    if (!cleaned.split(/[\\/]+/).includes('..')) {
+      candidates.push(path.resolve(sourceRoot, cleaned));
     }
   }
 
   for (const candidate of candidates) {
-    if (existsSync(candidate)) {
+    if (isPathInside(sourceRoot, candidate) && existsSync(candidate)) {
       return candidate;
     }
   }
 
   return null;
+}
+
+function sanitizeDisplayFilePath(filePath: string): string {
+  if (path.isAbsolute(filePath) || filePath.split(/[\\/]+/).includes('..')) {
+    return path.basename(filePath);
+  }
+
+  return filePath.replace(/\\/g, '/');
+}
+
+function sanitizeStack(stack: InspectStackFrame[], sourceDir?: string): InspectStackFrame[] {
+  return stack.map((frame) => {
+    const resolvedPath = resolveCandidatePath(frame.filePath, sourceDir);
+    const displayPath = resolvedPath
+      ? getDisplayPath(resolvedPath, sourceDir)
+      : sanitizeDisplayFilePath(frame.filePath);
+
+    return {
+      ...frame,
+      filePath: displayPath,
+    };
+  });
 }
 
 function readSourceFile(filePath: string): string[] | null {
@@ -160,7 +183,7 @@ function normalizeExactSource(
   const absolutePath = resolveCandidatePath(frame.filePath, sourceDir);
   if (!absolutePath) {
     return {
-      filePath: frame.filePath,
+      filePath: sanitizeDisplayFilePath(frame.filePath),
       lineNumber: frame.lineNumber,
       columnNumber: frame.columnNumber,
       code: null,
@@ -213,7 +236,7 @@ function getComponentName(selection: InspectSelection): string | null {
 class InspectService {
   resolve({ url, sourceDir, device, selection }: ResolveInspectRequest): InspectResolution {
     const diagnostics: string[] = [];
-    const stack = selection.elementSource?.stack ?? [];
+    const stack = sanitizeStack(selection.elementSource?.stack ?? [], sourceDir);
     const componentName = getComponentName(selection);
     const page = {
       title: selection.title,
