@@ -331,10 +331,12 @@ test('capture_screenshots returns structured metadata and rich content', async (
     }>;
     inlineImageCount: number;
     displayAdvice: string;
+    primaryMarkdownImageTag: string | null;
+    finalResponseInstruction: string;
     readyToPasteMarkdown: string[];
   };
   assert.equal(structured.inlineImageCount, 1);
-  assert.match(structured.displayAdvice, /readyToPasteMarkdown/i);
+  assert.match(structured.displayAdvice, /primaryMarkdownImageTag/i);
   assert.equal(structured.screenshots[0]?.path, screenshotPath);
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
   assert.equal(structured.screenshots[0]?.preferredDisplayPath, screenshotPath);
@@ -352,12 +354,18 @@ test('capture_screenshots returns structured metadata and rich content', async (
     [`![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`],
   );
   assert.equal(
+    structured.primaryMarkdownImageTag,
+    `![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`,
+  );
+  assert.match(structured.finalResponseInstruction, /include this exact Markdown image tag/i);
+  assert.equal(
     structured.screenshots[0]?.downloadUrl,
     `${apiBaseUrl}/api/screenshots-files/desktop-test.png`,
   );
 
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const primaryTextBlock = content.find((item) => item.type === 'text');
+  assert.match(primaryTextBlock?.text ?? '', /Show this image in your final response:/);
   assert.match(primaryTextBlock?.text ?? '', /Ready-to-paste Markdown image tags:/);
   assert.match(
     primaryTextBlock?.text ?? '',

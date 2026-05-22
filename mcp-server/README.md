@@ -16,10 +16,10 @@ MCP server for [Kaleidoscope](https://github.com/Nathanael-R/kaleidoscope), a re
 
 ## Install and run
 
-Run it directly with `npx`:
+For the most reliable setup, install it once and launch the real executable:
 
 ```bash
-npx -y kaleidoscope-mcp-server
+npm install -g kaleidoscope-mcp-server
 ```
 
 The executable name is:
@@ -28,10 +28,10 @@ The executable name is:
 kaleidoscope-mcp
 ```
 
-Or install it globally first:
+You can still run it ad hoc with `npx` if you want:
 
 ```bash
-npm install -g kaleidoscope-mcp-server
+npx -y kaleidoscope-mcp-server
 ```
 
 ## MCP client config
@@ -39,6 +39,21 @@ npm install -g kaleidoscope-mcp-server
 ### Claude Code
 
 Project-scoped `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "kaleidoscope-mcp",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+If you prefer `npx`, you can also use:
 
 ```json
 {
@@ -54,33 +69,17 @@ Project-scoped `.mcp.json`:
 }
 ```
 
-If you installed the package globally, you can also use:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "kaleidoscope-mcp",
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
 CLI form:
 
 ```bash
-claude mcp add --transport stdio kaleidoscope --scope project -- npx -y kaleidoscope-mcp-server
+claude mcp add --transport stdio kaleidoscope --scope project -- kaleidoscope-mcp
 ```
 
 ### Codex `config.toml`
 
 ```toml
 [mcp_servers.kaleidoscope]
-command = "npx"
-args = ["-y", "kaleidoscope-mcp-server"]
+command = "kaleidoscope-mcp"
 enabled = true
 startup_timeout_sec = 20
 tool_timeout_sec = 60
@@ -89,11 +88,12 @@ tool_timeout_sec = 60
 KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
 ```
 
-If you installed the package globally:
+If you prefer `npx`:
 
 ```toml
 [mcp_servers.kaleidoscope]
-command = "kaleidoscope-mcp"
+command = "npx"
+args = ["-y", "kaleidoscope-mcp-server"]
 enabled = true
 startup_timeout_sec = 20
 tool_timeout_sec = 60
@@ -108,12 +108,12 @@ Use these values in the MCP connector form:
 
 - Name: `kaleidoscope`
 - Transport: `STDIO`
-- Command to launch: `npx`
-- Arguments: `-y`, `kaleidoscope-mcp-server`
+- Command to launch: `kaleidoscope-mcp`
+- Arguments: leave empty
 - Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
 - Working directory: leave blank
 
-If you installed the package globally, use `kaleidoscope-mcp` as the command and leave arguments empty.
+If you prefer `npx`, use `npx` with arguments `-y`, `kaleidoscope-mcp-server`.
 
 ## Environment
 
@@ -128,11 +128,11 @@ If you installed the package globally, use `kaleidoscope-mcp` as the command and
 
 - This package talks to the Kaleidoscope server API; it is not a standalone screenshot service by itself.
 - Rich screenshot responses use MCP `structuredContent`, `resource_link`, inline `image` blocks, and absolute local display paths when the client supports them.
-- Screenshot tool responses include per-image `markdownImageTag` values plus a top-level `readyToPasteMarkdown` array so agents can paste a working Markdown image tag directly into chat on Windows, macOS, Linux, or UNC network shares.
+- Screenshot tool responses include a top-level `primaryMarkdownImageTag`, per-image `markdownImageTag` values, and a `readyToPasteMarkdown` array so agents can paste a working Markdown image tag directly into chat on Windows, macOS, Linux, or UNC network shares.
 - `capture_screenshots` accepts both device IDs and common names. For example, `devices: ["iphone-14"]`, `devices: ["iPhone 14"]`, and `devices: ["iphone14"]` all resolve to the iPhone 14 preset.
 - `record_walkthrough` saves local `.webm` files and returns them as `resource_link` artifacts plus absolute local paths. It supports structured `click`, `hover`, `type`, `press`, `wait`, `scroll`, `goto`, and `select` steps, or a simpler one-command-per-line `script` format.
 - `record_walkthrough` supports `artifact_mode: "deliverable"` and `artifact_mode: "inspection"`. Deliverables resolve their save location as explicit `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`. Inspection recordings default to the OS temp directory unless `output_dir` is provided.
-- `record_walkthrough` requires Playwright Chromium to be installed on the host machine:
+- `record_walkthrough` and screenshot capture require Playwright Chromium to be installed on the host machine before capture begins:
 
 ```bash
 npx playwright install chromium

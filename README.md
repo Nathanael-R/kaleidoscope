@@ -145,7 +145,36 @@ The tunnel panel uses external tunnel binaries rather than bundling a JS tunnel 
 
 The MCP server lives in [mcp-server](mcp-server) and exposes tools for preview, screenshots, auth proxy sessions, selector discovery, and source inspection.
 
-Example MCP config:
+For external users, the recommended setup is:
+
+1. Install the published MCP package:
+
+```bash
+npm install -g kaleidoscope-mcp-server
+```
+
+2. Launch the installed executable directly in your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "kaleidoscope-mcp",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+3. Install Playwright Chromium once on the same machine before asking for screenshots or walkthroughs:
+
+```bash
+npx playwright install chromium
+```
+
+If you are working from a repo checkout instead, use a source-based MCP config like this:
 
 ```json
 {
@@ -167,6 +196,12 @@ Leave `KALEIDOSCOPE_SERVER_URL` unset for local development. The MCP server defa
 ### Claude Code
 
 Claude Code can run Kaleidoscope as a local stdio MCP server.
+
+For the published npm package, the most reliable setup is to install it once and launch `kaleidoscope-mcp` directly instead of relying on `npx` at runtime:
+
+```bash
+npm install -g kaleidoscope-mcp-server
+```
 
 Windows:
 
@@ -199,6 +234,21 @@ claude mcp add --transport stdio kaleidoscope --scope project -- npx tsx src/ind
 
 Then use the same `.mcp.json` shape, but with `command: "npx"` and `args: ["tsx", "src/index.ts"]`.
 
+For the published package form, prefer:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "kaleidoscope-mcp",
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
 ### Codex
 
 Codex can also run Kaleidoscope as a local stdio MCP server.
@@ -225,10 +275,30 @@ If you prefer the CLI, add it like this and then adjust `cwd` in `config.toml` a
 codex mcp add kaleidoscope -- npx tsx src/index.ts
 ```
 
-Or use the published package form once it is installed from npm:
+For the published package form, install it once and use the real executable:
 
 ```bash
-codex mcp add kaleidoscope -- npx -y kaleidoscope-mcp-server
+npm install -g kaleidoscope-mcp-server
+```
+
+Then configure Codex like this:
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "kaleidoscope-mcp"
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+KALEIDOSCOPE_WALKTHROUGH_DIR = "c:/Code/my-app/walkthroughs"
+```
+
+If you still want the CLI helper, use:
+
+```bash
+codex mcp add kaleidoscope -- kaleidoscope-mcp
 ```
 
 Core tools:
@@ -249,17 +319,17 @@ Current MCP status:
 
 - Tools return structured MCP responses instead of plain text only.
 - `kaleidoscope_list_devices` returns the supported device presets and default screenshot set so agents can ask users which ones they want.
-- `capture_screenshots` returns screenshot metadata, preferred local display paths, chat-ready absolute Markdown display paths, per-image `markdownImageTag` values, a top-level `readyToPasteMarkdown` array, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
+- `capture_screenshots` returns screenshot metadata, preferred local display paths, a top-level `primaryMarkdownImageTag`, per-image `markdownImageTag` values, a `readyToPasteMarkdown` array, file URIs, download URLs, `resource_link` blocks, and inline image blocks when the PNGs are small enough.
 - `capture_screenshots` accepts device IDs and common device names, so agents can request `devices: ["iphone-14"]` or `devices: ["iPhone 14"]` for the same iPhone 14 capture.
 - The chat-ready paths are OS-agnostic absolute local paths: `C:/...` on Windows, `/Users/...` or `/home/...` on macOS/Linux, and `//server/share/...` for UNC network shares.
-- For the most reliable chat rendering in Codex, paste an entry from `readyToPasteMarkdown` directly into the response instead of reconstructing an image tag from `downloadUrl`.
+- For the most reliable chat rendering in Codex, paste `primaryMarkdownImageTag` directly into the response instead of describing the capture or reconstructing an image tag from `downloadUrl`.
 - `record_walkthrough` records a local `.webm` walkthrough with scripted clicks, typing, hover, scroll, and navigation steps, plus an optional cursor overlay for clearer demos.
 - `record_walkthrough` accepts either structured `steps` or a simpler one-command-per-line `script` format such as `click #save` and `type "hello@example.com" into #email`.
 - `record_walkthrough` supports deliverable and inspection artifact modes. Deliverables save to `output_dir`, then `KALEIDOSCOPE_WALKTHROUGH_DIR`, then `./walkthroughs`; inspection recordings default to the OS temp directory unless `output_dir` is provided.
 - `discover_page_elements` and `inspect_element_source` return structured inspect payloads suitable for agent workflows.
 - `mcp-server` includes stdio integration tests for the registered MCP tools.
 
-For `record_walkthrough`, make sure Playwright Chromium is installed on the machine running the MCP server:
+For screenshots and `record_walkthrough`, make sure Playwright Chromium is installed on the machine running the MCP server before you ask an agent to capture anything. External users should run:
 
 ```bash
 npx playwright install chromium
