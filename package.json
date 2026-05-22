@@ -1,6 +1,6 @@
 {
   "name": "kaleidoscope-monorepo",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Kaleidoscope - Responsive design preview tool for Claude Code",
   "private": true,
   "type": "module",

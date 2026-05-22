@@ -80,6 +80,8 @@ const screenshotOutputSchema = {
   count: z.number(),
   inlineImageCount: z.number(),
   displayAdvice: z.string(),
+  primaryMarkdownImageTag: z.string().nullable(),
+  finalResponseInstruction: z.string(),
   readyToPasteMarkdown: z.array(z.string()),
   screenshots: z.array(screenshotEntrySchema),
 };
@@ -119,6 +121,8 @@ interface ScreenshotOutput {
   count: number;
   inlineImageCount: number;
   displayAdvice: string;
+  primaryMarkdownImageTag: string | null;
+  finalResponseInstruction: string;
   readyToPasteMarkdown: string[];
   screenshots: ScreenshotEntryResult[];
 }
@@ -238,14 +242,20 @@ export function registerScreenshotTools(server: McpServer) {
         const readyToPasteMarkdown = screenshots.flatMap((screenshot) => (
           screenshot.markdownImageTag ? [screenshot.markdownImageTag] : []
         ));
+        const primaryMarkdownImageTag = readyToPasteMarkdown[0] ?? null;
+        const finalResponseInstruction = primaryMarkdownImageTag
+          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}`
+          : 'No chat-renderable screenshot Markdown was produced. Report the screenshot path and error details instead.';
         const result: ScreenshotOutput = {
           url,
           outputDirectory: outputDir,
           count: screenshots.length,
           inlineImageCount,
           displayAdvice:
-            'For reliable chat rendering, paste a value from readyToPasteMarkdown directly into the response, or use markdownImageTag/chatDisplayPath from each screenshot entry. ' +
+            'For reliable chat rendering, paste primaryMarkdownImageTag or a value from readyToPasteMarkdown directly into the final response. ' +
             'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
+          primaryMarkdownImageTag,
+          finalResponseInstruction,
           readyToPasteMarkdown,
           screenshots,
         };
@@ -255,6 +265,12 @@ export function registerScreenshotTools(server: McpServer) {
           `Output directory: ${outputDir}`,
           '',
         ];
+
+        if (primaryMarkdownImageTag) {
+          lines.push('Show this image in your final response:');
+          lines.push(primaryMarkdownImageTag);
+          lines.push('');
+        }
 
         for (const screenshot of screenshots) {
           const suffix = screenshot.error ? ` [error: ${screenshot.error}]` : '';
@@ -273,7 +289,7 @@ export function registerScreenshotTools(server: McpServer) {
             lines.push(markdownTag);
           }
         }
-        lines.push('For reliable chat rendering, use readyToPasteMarkdown or markdownImageTag/chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
+        lines.push('For reliable chat rendering, use primaryMarkdownImageTag, readyToPasteMarkdown, or markdownImageTag/chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
 
         return createStructuredResult(result, lines.join('\n'), screenshotContent);
       } catch (error) {

@@ -2,7 +2,6 @@ import { chromium, type Browser } from 'playwright-core';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { execSync } from 'node:child_process';
 
 /**
  * Find a usable Chromium executable by scanning all common Playwright
@@ -73,32 +72,13 @@ function findChromiumPath(): string | null {
   return null;
 }
 
-function installChromium(): void {
-  console.log('Chromium not found. Installing via Playwright...');
-  try {
-    execSync('npx playwright install --with-deps chromium', {
-      stdio: 'inherit',
-      timeout: 120_000,
-    });
-  } catch {
-    execSync('npx playwright install chromium', {
-      stdio: 'inherit',
-      timeout: 120_000,
-    });
-  }
-}
-
 export function ensureChromium(): string {
   const existing = findChromiumPath();
   if (existing) return existing;
 
-  installChromium();
-
-  const installed = findChromiumPath();
-  if (installed) return installed;
-
   throw new Error(
-    'Chromium installation failed. Try manually: npx playwright install --with-deps chromium'
+    'Chromium not found. Install it before using screenshots or walkthroughs. ' +
+    'Run `npx playwright install chromium` on the machine hosting Kaleidoscope, then retry.'
   );
 }
 
