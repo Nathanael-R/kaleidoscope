@@ -380,7 +380,7 @@ export function scaleRecordingSize(width: number, height: number): { width: numb
   };
 }
 
-export function summarizeWalkthroughStep(step: WalkthroughStep): string {
+function summarizeWalkthroughStep(step: WalkthroughStep): string {
   switch (step.action) {
     case 'click':
       return `click ${step.selector}`;

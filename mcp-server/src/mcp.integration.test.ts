@@ -203,7 +203,7 @@ test.before(async () => {
   transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', 'src/index.ts'],
-    cwd: 'C:/Code/kaleidoscope/mcp-server',
+    cwd: process.cwd(),
     env: {
       KALEIDOSCOPE_SERVER_URL: apiBaseUrl,
       KALEIDOSCOPE_CLIENT_PORT: String(clientPort),

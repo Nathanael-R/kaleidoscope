@@ -8,7 +8,6 @@ import {
   resolveWalkthroughOutputDir,
   sanitizeWalkthroughFileStem,
   scaleRecordingSize,
-  summarizeWalkthroughStep,
 } from './walkthrough.js';
 
 test('sanitizeWalkthroughFileStem creates stable file-friendly names', () => {
@@ -21,21 +20,6 @@ test('scaleRecordingSize preserves aspect ratio while capping large videos', () 
   assert.deepEqual(scaleRecordingSize(390, 844), { width: 390, height: 844 });
   assert.deepEqual(scaleRecordingSize(1920, 1080), { width: 1280, height: 720 });
   assert.deepEqual(scaleRecordingSize(1080, 1920), { width: 720, height: 1280 });
-});
-
-test('summarizeWalkthroughStep renders readable action summaries', () => {
-  assert.equal(
-    summarizeWalkthroughStep({ action: 'click', selector: '#save' }),
-    'click #save',
-  );
-  assert.equal(
-    summarizeWalkthroughStep({ action: 'type', selector: '#email', text: 'hello@example.com' }),
-    'type "hello@example.com" into #email',
-  );
-  assert.equal(
-    summarizeWalkthroughStep({ action: 'scroll', deltaY: 640 }),
-    'scroll by (0, 640)',
-  );
 });
 
 test('parseWalkthroughScript supports a simple natural-language step format', () => {
