@@ -4,11 +4,21 @@
 
 # Kaleidoscope
 
-Responsive preview tooling for local and public web apps. Load a URL once, inspect it across multiple device profiles, capture screenshots, tunnel local sites, and use the MCP server to automate the flow.
+Kaleidoscope is a responsive preview and inspection tool for web apps. Load a local or public URL once, view it across device profiles, capture screenshots, inspect trusted local pages, and let MCP clients automate the workflow.
 
 <p align="center">
   <img src="assets/readme/overview-local-dev.png" alt="Kaleidoscope preview workspace showing local development mode and an iPhone preview frame" width="100%" />
 </p>
+
+## What You Can Do
+
+- Preview local and public HTTP/HTTPS pages across mobile, tablet, and desktop devices.
+- Compare multiple breakpoints side by side.
+- Capture screenshots across several device profiles in one run.
+- Record scripted walkthrough videos with visible cursor movement.
+- Preview authenticated pages with temporary cookie and header injection.
+- Inspect trusted local pages and map selected elements back to source context.
+- Use MCP tools from Claude Code, Codex, Cursor, Windsurf, VS Code, and other stdio MCP clients.
 
 ## Visual Tour
 
@@ -42,117 +52,38 @@ Responsive preview tooling for local and public web apps. Load a URL once, inspe
       <br />
       <strong>Local-first preview workflow</strong>
       <br />
-      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, screenshots, or performance checks.
+      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, screenshots, or performance tools.
     </td>
   </tr>
 </table>
 
-## What It Does
+## Install
 
-Kaleidoscope currently ships these product surfaces:
-
-- Multi-device preview for local and public HTTP/HTTPS URLs
-- Local development support for loopback targets such as `http://localhost:3000`
-- Auth preview through a server-side proxy with cookie and header injection
-- Live reload for trusted local sessions
-- Screenshot capture across device profiles
-- Inspect tooling for local targets, including selector discovery and source mapping
-- MCP tools for preview, screenshots, proxy auth, and inspect flows
-
-## Current Scope
-
-The active UI is the preview workspace. Older flow-diagram and crawl-authoring code has been removed from the shipped client and server packages.
-
-## Supported Device Profiles
-
-The shared device catalog currently includes 14 profiles across mobile, tablet, and desktop classes, including iPhone 14-17, Samsung Galaxy S21/S24/S24 Ultra/S25 Ultra, Google Pixel 6, iPad, iPad Pro, MacBook Air, Desktop HD, and Desktop 4K.
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 20+
-- npm 9+
-- Optional: Docker
-- Optional but recommended for screenshots and E2E tests: Playwright Chromium
-- Optional for localhost sharing: `cloudflared` or `ngrok`
-
-### Local Development
-
-```bash
-git clone <your-repo-url>
-cd Kaleidoscope
-npm run install:all
-npm run dev:all
-```
-
-The frontend runs on the Vite URL printed in the terminal, usually `http://localhost:5173`, with fallback ports such as `5174` when needed. The backend runs on `http://localhost:5000`.
-
-### Optional Browser Install
-
-Kaleidoscope does not download Playwright browsers during `npm install`. Install Chromium explicitly when you need screenshots or Playwright tests.
-
-```bash
-npm run install:browsers
-```
-
-### Docker Development
-
-```bash
-docker compose up
-```
-
-### Docker Production
-
-For a local production-style run:
-
-```bash
-CORS_ORIGIN=http://localhost:5000 docker compose -f docker-compose.prod.yml up --build
-```
-
-For a real deployment, replace `http://localhost:5000` with the public origin serving the app.
-
-## Usage
-
-### Basic Preview
-
-1. Open the frontend URL printed by Vite.
-2. Enter a target URL such as `https://example.com` or `http://localhost:3000`.
-3. Switch devices, pin devices for comparison mode, or capture screenshots.
-
-For a follow-along workflow while an agent is making changes, load your local app URL in Kaleidoscope and turn on the `Live Reload` toggle. Trusted local sessions can automatically refresh as files change.
-
-### Auth Preview
-
-For authenticated pages, use the auth panel in the sidebar. Kaleidoscope can create a server-side proxy session with cookies or safe custom headers, then load the proxied page inside the preview.
-
-### Inspect Mode
-
-Inspect mode is limited to trusted local loopback targets such as `localhost` and `127.0.0.1`. It can:
-
-- Discover likely selectors from natural-language queries
-- Resolve a selected element back to source context when available
-- Export JSON or LLM-friendly source summaries
-
-### Sharing Localhost
-
-The tunnel panel uses external tunnel binaries rather than bundling a JS tunnel dependency. Install either:
-
-- `cloudflared` for Cloudflare quick tunnels
-- `ngrok` for ngrok-managed tunnels
-
-## MCP Server
-
-The MCP server lives in [mcp-server](mcp-server) and exposes tools for preview, screenshots, walkthrough videos, auth proxy sessions, selector discovery, and source inspection.
-
-For normal users, use the npm package. It includes the MCP server, Kaleidoscope backend, and built web client, so users do not need to clone this repo.
+Install the MCP package globally:
 
 ```bash
 npm install -g kaleidoscope-mcp-server
+```
+
+The executable name is:
+
+```bash
+kaleidoscope-mcp
+```
+
+Screenshots and walkthrough recording require Playwright Chromium:
+
+```bash
 npx playwright install chromium
 ```
 
-Recommended MCP config for Claude Desktop, Claude Code, Cursor, Windsurf, VS Code, and similar stdio clients:
+The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
+
+## MCP Client Setup
+
+Use `kaleidoscope-mcp` as a stdio MCP server command.
+
+Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, and similar clients:
 
 ```json
 {
@@ -180,25 +111,29 @@ tool_timeout_sec = 60
 KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
 ```
 
-Use `kaleidoscope-mcp` directly on Windows instead of wrapping `npx` in `cmd /c`. This avoids shell-path failures such as `spawn C:\Windows\system32\cmd.exe ENOENT`.
+Codex desktop connector UI:
 
-If you are developing from this repo checkout, run from `mcp-server`:
+- Name: `kaleidoscope`
+- Transport: `STDIO`
+- Command to launch: `kaleidoscope-mcp`
+- Arguments: leave empty
+- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
+- Working directory: leave blank
+
+You can also run it ad hoc with `npx`:
 
 ```bash
-npm install
-npm run build
-npm test
+npx -y kaleidoscope-mcp-server
 ```
 
-Source-checkout MCP config:
+For MCP clients that use JSON config:
 
 ```json
 {
   "mcpServers": {
     "kaleidoscope": {
       "command": "npx",
-      "args": ["tsx", "src/index.ts"],
-      "cwd": "/path/to/kaleidoscope/mcp-server",
+      "args": ["-y", "kaleidoscope-mcp-server"],
       "env": {
         "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
       }
@@ -207,90 +142,90 @@ Source-checkout MCP config:
 }
 ```
 
-Useful MCP tools:
+On Windows, using the installed `kaleidoscope-mcp` command is usually more reliable than wrapping `npx` through `cmd /c`.
+
+## Common Workflows
+
+### Preview A Local App
+
+1. Start your app, for example on `http://localhost:3000`.
+2. Ask your MCP client to run `kaleidoscope_start`.
+3. Ask it to prepare a responsive preview for your URL.
+4. Open `http://localhost:5000` if you want to use the visual workspace directly.
+
+### Capture Screenshots
+
+Use `capture_screenshots` with device IDs or common names:
+
+```json
+{
+  "url": "http://localhost:3000",
+  "devices": ["iphone-14", "ipad", "desktop-hd"]
+}
+```
+
+Responses include screenshot metadata and Markdown-ready image references when the MCP client supports rich content.
+
+### Record A Walkthrough
+
+Use `record_walkthrough` with structured steps or a simple script:
+
+```text
+click #open-settings
+type "hello@example.com" into #email
+click button[type="submit"]
+wait 800ms
+```
+
+Walkthroughs are saved as local `.webm` files and returned as MCP artifacts.
+
+### Preview Authenticated Pages
+
+Use `preview_with_auth` to create a temporary proxy session with cookies or safe custom headers. This is useful for checking logged-in screens without changing your app.
+
+### Inspect A Local Page
+
+Inspect mode works with trusted loopback targets such as `localhost` and `127.0.0.1`. It can discover likely selectors and return source context for selected elements when a workspace root is configured.
+
+## MCP Tools
 
 - `kaleidoscope_status`, `kaleidoscope_start`, `kaleidoscope_stop`
-- `kaleidoscope_list_devices`, `preview_responsive`, `capture_screenshots`
+- `kaleidoscope_list_devices`
+- `preview_responsive`
+- `capture_screenshots`
 - `record_walkthrough`
-- `preview_with_auth`, `inject_mock_data`
-- `discover_page_elements`, `inspect_element_source`
+- `preview_with_auth`
+- `inject_mock_data`
+- `discover_page_elements`
+- `inspect_element_source`
 
-Important environment variables:
+## Environment Options
 
-- `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root. `source_dir` must stay inside this directory.
-- `KALEIDOSCOPE_ARTIFACT_ROOT`: allowed root for walkthrough `output_dir`.
-- `KALEIDOSCOPE_WALKTHROUGH_DIR`: default walkthrough output directory.
-- `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout.
-- `KALEIDOSCOPE_PROXY_TIMEOUT_MS` and `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy safety limits.
+- `KALEIDOSCOPE_SERVER_URL`: Kaleidoscope backend URL. Defaults to `http://localhost:5000`.
+- `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout. Defaults to `60000`.
+- `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root for local projects.
+- `KALEIDOSCOPE_ARTIFACT_ROOT`: allowed root for user-selected walkthrough output directories.
+- `KALEIDOSCOPE_WALKTHROUGH_DIR`: default output directory for walkthrough videos.
+- `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout. Defaults to `30000`.
+- `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response byte limit. Defaults to `10485760`.
 
-Verification after install:
+## Troubleshooting
 
-1. Ask the MCP client to run `kaleidoscope_status`.
-2. Run `kaleidoscope_start`.
-3. Run `kaleidoscope_list_devices`.
+- `Browser executable not found`: run `npx playwright install chromium` in the same environment that launches the MCP server.
+- `spawn C:\Windows\system32\cmd.exe ENOENT`: install the package globally and configure your MCP client to run `kaleidoscope-mcp` directly.
+- `sourceDir must be inside...`: set `KALEIDOSCOPE_WORKSPACE_ROOT` to the project root you want Kaleidoscope to inspect.
+- `output_dir must stay inside...`: set `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`, then use an output directory below it.
+- Port conflicts: set `KALEIDOSCOPE_SERVER_URL=http://localhost:<free-port>` or stop the process using port `5000`.
 
-## Scripts
+## Privacy And Safety
 
-```bash
-# Development
-npm run dev:client
-npm run dev:server
-npm run dev:all
-
-# Quality checks
-npm run lint
-npm run check
-npm run test:ci
-npm --prefix mcp-server test
-
-# Full local suites
-npm run test:unit
-npm run test:e2e
-npm run test:e2e:ui
-
-# Browser install for screenshots and Playwright
-npm run install:browsers
-
-# GitHub CLI wrapper for shells where gh is not on PATH
-npm run gh -- --version
-```
-
-Windows-only video helper:
-
-```powershell
-.\scripts\Invoke-FfmpegVideoTool.ps1 -InputFile .\input.webm -OutputFile .\output.webm -SpeedMultiplier 1.08 -Overwrite
-```
-
-## Security Notes
-
-- Production mode requires `CORS_ORIGIN`.
-- The local API binds to `127.0.0.1` by default. Docker sets `HOST=0.0.0.0` explicitly.
-- Local management APIs are restricted to trusted Kaleidoscope clients and should not be exposed to untrusted networks.
+- Kaleidoscope is designed for local preview and inspection workflows.
+- The local API binds to `127.0.0.1` by default.
 - Inspect mode is limited to loopback targets, and source reads must stay under `KALEIDOSCOPE_WORKSPACE_ROOT`.
 - Walkthrough output directories must stay under `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`.
 - Auth proxy sessions are temporary and cleaned up automatically.
-- Public tunnels created with `cloudflared` or `ngrok` should be treated as public URLs.
-
-## Repository Layout
-
-```text
-Kaleidoscope/
-|- mosaic-client/   React client
-|- server/          Express API and local tooling services
-|- mcp-server/      MCP server and process manager
-|- shared/          Shared device definitions
-|- examples/        Sample apps for manual testing
-|- tests/           End-to-end coverage
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and contribution expectations.
-
-## Security Reporting
-
-See [SECURITY.md](SECURITY.md) for how to report vulnerabilities responsibly.
+- Public tunnel URLs created with tools such as `cloudflared` or `ngrok` should be treated as public.
 
 ## License
 
-This project is released under the MIT License. See [LICENSE](LICENSE).
+Kaleidoscope is released under the MIT License. See [LICENSE](LICENSE).
