@@ -144,7 +144,7 @@ export default function PreviewComparisonCanvas({
         "bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700",
         isCompactViewport ? 'space-y-3' : 'flex items-center justify-between',
       )}>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-x-4">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Comparing {pinnedDevices.length} devices
           </span>
@@ -177,7 +177,7 @@ export default function PreviewComparisonCanvas({
           onDrop={handleCanvasDrop}
         >
           <div className="text-gray-400 mb-4">
-            <Menu className="h-16 w-16 mx-auto mb-4" />
+            <Menu className=" size-16 mx-auto mb-4" />
           </div>
           <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
             No devices pinned for comparison
@@ -185,7 +185,7 @@ export default function PreviewComparisonCanvas({
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Drag devices here from the sidebar, use the pin icons in the sidebar, or press Space while selecting a device.
           </p>
-          <div className="flex justify-center space-x-2 text-xs text-gray-400">
+          <div className="flex justify-center gap-x-2 text-xs text-gray-400">
             <kbd className="px-2 py-1 bg-gray-100 rounded">Space</kbd>
             <span>to pin current device</span>
             <span>•</span>
@@ -201,7 +201,7 @@ export default function PreviewComparisonCanvas({
               className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:p-4"
             >
               <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-x-3">
                   <span className="text-lg">{getDeviceIconGlyph(device.icon)}</span>
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-gray-100">{device.name}</h4>
@@ -212,10 +212,10 @@ export default function PreviewComparisonCanvas({
                   variant="ghost"
                   size="sm"
                   onClick={() => onDevicePin?.(device)}
-                  className="w-8 h-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                  className="size-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                   data-testid={`remove-pin-${device.id}`}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="size-4" />
                 </Button>
               </div>
 
@@ -264,12 +264,12 @@ export default function PreviewComparisonCanvas({
                 }}
                 onMouseDown={(event) => handleMouseDown(event, device.id)}
               >
-                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white px-3 py-1 rounded-full text-xs flex items-center space-x-2">
-                  <Move className="w-3 h-3" />
+                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-950 text-white px-3 py-1 rounded-full text-xs flex items-center gap-x-2">
+                  <Move className="size-3" />
                   <span>Drag to move</span>
                 </div>
                 <div className="mb-4 flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center gap-x-3">
                     <span className="text-lg">{getDeviceIconGlyph(device.icon)}</span>
                     <div>
                       <h4 className="font-medium text-gray-900 dark:text-gray-100">{device.name}</h4>
@@ -283,10 +283,10 @@ export default function PreviewComparisonCanvas({
                       event.stopPropagation();
                       onDevicePin?.(device);
                     }}
-                    className="w-8 h-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="size-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                     data-testid={`remove-pin-${device.id}`}
                   >
-                    <X className="w-4 h-4" />
+                    <X className="size-4" />
                   </Button>
                 </div>
                 <div className="w-full max-w-md mx-auto">
@@ -304,9 +304,9 @@ export default function PreviewComparisonCanvas({
           })}
 
           <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Move className="w-4 h-4" />
+            <div className="flex items-center gap-x-4">
+              <div className="flex items-center gap-x-2 text-sm text-gray-600">
+                <Move className="size-4" />
                 <span>Drag devices to reposition</span>
               </div>
               <Button

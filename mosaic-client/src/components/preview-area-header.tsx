@@ -60,7 +60,7 @@ export default function PreviewAreaHeader({
           className="flex items-center transition-all duration-150 hover:scale-105 active:scale-95"
           data-testid="button-refresh"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <RefreshCw className="size-4 mr-2" />
           <span className="hidden sm:inline">Refresh</span>
         </Button>
         <Button
@@ -72,9 +72,9 @@ export default function PreviewAreaHeader({
           data-testid="button-screenshot"
         >
           {screenshotting ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Loader2 className="size-4 mr-2 animate-spin" />
           ) : (
-            <Camera className="w-4 h-4 mr-2" />
+            <Camera className="size-4 mr-2" />
           )}
           <span className="hidden sm:inline">Screenshot</span>
         </Button>
@@ -87,9 +87,9 @@ export default function PreviewAreaHeader({
           data-testid="button-inspect"
         >
           {inspectPending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Loader2 className="size-4 mr-2 animate-spin" />
           ) : (
-            <Crosshair className="w-4 h-4 mr-2" />
+            <Crosshair className="size-4 mr-2" />
           )}
           <span className="hidden sm:inline">{inspectEnabled ? 'Stop Inspect' : 'Inspect'}</span>
         </Button>
@@ -107,9 +107,9 @@ export default function PreviewAreaHeader({
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
           {isFullscreen ? (
-            <X className={cn('w-4 h-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
+            <X className={cn('size-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
           ) : (
-            <Expand className={cn('w-4 h-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
+            <Expand className={cn('size-4 mr-2', fullscreenTransition && 'animate-icon-swap')} />
           )}
           <span className={cn('hidden sm:inline', fullscreenTransition && 'animate-slide-in-right')}>
             {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}

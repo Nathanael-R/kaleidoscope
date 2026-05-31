@@ -34,7 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
           <div className="max-w-md text-center p-8">
-            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <AlertTriangle className="size-12 text-red-500 mx-auto mb-4" />
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
               Something went wrong
             </h1>
@@ -43,7 +43,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             </p>
             <div className="flex gap-3 justify-center">
               <Button onClick={this.handleReset} variant="default">
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="size-4 mr-2" />
                 Try Again
               </Button>
               <Button

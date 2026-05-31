@@ -27,7 +27,11 @@ export function useSocket(options: SocketHookOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
-  const clientIdRef = useRef(createSocketClientId());
+  const clientIdRef = useRef<string | null>(null);
+  if (clientIdRef.current === null) {
+    clientIdRef.current = createSocketClientId();
+  }
+  const clientId = clientIdRef.current;
 
   // Store callbacks in refs to avoid reconnection on callback identity change
   const onConnectRef = useRef(onConnect);
@@ -40,21 +44,23 @@ export function useSocket(options: SocketHookOptions = {}) {
   useEffect(() => {
     if (!autoConnect) return;
 
-    const clientId = clientIdRef.current;
     const source = new EventSource(`${SSE_URL}?clientId=${encodeURIComponent(clientId)}`);
     sourceRef.current = source;
 
-    source.addEventListener('connected', () => {
+    const handleConnected = () => {
       console.log('SSE connected');
       setIsConnected(true);
       onConnectRef.current?.();
-    });
+    };
 
-    source.addEventListener('reload', (e) => {
+    const handleReload = (e: MessageEvent) => {
       JSON.parse(e.data);
       console.log('Reload triggered');
       onReloadRef.current?.();
-    });
+    };
+
+    source.addEventListener('connected', handleConnected);
+    source.addEventListener('reload', handleReload);
 
     source.onerror = () => {
       console.log('SSE disconnected');
@@ -63,13 +69,15 @@ export function useSocket(options: SocketHookOptions = {}) {
     };
 
     return () => {
+      source.removeEventListener('connected', handleConnected);
+      source.removeEventListener('reload', handleReload);
       source.close();
       setIsConnected(false);
     };
-  }, [autoConnect]);
+  }, [autoConnect, clientId]);
 
   return {
-    clientId: clientIdRef.current,
+    clientId,
     isConnected,
   };
 }

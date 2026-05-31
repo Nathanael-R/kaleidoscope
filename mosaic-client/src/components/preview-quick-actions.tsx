@@ -25,7 +25,7 @@ export default function PreviewQuickActions({
           data-testid="button-rotate"
           aria-label="Rotate device orientation"
         >
-          <RotateCw className="w-4 h-4 mr-2" />
+          <RotateCw className="size-4 mr-2" />
           <span className="hidden sm:inline">Rotate</span>
         </Button>
         <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
@@ -37,7 +37,7 @@ export default function PreviewQuickActions({
           data-testid="button-zoom-in"
           aria-label="Zoom in"
         >
-          <ZoomIn className="w-4 h-4 mr-2" />
+          <ZoomIn className="size-4 mr-2" />
           <span className="hidden sm:inline">Zoom In</span>
         </Button>
         <Button
@@ -48,7 +48,7 @@ export default function PreviewQuickActions({
           data-testid="button-zoom-out"
           aria-label="Zoom out"
         >
-          <ZoomOut className="w-4 h-4 mr-2" />
+          <ZoomOut className="size-4 mr-2" />
           <span className="hidden sm:inline">Zoom Out</span>
         </Button>
         <div className="w-px h-6 bg-gray-300 hidden sm:block"></div>
@@ -60,7 +60,7 @@ export default function PreviewQuickActions({
           data-testid="button-reset-zoom"
           aria-label="Fit to screen"
         >
-          <ArrowLeftFromLine className="w-4 h-4 mr-2" />
+          <ArrowLeftFromLine className="size-4 mr-2" />
           <span className="hidden sm:inline">Fit</span>
         </Button>
       </div>

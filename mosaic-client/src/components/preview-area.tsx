@@ -50,14 +50,16 @@ export default function PreviewArea({
   const [localReloadTrigger, setLocalReloadTrigger] = React.useState(0);
   const [singlePreviewBounds, setSinglePreviewBounds] = React.useState({ width: 0, height: 0 });
   const [isSingleDropActive, setIsSingleDropActive] = React.useState(false);
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(() =>
+    typeof document === 'undefined' ? false : Boolean(document.fullscreenElement),
+  );
   const [viewportWidth, setViewportWidth] = React.useState(() =>
     typeof window === 'undefined' ? 1280 : window.innerWidth,
   );
   const [fullscreenTransition, setFullscreenTransition] = React.useState<'entering' | 'exiting' | null>(null);
 
-  const fullscreenAnimationTimeoutRef = React.useRef<number | null>(null);
-  const singlePreviewRef = React.useRef<HTMLDivElement>(null);
+  const singlePreviewObserverRef = React.useRef<ResizeObserver | null>(null);
+  const singlePreviewWindowCleanupRef = React.useRef<(() => void) | null>(null);
 
   const { darkMode } = usePreviewStore();
   const { isCapturing: screenshotting, captureScreenshots } = useScreenshotCapture({
@@ -157,6 +159,16 @@ export default function PreviewArea({
       return;
     }
 
+    let fullscreenAnimationTimeout: number | null = null;
+    const clearFullscreenAnimationTimeout = () => {
+      if (typeof window === 'undefined' || fullscreenAnimationTimeout === null) {
+        return;
+      }
+
+      window.clearTimeout(fullscreenAnimationTimeout);
+      fullscreenAnimationTimeout = null;
+    };
+
     const updateFullscreenState = () => {
       const nextFullscreen = Boolean(document.fullscreenElement);
 
@@ -165,13 +177,10 @@ export default function PreviewArea({
           setFullscreenTransition(nextFullscreen ? 'entering' : 'exiting');
 
           if (typeof window !== 'undefined') {
-            if (fullscreenAnimationTimeoutRef.current !== null) {
-              window.clearTimeout(fullscreenAnimationTimeoutRef.current);
-            }
-
-            fullscreenAnimationTimeoutRef.current = window.setTimeout(() => {
+            clearFullscreenAnimationTimeout();
+            fullscreenAnimationTimeout = window.setTimeout(() => {
               setFullscreenTransition(null);
-              fullscreenAnimationTimeoutRef.current = null;
+              fullscreenAnimationTimeout = null;
             }, 520);
           }
         }
@@ -180,15 +189,11 @@ export default function PreviewArea({
       });
     };
 
-    updateFullscreenState();
     document.addEventListener('fullscreenchange', updateFullscreenState);
 
     return () => {
       document.removeEventListener('fullscreenchange', updateFullscreenState);
-
-      if (typeof window !== 'undefined' && fullscreenAnimationTimeoutRef.current !== null) {
-        window.clearTimeout(fullscreenAnimationTimeoutRef.current);
-      }
+      clearFullscreenAnimationTimeout();
     };
   }, []);
 
@@ -225,17 +230,17 @@ export default function PreviewArea({
     setScale(1);
   }, []);
 
-  const { deviceWidth, deviceHeight, frameWidth, frameHeight } = React.useMemo(
+  const { deviceWidth, deviceHeight, frameWidth } = React.useMemo(
     () => getDeviceFrameMetrics(selectedDevice, isLandscape),
     [isLandscape, selectedDevice],
   );
 
-  React.useEffect(() => {
-    if (viewMode !== 'single') {
-      return;
-    }
+  const setSinglePreviewNode = React.useCallback((node: HTMLDivElement | null) => {
+    singlePreviewObserverRef.current?.disconnect();
+    singlePreviewObserverRef.current = null;
+    singlePreviewWindowCleanupRef.current?.();
+    singlePreviewWindowCleanupRef.current = null;
 
-    const node = singlePreviewRef.current;
     if (!node) {
       return;
     }
@@ -257,15 +262,19 @@ export default function PreviewArea({
     updateBounds();
 
     if (typeof ResizeObserver === 'undefined') {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       window.addEventListener('resize', updateBounds);
-      return () => window.removeEventListener('resize', updateBounds);
+      singlePreviewWindowCleanupRef.current = () => window.removeEventListener('resize', updateBounds);
+      return;
     }
 
     const observer = new ResizeObserver(() => updateBounds());
     observer.observe(node);
-
-    return () => observer.disconnect();
-  }, [frameHeight, frameWidth, viewMode]);
+    singlePreviewObserverRef.current = observer;
+  }, []);
 
   const fitScale = React.useMemo(() => {
     if (viewMode !== 'single' || singlePreviewBounds.width === 0) {
@@ -283,7 +292,7 @@ export default function PreviewArea({
     return Math.max(0.35, nextScale);
   }, [frameWidth, singlePreviewBounds.width, viewMode]);
 
-  const effectiveSingleScale = React.useMemo(() => fitScale * scale, [fitScale, scale]);
+  const effectiveSingleScale = fitScale * scale;
   const isCompactComparisonViewport = viewportWidth < 720;
 
   const getComparisonScale = React.useCallback((device: Device) => {
@@ -307,7 +316,6 @@ export default function PreviewArea({
       setViewportWidth(window.innerWidth);
     };
 
-    updateViewportWidth();
     window.addEventListener('resize', updateViewportWidth);
 
     return () => {
@@ -317,7 +325,6 @@ export default function PreviewArea({
 
   return (
     <main
-      role="main"
       data-testid="preview-area"
       data-view-mode={viewMode}
       data-fullscreen-state={isFullscreen ? 'fullscreen' : 'windowed'}
@@ -350,7 +357,7 @@ export default function PreviewArea({
 
       {viewMode === 'single' ? (
         <div
-          ref={singlePreviewRef}
+          ref={setSinglePreviewNode}
           className="relative w-full min-w-0 pb-6 pt-2"
           data-testid="single-preview-stage"
           onDragOver={handleSingleStageDragOver}

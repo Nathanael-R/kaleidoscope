@@ -63,17 +63,17 @@ export default function TunnelButton({ port, className }: TunnelButtonProps) {
       >
         {isProcessing ? (
           <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Loader2 className="size-4 mr-2 animate-spin" />
             {isCreating ? 'Creating Tunnel...' : isClosing ? 'Closing...' : 'Loading...'}
           </>
         ) : isActive ? (
           <>
-            <Link className="w-4 h-4 mr-2" />
+            <Link className="size-4 mr-2" />
             Tunnel Active
           </>
         ) : (
           <>
-            <Unlink className="w-4 h-4 mr-2" />
+            <Unlink className="size-4 mr-2" />
             Enable Tunnel
           </>
         )}
@@ -91,23 +91,23 @@ export default function TunnelButton({ port, className }: TunnelButtonProps) {
                 size="sm"
                 variant="ghost"
                 onClick={handleCopy}
-                className="h-6 w-6 p-0"
+                className=" size-6 p-0"
                 title="Copy URL"
               >
                 {copied ? (
-                  <Check className="w-3 h-3 text-green-600" />
+                  <Check className="size-3 text-green-600" />
                 ) : (
-                  <Copy className="w-3 h-3" />
+                  <Copy className="size-3" />
                 )}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={handleOpen}
-                className="h-6 w-6 p-0"
+                className=" size-6 p-0"
                 title="Open in new tab"
               >
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="size-3" />
               </Button>
             </div>
           </div>
