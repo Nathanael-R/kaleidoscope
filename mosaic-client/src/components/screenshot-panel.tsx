@@ -52,7 +52,7 @@ function CollapsiblePanelSection({
             {badge}
           </span>
         )}
-        <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("size-3.5 text-gray-400 transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">{children}</div>}
     </div>
@@ -228,12 +228,12 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       >
         {capturing ? (
           <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Capturing {selectedDevices.length} screenshots...
+            <Loader2 className="size-4 mr-2 animate-spin" />
+            Capturing {selectedDevices.length} screenshots&hellip;
           </>
         ) : (
           <>
-            <Camera className="w-4 h-4 mr-2" />
+            <Camera className="size-4 mr-2" />
             Capture {selectedDevices.length} Screenshots
           </>
         )}
@@ -243,7 +243,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       {error && (
         <div className="p-2 bg-red-50 border border-red-200 rounded-md">
           <div className="flex items-start gap-2">
-            <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <XCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
             <p className="text-xs text-red-700">{error}</p>
           </div>
         </div>
@@ -259,7 +259,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
             return (
               <>
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-green-500" />
+            <CheckCircle className="size-4 text-green-500" />
             <span className="text-xs font-medium text-green-700">
               {successfulResults.length} screenshot{successfulResults.length === 1 ? '' : 's'} captured
             </span>
@@ -273,9 +273,9 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
             );
           })()}
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
-            {results.map((result, i) => (
+            {results.map((result) => (
               <div
-                key={i}
+                key={`${result.device}-${result.path}-${result.url ?? ''}`}
                 className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-md text-xs"
               >
                 <div>
@@ -287,7 +287,7 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
                   </span>
                 </div>
                 {!result.path.startsWith("ERROR:") && (
-                  <Download className="w-3.5 h-3.5 text-gray-400" />
+                  <Download className="size-3.5 text-gray-400" />
                 )}
               </div>
             ))}

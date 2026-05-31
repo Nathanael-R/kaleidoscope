@@ -10,6 +10,19 @@ interface LiveReloadToggleProps {
   className?: string;
 }
 
+function timeAgo(date: Date) {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+  if (seconds < 5) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 export default function LiveReloadToggle({ onReload, className }: LiveReloadToggleProps) {
   const [enabled, setEnabled] = useState(false);
   const [lastReload, setLastReload] = useState<Date | null>(null);
@@ -33,19 +46,6 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
     setEnabled(!enabled);
   };
 
-  const timeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-
-    if (seconds < 5) return 'Just now';
-    if (seconds < 60) return `${seconds}s ago`;
-
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
-
   return (
     <div className={cn('space-y-2', className)}>
       {/* Toggle Button */}
@@ -58,15 +58,15 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
         {enabled ? (
           <>
             {isConnected ? (
-              <Wifi className="w-4 h-4 mr-2" />
+              <Wifi className="size-4 mr-2" />
             ) : (
-              <WifiOff className="w-4 h-4 mr-2" />
+              <WifiOff className="size-4 mr-2" />
             )}
             Live Reload: On
           </>
         ) : (
           <>
-            <RefreshCw className="w-4 h-4 mr-2" />
+            <RefreshCw className="size-4 mr-2" />
             Live Reload: Off
           </>
         )}
@@ -83,16 +83,16 @@ export default function LiveReloadToggle({ onReload, className }: LiveReloadTogg
             <div className="flex items-center gap-1">
               {isConnected ? (
                 <>
-                  <Check className="w-3 h-3 text-green-600" />
+                  <Check className="size-3 text-green-600" />
                   <span className="text-xs text-green-600 dark:text-green-400">
                     Connected
                   </span>
                 </>
               ) : (
                 <>
-                  <AlertCircle className="w-3 h-3 text-amber-600" />
+                  <AlertCircle className="size-3 text-amber-600" />
                   <span className="text-xs text-amber-600 dark:text-amber-400">
-                    Connecting...
+                    Connecting&hellip;
                   </span>
                 </>
               )}

@@ -10,6 +10,71 @@ import { cn } from '@/lib/utils';
 const AUTH_FAILURE_MESSAGE = 'Kaleidoscope could not confirm those cookies. The target still looks unauthenticated or redirected to login.';
 const AUTH_PROXY_SCOPE_MESSAGE = 'Auth proxy currently supports public HTTP/HTTPS URLs only. For local/private dev targets, preview directly or use a public tunnel URL.';
 
+type EditableAuthCookie = AuthCookie & { id: string };
+type EditableAuthHeader = AuthHeader & { id: string };
+type MockRouteDraft = { id: string; pattern: string; response: string };
+
+let authDraftSequence = 0;
+
+function createAuthDraftId(prefix: string) {
+  authDraftSequence += 1;
+  return `${prefix}-${authDraftSequence}`;
+}
+
+function createCookieDraft(): EditableAuthCookie {
+  return { id: createAuthDraftId('cookie'), name: '', value: '' };
+}
+
+function createHeaderDraft(): EditableAuthHeader {
+  return { id: createAuthDraftId('header'), name: '', value: '' };
+}
+
+function createMockRouteDraft(): MockRouteDraft {
+  return { id: createAuthDraftId('mock'), pattern: '', response: '' };
+}
+
+function toAuthCookie(cookie: EditableAuthCookie): AuthCookie {
+  return { name: cookie.name, value: cookie.value };
+}
+
+function toAuthHeader(header: EditableAuthHeader): AuthHeader {
+  return { name: header.name, value: header.value };
+}
+
+function toMockRoute(mock: MockRouteDraft) {
+  return { pattern: mock.pattern, response: mock.response };
+}
+
+function getValidAuthCookies(cookies: EditableAuthCookie[]) {
+  const validCookies: AuthCookie[] = [];
+  for (const cookie of cookies) {
+    if (cookie.name && cookie.value) {
+      validCookies.push(toAuthCookie(cookie));
+    }
+  }
+  return validCookies;
+}
+
+function getValidAuthHeaders(headers: EditableAuthHeader[]) {
+  const validHeaders: AuthHeader[] = [];
+  for (const header of headers) {
+    if (header.name && header.value) {
+      validHeaders.push(toAuthHeader(header));
+    }
+  }
+  return validHeaders;
+}
+
+function getValidMockRoutes(mockRoutes: MockRouteDraft[]) {
+  const validMocks: Array<{ pattern: string; response: string }> = [];
+  for (const mock of mockRoutes) {
+    if (mock.pattern && mock.response) {
+      validMocks.push(toMockRoute(mock));
+    }
+  }
+  return validMocks;
+}
+
 interface AuthWizardProps {
   /** Called with cookies (legacy direct injection) */
   onAuthCapture: (cookies: AuthCookie[]) => void;
@@ -22,13 +87,11 @@ interface AuthWizardProps {
 
 export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, className }: AuthWizardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [cookies, setCookies] = useState<AuthCookie[]>([{ name: '', value: '' }]);
-  const [headers, setHeaders] = useState<AuthHeader[]>([{ name: '', value: '' }]);
+  const [cookies, setCookies] = useState<EditableAuthCookie[]>(() => [createCookieDraft()]);
+  const [headers, setHeaders] = useState<EditableAuthHeader[]>(() => [createHeaderDraft()]);
   const [activeTab, setActiveTab] = useState<'simple' | 'advanced'>('simple');
   const [proxyError, setProxyError] = useState<string | null>(null);
-  const [mockRoutes, setMockRoutes] = useState<Array<{ pattern: string; response: string }>>([
-    { pattern: '', response: '' }
-  ]);
+  const [mockRoutes, setMockRoutes] = useState<MockRouteDraft[]>(() => [createMockRouteDraft()]);
   const [mockExpanded, setMockExpanded] = useState(false);
   const [mockSuccess, setMockSuccess] = useState<string | null>(null);
   const proxySupported = currentUrl ? isLikelyPublicHttpUrl(currentUrl) : false;
@@ -71,7 +134,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   };
 
   const handleAddCookie = () => {
-    setCookies([...cookies, { name: '', value: '' }]);
+    setCookies((previous) => [...previous, createCookieDraft()]);
   };
 
   const handleRemoveCookie = (index: number) => {
@@ -79,13 +142,13 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   };
 
   const handleCookieChange = (index: number, field: 'name' | 'value', value: string) => {
-    const newCookies = [...cookies];
-    newCookies[index][field] = value;
-    setCookies(newCookies);
+    setCookies((previous) => previous.map((cookie, i) => (
+      i === index ? { ...cookie, [field]: value } : cookie
+    )));
   };
 
   const handleAddHeader = () => {
-    setHeaders([...headers, { name: '', value: '' }]);
+    setHeaders((previous) => [...previous, createHeaderDraft()]);
   };
 
   const handleRemoveHeader = (index: number) => {
@@ -93,14 +156,14 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   };
 
   const handleHeaderChange = (index: number, field: 'name' | 'value', value: string) => {
-    const newHeaders = [...headers];
-    newHeaders[index][field] = value;
-    setHeaders(newHeaders);
+    setHeaders((previous) => previous.map((header, i) => (
+      i === index ? { ...header, [field]: value } : header
+    )));
   };
 
   const handleApply = async () => {
-    const validCookies = cookies.filter(c => c.name && c.value);
-    const validHeaders = headers.filter(h => h.name && h.value);
+    const validCookies = getValidAuthCookies(cookies);
+    const validHeaders = getValidAuthHeaders(headers);
     if (validCookies.length === 0 && validHeaders.length === 0) return;
 
     if (onProxyUrl && !proxySupported) {
@@ -148,7 +211,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
   };
 
   const handleAddMock = () => {
-    setMockRoutes(prev => [...prev, { pattern: '', response: '' }]);
+    setMockRoutes(prev => [...prev, createMockRouteDraft()]);
   };
 
   const handleRemoveMock = (index: number) => {
@@ -157,7 +220,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
 
   const handleInjectMocks = async () => {
     if (!proxySession) return;
-    const validMocks = mockRoutes.filter(m => m.pattern && m.response);
+    const validMocks = getValidMockRoutes(mockRoutes);
     if (validMocks.length === 0) return;
 
     setMockSuccess(null);
@@ -176,18 +239,18 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
     try {
       await clearMocks();
       setMockSuccess(null);
-      setMockRoutes([{ pattern: '', response: '' }]);
+      setMockRoutes([createMockRouteDraft()]);
     } catch {
       // ignore
     }
   };
 
   const handleClear = () => {
-    setCookies([{ name: '', value: '' }]);
-    setHeaders([{ name: '', value: '' }]);
+    setCookies([createCookieDraft()]);
+    setHeaders([createHeaderDraft()]);
     clearProxySession();
     setProxyError(null);
-    setMockRoutes([{ pattern: '', response: '' }]);
+    setMockRoutes([createMockRouteDraft()]);
     setMockExpanded(false);
     setMockSuccess(null);
     onAuthCapture([]);
@@ -207,9 +270,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
         data-testid="auth-wizard-toggle"
       >
         {proxySession ? (
-          <Shield className="w-4 h-4 mr-2 text-green-600" />
+          <Shield className="size-4 mr-2 text-green-600" />
         ) : (
-          <Lock className="w-4 h-4 mr-2" />
+          <Lock className="size-4 mr-2" />
         )}
         {proxySession
           ? proxySession.authFailed
@@ -245,9 +308,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
               data-testid="auth-recheck-button"
             >
               {isCheckingStatus ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                <Loader2 className="mr-1 size-3 animate-spin" />
               ) : (
-                <RefreshCw className="mr-1 h-3 w-3" />
+                <RefreshCw className="mr-1 size-3" />
               )}
               Re-check
             </Button>
@@ -259,10 +322,11 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
       {!isExpanded && proxySession && (
         <div className="space-y-2">
           <button
+            type="button"
             onClick={() => setMockExpanded(!mockExpanded)}
             className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors w-full"
           >
-            <Database className="w-3 h-3" />
+            <Database className="size-3" />
             {mockExpanded ? 'Hide Mock Data' : 'Inject Mock Data'}
             {mockSuccess && !mockExpanded && (
               <span className="ml-auto text-green-600 dark:text-green-400">Active</span>
@@ -277,7 +341,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
               </div>
 
               {mockRoutes.map((mock, index) => (
-                <div key={index} className="space-y-1.5 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                <div key={mock.id} className="space-y-1.5 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-1.5">
                     <Input
                       placeholder="/api/users or /api/posts/:id"
@@ -290,13 +354,14 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveMock(index)}
-                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 shrink-0"
+                        className="size-7 p-0 text-red-500 hover:text-red-700 shrink-0"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="size-3" />
                       </Button>
                     )}
                   </div>
                   <textarea
+                    aria-label={`Mock response for ${mock.pattern || 'route'}`}
                     placeholder='{"users": [{"id": 1, "name": "Jane"}]}'
                     value={mock.response}
                     onChange={(e) => handleMockChange(index, 'response', e.target.value)}
@@ -312,13 +377,13 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                 onClick={handleAddMock}
                 className="w-full h-7 text-xs"
               >
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="size-3 mr-1" />
                 Add Route
               </Button>
 
               {mockSuccess && (
                 <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-md text-xs text-green-700 dark:text-green-300">
-                  <Check className="w-3 h-3 inline mr-1" />
+                  <Check className="size-3 inline mr-1" />
                   {mockSuccess}
                 </div>
               )}
@@ -331,9 +396,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   className="flex-1 h-7 text-xs"
                 >
                   {isInjectingMocks ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    <Loader2 className="size-3 mr-1 animate-spin" />
                   ) : (
-                    <Database className="w-3 h-3 mr-1" />
+                    <Database className="size-3 mr-1" />
                   )}
                   {isInjectingMocks ? 'Injecting...' : 'Inject Mocks'}
                 </Button>
@@ -357,8 +422,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
       {isExpanded && (
         <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-4 border border-gray-200 dark:border-gray-700">
           {/* Tabs */}
-          <div className="flex space-x-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex gap-x-2 border-b border-gray-200 dark:border-gray-700">
             <button
+              type="button"
               onClick={() => setActiveTab('simple')}
               className={cn(
                 'px-3 py-2 text-sm font-medium transition-colors',
@@ -367,10 +433,11 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
               )}
             >
-              <Cookie className="w-3 h-3 inline mr-1" />
+              <Cookie className="size-3 inline mr-1" />
               Simple
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('advanced')}
               className={cn(
                 'px-3 py-2 text-sm font-medium transition-colors',
@@ -379,7 +446,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
               )}
             >
-              <Key className="w-3 h-3 inline mr-1" />
+              <Key className="size-3 inline mr-1" />
               Advanced
             </button>
           </div>
@@ -394,8 +461,8 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
           {activeTab === 'simple' && (
             <div className="space-y-3">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md text-sm">
-                <div className="flex items-start space-x-2">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-start gap-x-2">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
                   <div className="text-blue-700 dark:text-blue-300">
                     <strong>How it works:</strong>
                     <ol className="mt-2 ml-4 space-y-1 list-decimal">
@@ -443,7 +510,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   Cookies
                 </div>
                 {cookies.map((cookie, index) => (
-                  <div key={`cookie-${index}`} className="flex space-x-2 items-start">
+                  <div key={cookie.id} className="flex gap-x-2 items-start">
                     <div className="flex-1 space-y-2">
                       <Input
                         placeholder="Cookie name"
@@ -464,9 +531,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveCookie(index)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        className="size-8 p-0 text-red-500 hover:text-red-700"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="size-4" />
                       </Button>
                     )}
                   </div>
@@ -478,7 +545,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   onClick={handleAddCookie}
                   className="w-full"
                 >
-                  <Plus className="w-3 h-3 mr-1" />
+                  <Plus className="size-3 mr-1" />
                   Add Cookie
                 </Button>
               </div>
@@ -488,7 +555,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   Request Headers
                 </div>
                 {headers.map((header, index) => (
-                  <div key={`header-${index}`} className="flex space-x-2 items-start">
+                  <div key={header.id} className="flex gap-x-2 items-start">
                     <div className="flex-1 space-y-2">
                       <Input
                         placeholder="Request header name"
@@ -509,9 +576,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveHeader(index)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        className="size-8 p-0 text-red-500 hover:text-red-700"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="size-4" />
                       </Button>
                     )}
                   </div>
@@ -523,7 +590,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
                   onClick={handleAddHeader}
                   className="w-full"
                 >
-                  <Plus className="w-3 h-3 mr-1" />
+                  <Plus className="size-3 mr-1" />
                   Add Header
                 </Button>
               </div>
@@ -533,13 +600,13 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
           {/* Error display */}
           {proxyError && (
             <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md text-xs text-red-700 dark:text-red-300">
-              <AlertCircle className="w-3 h-3 inline mr-1" />
+              <AlertCircle className="size-3 inline mr-1" />
               {proxyError}
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex space-x-2 pt-2">
+          <div className="flex gap-x-2 pt-2">
             <Button
               onClick={handleApply}
               disabled={(!(hasValidCookies || hasValidHeaders)) || isCreatingProxy || (!!onProxyUrl && !proxySupported)}
@@ -547,9 +614,9 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
               data-testid="auth-apply-button"
             >
               {isCreatingProxy ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="size-4 mr-2 animate-spin" />
               ) : (
-                <Check className="w-4 h-4 mr-2" />
+                <Check className="size-4 mr-2" />
               )}
               {isCreatingProxy ? 'Creating Proxy...' : 'Apply & Preview'}
             </Button>
@@ -564,7 +631,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
 
           {/* Info */}
           <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md text-xs text-gray-600 dark:text-gray-400">
-            <Shield className="w-3 h-3 inline mr-1" />
+            <Shield className="size-3 inline mr-1" />
             <strong>Server-side auth proxy:</strong> Supports cookies and injected request headers for public targets. Full browser-managed SSO or local/private targets may still require a tunnel or mock data.
           </div>
         </div>

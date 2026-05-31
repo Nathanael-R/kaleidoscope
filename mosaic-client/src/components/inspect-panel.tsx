@@ -81,12 +81,6 @@ export default function InspectPanel({
     }
   }, []);
 
-  useEffect(() => {
-    if (showLlmComposer) {
-      issueInputRef.current?.focus();
-    }
-  }, [showLlmComposer]);
-
   const setCopiedFeedback = (action: 'path' | 'source' | 'json' | 'llm') => {
     setCopiedAction(action);
     if (resetTimerRef.current) {
@@ -123,6 +117,7 @@ export default function InspectPanel({
     if (!showLlmComposer) {
       setShowLlmComposer(true);
       setCopyError(null);
+      window.setTimeout(() => issueInputRef.current?.focus(), 0);
       return;
     }
 
@@ -142,7 +137,7 @@ export default function InspectPanel({
 
       <div>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
-          <FileCode className="h-3 w-3 text-gray-400" />
+          <FileCode className=" size-3 text-gray-400" />
           Project path
           <span className="text-[10px] text-gray-400">optional</span>
         </div>
@@ -167,9 +162,9 @@ export default function InspectPanel({
         data-testid="inspect-toggle"
       >
         {pending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Loader2 className="mr-2 size-4 animate-spin" />
         ) : (
-          <Crosshair className="mr-2 h-4 w-4" />
+          <Crosshair className="mr-2 size-4" />
         )}
         {enabled ? 'Stop Inspecting' : 'Start Inspecting'}
       </Button>
@@ -188,8 +183,8 @@ export default function InspectPanel({
 
       {resolving && !pending && (
         <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Resolving selected element...
+          <Loader2 className=" size-3.5 animate-spin" />
+          Resolving selected element&hellip;
         </div>
       )}
 
@@ -246,7 +241,7 @@ export default function InspectPanel({
               onClick={() => sourcePath && void copyToClipboard(sourcePath, 'path')}
               data-testid="inspect-copy-path"
             >
-              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              <ClipboardCopy className="mr-1.5 size-3" />
               {copiedAction === 'path' ? 'Copied Path' : 'Copy Source Path'}
             </Button>
             <Button
@@ -258,7 +253,7 @@ export default function InspectPanel({
               onClick={() => sourceText && void copyToClipboard(sourceText, 'source')}
               data-testid="inspect-copy-source"
             >
-              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              <ClipboardCopy className="mr-1.5 size-3" />
               {copiedAction === 'source' ? 'Copied Source' : 'Copy Source'}
             </Button>
             <Button
@@ -270,7 +265,7 @@ export default function InspectPanel({
               onClick={() => jsonPayload && void copyToClipboard(jsonPayload, 'json')}
               data-testid="inspect-copy-json"
             >
-              <ClipboardCopy className="mr-1.5 h-3 w-3" />
+              <ClipboardCopy className="mr-1.5 size-3" />
               {copiedAction === 'json' ? 'Copied JSON' : 'Copy JSON'}
             </Button>
           </div>
@@ -286,7 +281,7 @@ export default function InspectPanel({
                 onClick={handleCopyForLlm}
                 data-testid="inspect-copy-llm"
               >
-                <ClipboardCopy className="mr-1.5 h-3 w-3" />
+                <ClipboardCopy className="mr-1.5 size-3" />
                 {copiedAction === 'llm' ? 'Copied for LLM' : 'Copy for LLM'}
               </Button>
               <span className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -303,6 +298,7 @@ export default function InspectPanel({
                 </Label>
                 <textarea
                   id="inspect-issue-input"
+                  aria-label="Issue summary"
                   ref={issueInputRef}
                   value={issueSummary}
                   onChange={(event) => setIssueSummary(event.target.value)}
@@ -365,7 +361,7 @@ export default function InspectPanel({
             <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/20">
               {result.diagnostics.map((diagnostic) => (
                 <div key={diagnostic} className="flex items-start gap-1.5 text-[11px] text-amber-800 dark:text-amber-300">
-                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                  <AlertTriangle className="mt-0.5 size-3 shrink-0" />
                   <span>{diagnostic}</span>
                 </div>
               ))}

@@ -16,11 +16,19 @@ type NavigatorWithBattery = Navigator & {
   getBattery?: () => Promise<BatteryStateManager>;
 };
 
+type DynamicIslandInteractionState = {
+  contextKey: string;
+  pinned: boolean;
+  hovered: boolean;
+};
+
+const statusTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 function formatStatusTime(date: Date): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
+  return statusTimeFormatter.format(date);
 }
 
 interface DeviceFrameProps {
@@ -48,22 +56,32 @@ export default function DeviceFrame({
   inspectEnabled = false,
   onInspectSelection,
 }: DeviceFrameProps) {
-  const [loading, setLoading] = useState(!!url);
-  const [error, setError] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
-  const [dynamicIslandPinned, setDynamicIslandPinned] = useState(false);
-  const [dynamicIslandHovered, setDynamicIslandHovered] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [loadedFrameKey, setLoadedFrameKey] = useState<string | null>(null);
+  const [failedFrameKey, setFailedFrameKey] = useState<string | null>(null);
+  const [dynamicIslandInteraction, setDynamicIslandInteraction] = useState<DynamicIslandInteractionState>({
+    contextKey: `${device.id}:${device.frame?.topFeature ?? 'none'}`,
+    pinned: false,
+    hovered: false,
+  });
   const [statusTime, setStatusTime] = useState(() => formatStatusTime(new Date()));
   const [batteryLevel, setBatteryLevel] = useState(1);
   const [batteryCharging, setBatteryCharging] = useState(false);
 
   const hasUrl = !!url;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const onInspectSelectionRef = useRef(onInspectSelection);
+  onInspectSelectionRef.current = onInspectSelection;
 
-  const prevUrlRef = useRef(url);
-  const prevProxyUrlRef = useRef(proxyUrl);
-  const prevReloadTriggerRef = useRef(reloadTrigger);
   const topFeature = device.frame?.topFeature ?? 'none';
+  const dynamicIslandContextKey = `${device.id}:${topFeature}`;
+  const frameRequestKey = JSON.stringify([url, proxyUrl ?? null, reloadTrigger, retryCount]);
+  const loading = hasUrl && loadedFrameKey !== frameRequestKey && failedFrameKey !== frameRequestKey;
+  const error = hasUrl && failedFrameKey === frameRequestKey;
+  const dynamicIslandPinned =
+    dynamicIslandInteraction.contextKey === dynamicIslandContextKey && dynamicIslandInteraction.pinned;
+  const dynamicIslandHovered =
+    dynamicIslandInteraction.contextKey === dynamicIslandContextKey && dynamicIslandInteraction.hovered;
   const dynamicIslandEnabled = device.type === 'mobile' && topFeature === 'dynamic-island';
   const dynamicIslandExpanded = dynamicIslandEnabled && (dynamicIslandPinned || dynamicIslandHovered);
 
@@ -102,30 +120,10 @@ export default function DeviceFrame({
   }, []);
 
   useEffect(() => {
-    if (url === prevUrlRef.current) return;
-
-    prevUrlRef.current = url;
-    if (url) {
-      setLoading(true);
-      setError(false);
-      return;
-    }
-
-    setLoading(false);
-    setError(false);
-  }, [url]);
-
-  useEffect(() => {
-    setDynamicIslandPinned(false);
-    setDynamicIslandHovered(false);
-  }, [device.id, topFeature]);
-
-  useEffect(() => {
     const updateTime = () => {
       setStatusTime(formatStatusTime(new Date()));
     };
 
-    updateTime();
     const intervalId = window.setInterval(updateTime, 30000);
 
     return () => window.clearInterval(intervalId);
@@ -181,26 +179,6 @@ export default function DeviceFrame({
   }, []);
 
   useEffect(() => {
-    if (proxyUrl === prevProxyUrlRef.current) return;
-
-    prevProxyUrlRef.current = proxyUrl;
-    if (proxyUrl && hasUrl) {
-      setIframeKey(k => k + 1);
-      setLoading(true);
-    }
-  }, [proxyUrl, hasUrl]);
-
-  useEffect(() => {
-    if (reloadTrigger === prevReloadTriggerRef.current) return;
-
-    prevReloadTriggerRef.current = reloadTrigger;
-    if (reloadTrigger > 0 && hasUrl) {
-      setIframeKey(k => k + 1);
-      setLoading(true);
-    }
-  }, [reloadTrigger, hasUrl]);
-
-  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) {
         return;
@@ -228,13 +206,13 @@ export default function DeviceFrame({
       }
 
       if (data.type === 'KALEIDOSCOPE_INSPECT_RESULT' && data.payload) {
-        onInspectSelection?.(data.payload);
+        onInspectSelectionRef.current?.(data.payload);
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [inspectEnabled, onInspectSelection]);
+  }, [inspectEnabled]);
 
   useEffect(() => {
     if (!hasUrl || loading) {
@@ -246,25 +224,23 @@ export default function DeviceFrame({
     }, 50);
 
     return () => window.clearTimeout(timeoutId);
-  }, [hasUrl, inspectEnabled, loading, iframeKey]);
+  }, [frameRequestKey, hasUrl, inspectEnabled, loading]);
 
   const handleIframeLoad = () => {
-    setLoading(false);
-    setError(false);
+    setLoadedFrameKey(frameRequestKey);
+    setFailedFrameKey(null);
     focusIframe();
     onLoad?.();
   };
 
   const handleIframeError = () => {
-    setLoading(false);
-    setError(true);
+    setFailedFrameKey(frameRequestKey);
+    setLoadedFrameKey(null);
     onError?.();
   };
 
   const handleRetry = () => {
-    setError(false);
-    setLoading(true);
-    setIframeKey(k => k + 1);
+    setRetryCount((count) => count + 1);
   };
 
   const handleDynamicIslandToggle = () => {
@@ -272,7 +248,15 @@ export default function DeviceFrame({
       return;
     }
 
-    setDynamicIslandPinned((previous) => !previous);
+    setDynamicIslandInteraction((previous) => {
+      const isCurrent = previous.contextKey === dynamicIslandContextKey;
+
+      return {
+        contextKey: dynamicIslandContextKey,
+        pinned: !(isCurrent && previous.pinned),
+        hovered: isCurrent ? previous.hovered : false,
+      };
+    });
   };
 
   const renderStatusBar = () => {
@@ -296,9 +280,21 @@ export default function DeviceFrame({
           {topFeature === 'dynamic-island' && (
             <button
               type="button"
-              className={`pointer-events-auto absolute left-1/2 top-0 -translate-x-1/2 rounded-full bg-black shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all duration-300 ease-out ${dynamicIslandExpanded ? 'h-9 w-52' : 'h-7 w-28'}`}
-              onMouseEnter={() => setDynamicIslandHovered(true)}
-              onMouseLeave={() => setDynamicIslandHovered(false)}
+              className={`pointer-events-auto absolute left-1/2 top-0 -translate-x-1/2 rounded-full bg-gray-950 shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all duration-300 ease-out ${dynamicIslandExpanded ? 'h-9 w-52' : 'h-7 w-28'}`}
+              onMouseEnter={() =>
+                setDynamicIslandInteraction((previous) => ({
+                  contextKey: dynamicIslandContextKey,
+                  pinned: previous.contextKey === dynamicIslandContextKey ? previous.pinned : false,
+                  hovered: true,
+                }))
+              }
+              onMouseLeave={() =>
+                setDynamicIslandInteraction((previous) => ({
+                  contextKey: dynamicIslandContextKey,
+                  pinned: previous.contextKey === dynamicIslandContextKey ? previous.pinned : false,
+                  hovered: false,
+                }))
+              }
               onClick={handleDynamicIslandToggle}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -313,7 +309,7 @@ export default function DeviceFrame({
             >
               {dynamicIslandExpanded && (
                 <span className="flex h-full items-center gap-2 px-3 text-[10px] font-medium text-white">
-                  <span className="h-2 w-2 rounded-full bg-lime-400" />
+                  <span className="size-2 rounded-full bg-lime-400" />
                   <span className="truncate">{activeHostLabel}</span>
                   <span className="ml-auto text-[9px] uppercase tracking-[0.12em] text-white/70">Live</span>
                 </span>
@@ -323,7 +319,7 @@ export default function DeviceFrame({
 
           {topFeature === 'camera-hole' && (
             <div
-              className="absolute left-1/2 top-1 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black shadow-[0_0_0_1.5px_rgba(255,255,255,0.65)]"
+              className="absolute left-1/2 top-1 size-3.5 -translate-x-1/2 rounded-full bg-gray-950 shadow-[0_0_0_1.5px_rgba(255,255,255,0.65)]"
               data-testid="device-top-feature"
               data-feature-type="camera-hole"
               aria-hidden="true"
@@ -429,8 +425,8 @@ export default function DeviceFrame({
         {loading && (
           <div className="absolute inset-0 bg-white flex items-center justify-center z-20 animate-fade-in-up">
             <div className="text-center">
-              <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto mb-4" />
-              <p className="text-sm text-gray-600">Loading website...</p>
+              <Loader2 className="animate-spin size-8 text-primary mx-auto mb-4" />
+              <p className="text-sm text-gray-600">Loading website&hellip;</p>
             </div>
           </div>
         )}
@@ -445,7 +441,7 @@ export default function DeviceFrame({
         {error && !loading && (
           <div className="absolute inset-0 bg-white flex items-center justify-center z-20 animate-fade-in-up">
             <div className="text-center px-8">
-              <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <AlertTriangle className="size-12 text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Unable to load website
               </h3>
@@ -464,7 +460,7 @@ export default function DeviceFrame({
         {!hasUrl && !loading && (
           <div className="h-full bg-gray-50 flex items-center justify-center animate-fade-in-up">
             <div className="text-center px-8">
-              <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <Globe className="size-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-700 mb-2">
                 Enter a URL to preview
               </h3>
@@ -478,11 +474,11 @@ export default function DeviceFrame({
         {/* Iframe - use proxy URL when available for auth-protected sites */}
         {hasUrl && (
           <iframe
-            key={iframeKey}
+            key={frameRequestKey}
             ref={iframeRef}
             data-device-frame
             src={proxyUrl || url}
-            className="w-full h-full border-0 bg-white transition-opacity duration-300"
+            className="size-full border-0 bg-white transition-opacity duration-300"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             scrolling="yes"
             onLoad={handleIframeLoad}
@@ -491,7 +487,6 @@ export default function DeviceFrame({
             onPointerDown={focusIframe}
             style={{ display: loading ? 'none' : 'block', opacity: loading ? 0 : 1 }}
             data-testid="preview-iframe"
-            tabIndex={0}
             title={`${device.name} - ${url}`}
             aria-label={`Preview of ${url} on ${device.name}${proxyUrl ? ' (via proxy)' : ''}`}
           />

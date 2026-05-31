@@ -73,9 +73,9 @@ function formatBytes(bytes: number): string {
 }
 
 function severityIcon(severity: string) {
-  if (severity === "critical") return <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
-  if (severity === "warning") return <AlertTriangle className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
-  return <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  if (severity === "critical") return <XCircle className="size-3.5 text-red-500 shrink-0" />;
+  if (severity === "warning") return <AlertTriangle className="size-3.5 text-orange-500 shrink-0" />;
+  return <Info className="size-3.5 text-blue-500 shrink-0" />;
 }
 
 function CollapsiblePanelSection({
@@ -106,7 +106,7 @@ function CollapsiblePanelSection({
             {badge}
           </span>
         )}
-        <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("size-3.5 text-gray-400 transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">{children}</div>}
     </div>
@@ -134,7 +134,7 @@ function SourceHintBlock({ hint }: { hint: SourceHint }) {
   return (
     <div className="mt-1.5 rounded border border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30 overflow-hidden" data-testid="source-hint">
       <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100/50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800">
-        <FileCode className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+        <FileCode className="size-3 text-blue-600 dark:text-blue-400" />
         <span className="text-[10px] font-mono text-blue-700 dark:text-blue-300 font-medium">
           {hint.file}:{hint.line}
         </span>
@@ -168,6 +168,7 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
     <div className={cn("border rounded-lg overflow-hidden", scoreBg(score))}>
       {/* Header */}
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-black/5 transition-colors"
         data-testid={`perf-device-${device.id}`}
@@ -193,8 +194,8 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
           </span>
         )}
         {expanded
-          ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-          : <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          ? <ChevronDown className="size-3.5 text-gray-400 shrink-0" />
+          : <ChevronRight className="size-3.5 text-gray-400 shrink-0" />
         }
       </button>
 
@@ -234,8 +235,11 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
                 Issues to fix
               </h5>
               <div className="space-y-1.5">
-                {issues.map((issue, i) => (
-                  <div key={i} className="bg-white/50 dark:bg-gray-800/30 rounded p-1.5">
+                {issues.map((issue) => (
+                  <div
+                    key={`${issue.type}-${issue.severity}-${issue.message}-${issue.element ?? ''}-${issue.target ?? ''}`}
+                    className="bg-white/50 dark:bg-gray-800/30 rounded p-1.5"
+                  >
                     <div className="flex items-start gap-1.5">
                       {severityIcon(issue.severity)}
                       <div className="min-w-0 flex-1">
@@ -260,7 +264,7 @@ function DeviceResult({ result }: { result: DevicePerformanceResult }) {
 
           {issues.length === 0 && (
             <p className="text-[11px] text-green-600 flex items-center gap-1">
-              <Zap className="w-3 h-3" /> No issues found — great performance!
+              <Zap className="size-3" /> No issues found, great performance!
             </p>
           )}
         </div>
@@ -370,7 +374,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
       {/* Source Directory (optional) */}
       <div>
         <div className="flex items-center gap-1.5 mb-1">
-          <FolderOpen className="w-3 h-3 text-gray-400" />
+          <FolderOpen className="size-3 text-gray-400" />
           <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Project path</span>
           <span className="text-[10px] text-gray-400">(optional)</span>
         </div>
@@ -399,12 +403,12 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
       >
         {isAuditing ? (
           <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Loader2 className="size-4 mr-2 animate-spin" />
             Auditing {selectedDevices.length} device{selectedDevices.length !== 1 ? "s" : ""}...
           </>
         ) : (
           <>
-            <Activity className="w-4 h-4 mr-2" />
+            <Activity className="size-4 mr-2" />
             Run Performance Audit
           </>
         )}
@@ -414,7 +418,7 @@ export default function PerformancePanel({ currentUrl, proxyUrl }: PerformancePa
       {error && (
         <div className="p-2 bg-red-50 border border-red-200 rounded-md">
           <div className="flex items-start gap-2">
-            <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <XCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
             <p className="text-xs text-red-700">{error}</p>
           </div>
         </div>

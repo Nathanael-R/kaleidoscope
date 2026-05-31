@@ -18,23 +18,22 @@ export default function Header() {
 
   return (
     <header
-      role="banner"
       className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50"
     >
       <div className="flex items-center justify-between h-16 px-5">
-        <div className="flex items-center space-x-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 shadow-sm transition-transform duration-200 hover:scale-105 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-100">
+        <div className="flex items-center gap-x-3">
+          <div className="flex size-11 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 shadow-sm transition-transform duration-200 hover:scale-105 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-100">
             <img
               src="/branding/kal-logo.png"
               alt="Kaleidoscope logo"
-              className="h-8 w-8 object-contain"
+              className=" size-8 object-contain"
             />
           </div>
           <span className="text-xl font-semibold leading-none text-gray-900 dark:text-white">
             Kaleidoscope
           </span>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-x-4">
           <Button
             variant="ghost"
             size="sm"
