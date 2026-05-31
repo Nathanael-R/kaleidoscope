@@ -64,13 +64,13 @@ describe('Live Reload', () => {
       });
     });
 
-    it('should show "Connecting..." when SSE is not yet connected', () => {
+    it('should show "Connecting…" when SSE is not yet connected', () => {
       mockUseSocket.mockReturnValue({ isConnected: false, clientId: 'test-client-123456' });
 
       render(<LiveReloadToggle />);
       fireEvent.click(screen.getByTestId('live-reload-toggle'));
 
-      expect(screen.getByText('Connecting...')).toBeInTheDocument();
+      expect(screen.getByText('Connecting…')).toBeInTheDocument();
     });
 
     it('should start the server-side file watcher when connected', async () => {

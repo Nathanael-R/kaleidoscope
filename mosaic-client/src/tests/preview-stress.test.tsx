@@ -63,11 +63,11 @@ describe('Preview stress test', () => {
       fireEvent.load(iframe);
     }
 
-    expect(screen.queryByText('Loading website...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading website…')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('button-refresh'));
 
-    expect(screen.getAllByText('Loading website...')).toHaveLength(8);
+    expect(screen.getAllByText('Loading website…')).toHaveLength(8);
   });
 
   it('sends all 8 pinned device ids to the screenshot API', async () => {
