@@ -31,7 +31,7 @@ describe('DeviceFrame', () => {
 
     it('shows loading spinner on initial render with URL', () => {
       render(<DeviceFrame device={iphone} url="http://localhost:3000" />);
-      expect(screen.getByText('Loading website...')).toBeInTheDocument();
+      expect(screen.getByText('Loading website…')).toBeInTheDocument();
     });
 
     it('hides loading spinner after iframe fires onLoad', () => {
@@ -40,7 +40,7 @@ describe('DeviceFrame', () => {
 
       fireEvent.load(iframe);
 
-      expect(screen.queryByText('Loading website...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading website…')).not.toBeInTheDocument();
     });
 
     it('hides iframe while loading', () => {
@@ -201,7 +201,7 @@ describe('DeviceFrame', () => {
       );
 
       // Should show loading again (iframe key changed, new iframe mounted)
-      expect(screen.getByText('Loading website...')).toBeInTheDocument();
+      expect(screen.getByText('Loading website…')).toBeInTheDocument();
     });
   });
 

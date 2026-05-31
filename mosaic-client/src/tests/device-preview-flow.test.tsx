@@ -66,7 +66,7 @@ describe('Device preview flow', () => {
       );
 
       // Loading overlay should be visible before iframe fires onLoad
-      expect(screen.getByText('Loading website...')).toBeInTheDocument();
+      expect(screen.getByText('Loading website…')).toBeInTheDocument();
     });
 
     it('should show empty state when no URL is entered', () => {
@@ -82,12 +82,12 @@ describe('Device preview flow', () => {
         <DeviceFrame device={iphone} url="http://localhost:3000" />
       );
 
-      expect(screen.getByText('Loading website...')).toBeInTheDocument();
+      expect(screen.getByText('Loading website…')).toBeInTheDocument();
 
       // Simulate iframe load complete
       fireEvent.load(screen.getByTestId('preview-iframe'));
 
-      expect(screen.queryByText('Loading website...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading website…')).not.toBeInTheDocument();
     });
   });
 
@@ -296,7 +296,7 @@ describe('Device preview flow', () => {
       // iframe should have been remounted (key changed)
       expect(screen.getByTestId('preview-iframe')).toBeInTheDocument();
       // Both exist but with different internal keys — we verify by checking loading state resets
-      expect(screen.getByText('Loading website...')).toBeInTheDocument();
+      expect(screen.getByText('Loading website…')).toBeInTheDocument();
     });
 
     it('should not remount when reloadTrigger stays the same', () => {
@@ -306,7 +306,7 @@ describe('Device preview flow', () => {
 
       // Simulate iframe loaded
       fireEvent.load(screen.getByTestId('preview-iframe'));
-      expect(screen.queryByText('Loading website...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading website…')).not.toBeInTheDocument();
 
       // Re-render with same trigger
       rerender(
@@ -314,7 +314,7 @@ describe('Device preview flow', () => {
       );
 
       // Should still not show loading (no remount)
-      expect(screen.queryByText('Loading website...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading website…')).not.toBeInTheDocument();
     });
   });
 
