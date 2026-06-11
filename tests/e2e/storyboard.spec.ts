@@ -11,49 +11,42 @@ const SCENES = [
   {
     id: 'scene-1-local-shortcut',
     duration: '0-4',
-    kicker: 'Scene 1 of 7',
+    kicker: 'Scene 1 of 6',
     title: 'Paste a port, not a full URL',
     detail: 'Local Dev mode expands 5174 into a loopback URL automatically.',
   },
   {
     id: 'scene-2-load-once',
     duration: '4-8',
-    kicker: 'Scene 2 of 7',
+    kicker: 'Scene 2 of 6',
     title: 'Load the page once',
     detail: 'Kaleidoscope keeps the preview in one workspace instead of juggling browser windows.',
   },
   {
     id: 'scene-3-pin-devices',
     duration: '8-13',
-    kicker: 'Scene 3 of 7',
+    kicker: 'Scene 3 of 6',
     title: 'Compare the devices you actually care about',
     detail: 'Pin iPhone, iPad, and desktop to keep the review grounded in real targets.',
   },
   {
     id: 'scene-4-responsive-drift',
     duration: '13-17',
-    kicker: 'Scene 4 of 7',
+    kicker: 'Scene 4 of 6',
     title: 'Spot responsive drift fast',
     detail: 'The same component shifts shape immediately across breakpoints.',
   },
   {
     id: 'scene-5-capture-evidence',
     duration: '17-22',
-    kicker: 'Scene 5 of 7',
+    kicker: 'Scene 5 of 6',
     title: 'Capture evidence with device mockups',
     detail: 'Generate stakeholder-friendly assets directly from the comparison view.',
   },
   {
-    id: 'scene-6-audit-performance',
-    duration: '22-28',
-    kicker: 'Scene 6 of 7',
-    title: 'Run a quick performance pass',
-    detail: 'Audit multiple viewport targets without leaving the same session.',
-  },
-  {
-    id: 'scene-7-inspect-to-llm',
-    duration: '28-36',
-    kicker: 'Scene 7 of 7',
+    id: 'scene-6-inspect-to-llm',
+    duration: '22-30',
+    kicker: 'Scene 6 of 6',
     title: 'Inspect live UI and hand it to an LLM',
     detail: 'Jump from rendered pixels to source context, then copy a repair-ready prompt.',
   },
@@ -383,14 +376,6 @@ async function runScreenshotScene(page: Page) {
   await expect(page.getByText(/screenshots saved to \.\/screenshots\//i)).toBeVisible();
 }
 
-async function runPerformanceScene(page: Page) {
-  await openSection(page, 'Performance', 'performance-panel');
-  await page.getByTestId('run-performance-audit').click();
-  await expect(page.getByText(/Average Score/i)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('performance-results')).toBeVisible();
-  await page.getByTestId('perf-device-iphone-14').click();
-}
-
 async function runInspectScene(page: Page) {
   await openSection(page, 'Inspect', 'inspect-panel');
   await page.getByTestId('inspect-panel').scrollIntoViewIfNeeded();
@@ -468,16 +453,12 @@ test('captures Kaleidoscope storyboard scenes', async ({ browser, baseURL }, tes
   await captureScene(page, testInfo, outputDir, SCENES[4].id);
 
   await setStoryboardOverlay(page, SCENES[5]);
-  await runPerformanceScene(page);
-  await captureScene(page, testInfo, outputDir, SCENES[5].id);
-
-  await setStoryboardOverlay(page, SCENES[6]);
   await clearPreviewHighlights(page);
   await ensureSidebarExpanded(page);
   await page.getByTestId('button-toggle-comparison').click();
   await expect(page.locator('[data-testid="preview-iframe"]')).toHaveCount(1);
   await runInspectScene(page);
-  await captureScene(page, testInfo, outputDir, SCENES[6].id);
+  await captureScene(page, testInfo, outputDir, SCENES[5].id);
 
   const video = page.video();
   await context.close();

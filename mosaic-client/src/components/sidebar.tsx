@@ -17,7 +17,6 @@ import type { InspectResult } from "@/lib/inspect";
 
 const LiveReloadToggle = lazy(() => import("@/components/live-reload-toggle"));
 const ScreenshotPanel = lazy(() => import("@/components/screenshot-panel"));
-const PerformancePanel = lazy(() => import("@/components/performance-panel"));
 const InspectPanel = lazy(() => import("@/components/inspect-panel"));
 
 function handleDeviceDragStart(event: React.DragEvent<HTMLElement>, device: Device) {
@@ -431,14 +430,6 @@ export default function Sidebar({
           <Section title="Screenshots" icon={Globe} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="screenshots" />}>
               <ScreenshotPanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
-            </Suspense>
-          </Section>
-        )}
-
-        {hasUrlContext && (
-          <Section title="Performance" icon={Activity}>
-            <Suspense fallback={<SectionLoadingFallback label="performance tools" />}>
-              <PerformancePanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
             </Suspense>
           </Section>
         )}

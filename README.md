@@ -52,7 +52,7 @@ Kaleidoscope is a responsive preview and inspection tool for web apps. Load a lo
       <br />
       <strong>Local-first preview workflow</strong>
       <br />
-      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, screenshots, or performance tools.
+      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, or screenshots.
     </td>
   </tr>
 </table>

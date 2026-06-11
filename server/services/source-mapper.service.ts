@@ -207,7 +207,7 @@ function generateSuggestion(type: string, code: string, element?: string, value?
 }
 
 /**
- * Given performance issues and a source directory, try to find the
+ * Given source-resolution issues and a source directory, try to find the
  * exact source line for each issue and generate a fix suggestion.
  */
 export function mapIssuesToSource(
