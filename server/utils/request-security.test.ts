@@ -38,7 +38,7 @@ test('isTrustedManagementClient only allows known Kaleidoscope clients', () => {
 });
 
 test('isManagementApiPath protects management endpoints but leaves proxy traffic alone', () => {
-  assert.equal(isManagementApiPath('/api/tunnel/create'), true);
+  assert.equal(isManagementApiPath('/api/watcher/start'), true);
   assert.equal(isManagementApiPath('/api/proxy/session'), true);
   assert.equal(isManagementApiPath('/api/proxy/session/abc/status'), true);
   assert.equal(isManagementApiPath('/api/proxy/proxy_123/assets/app.js'), false);

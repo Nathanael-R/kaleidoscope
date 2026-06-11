@@ -1,0 +1,84 @@
+name: Publish npm package
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run the publish checks without uploading to npm
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish kaleidoscope-mcp-server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read package version
+        id: package
+        shell: bash
+        run: |
+          version="$(node -p "require('./mcp-server/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag matches package version
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          expected_tag="v${PACKAGE_VERSION}"
+          if [ "$RELEASE_TAG" != "$expected_tag" ]; then
+            echo "Release tag must be ${expected_tag}, got ${RELEASE_TAG}."
+            exit 1
+          fi
+
+      - name: Check npm version is unpublished
+        shell: bash
+        env:
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          if npm view "kaleidoscope-mcp-server@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "kaleidoscope-mcp-server@${PACKAGE_VERSION} is already published."
+            exit 1
+          fi
+
+      - name: Run publish checks
+        working-directory: mcp-server
+        run: npm run prepublishOnly
+
+      - name: Dry-run package publish
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        working-directory: mcp-server
+        run: npm publish --dry-run --access public
+
+      - name: Publish package
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        working-directory: mcp-server
+        run: npm publish --access public

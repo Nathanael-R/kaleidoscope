@@ -5,12 +5,14 @@ import { DEVICE_IDS, DEVICES } from '../../../shared/devices.js';
 import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
 import {
   buildScreenshotContent,
+  createScreenshotEntry,
+  type ScreenshotCaptureResult,
+  type ScreenshotEntryResult,
+} from '../screenshot-artifacts.js';
+import {
   createErrorResult,
   createStructuredResult,
   formatToolError,
-  toFileUri,
-  toMarkdownImagePath,
-  toMarkdownImageTag,
 } from '../tool-utils.js';
 
 const DEFAULT_CAPTURE_DEVICES = ['iphone-14', 'ipad', 'desktop'] as const;
@@ -63,6 +65,9 @@ const screenshotEntrySchema = z.object({
   preferredDisplayUri: z.string().nullable(),
   chatDisplayPath: z.string().nullable(),
   markdownImageTag: z.string().nullable(),
+  markdownImageTagFallbacks: z.array(z.string()),
+  chatSafePath: z.string().nullable(),
+  chatSafeMarkdownImageTag: z.string().nullable(),
   downloadUrl: z.string().nullable(),
   width: z.number(),
   height: z.number(),
@@ -83,6 +88,7 @@ const screenshotOutputSchema = {
   primaryMarkdownImageTag: z.string().nullable(),
   finalResponseInstruction: z.string(),
   readyToPasteMarkdown: z.array(z.string()),
+  fallbackMarkdownImageTags: z.array(z.string()),
   screenshots: z.array(screenshotEntrySchema),
 };
 
@@ -101,20 +107,6 @@ const screenshotInputSchema = {
   ),
 } satisfies z.ZodRawShape;
 
-interface ScreenshotEntryResult {
-  device: string;
-  path: string;
-  fileUri: string | null;
-  preferredDisplayPath: string | null;
-  preferredDisplayUri: string | null;
-  chatDisplayPath: string | null;
-  markdownImageTag: string | null;
-  downloadUrl: string | null;
-  width: number;
-  height: number;
-  error: string | null;
-}
-
 interface ScreenshotOutput {
   url: string;
   outputDirectory: string;
@@ -124,6 +116,7 @@ interface ScreenshotOutput {
   primaryMarkdownImageTag: string | null;
   finalResponseInstruction: string;
   readyToPasteMarkdown: string[];
+  fallbackMarkdownImageTags: string[];
   screenshots: ScreenshotEntryResult[];
 }
 
@@ -216,35 +209,19 @@ export function registerScreenshotTools(server: McpServer) {
           return createErrorResult(`Screenshot capture failed: ${errData.error}`);
         }
 
-        const data = await screenshotRes.json() as {
-          screenshots: Array<{ device: string; path: string; width: number; height: number; url?: string }>;
-        };
-
-        const screenshots = data.screenshots.map((screenshot) => {
-          const error = screenshot.path.startsWith('ERROR:') ? screenshot.path : null;
-          const chatDisplayPath = error ? null : toMarkdownImagePath(screenshot.path);
-          return {
-            device: screenshot.device,
-            path: screenshot.path,
-            fileUri: error ? null : toFileUri(screenshot.path),
-            preferredDisplayPath: error ? null : screenshot.path,
-            preferredDisplayUri: error ? null : toFileUri(screenshot.path),
-            chatDisplayPath,
-            markdownImageTag: error ? null : toMarkdownImageTag(screenshot.path, `${screenshot.device} preview`),
-            downloadUrl: screenshot.url ? new URL(screenshot.url, KALEIDOSCOPE_SERVER).toString() : null,
-            width: screenshot.width,
-            height: screenshot.height,
-            error,
-          };
-        });
+        const data = await screenshotRes.json() as { screenshots: ScreenshotCaptureResult[] };
+        const screenshots = await Promise.all(
+          data.screenshots.map((screenshot) => createScreenshotEntry(screenshot, KALEIDOSCOPE_SERVER)),
+        );
 
         const { content: screenshotContent, inlineImageCount } = await buildScreenshotContent(screenshots);
         const readyToPasteMarkdown = screenshots.flatMap((screenshot) => (
           screenshot.markdownImageTag ? [screenshot.markdownImageTag] : []
         ));
+        const fallbackMarkdownImageTags = screenshots.flatMap((screenshot) => screenshot.markdownImageTagFallbacks);
         const primaryMarkdownImageTag = readyToPasteMarkdown[0] ?? null;
         const finalResponseInstruction = primaryMarkdownImageTag
-          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}`
+          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}. If it does not render, try a fallback from fallbackMarkdownImageTags.`
           : 'No chat-renderable screenshot Markdown was produced. Report the screenshot path and error details instead.';
         const result: ScreenshotOutput = {
           url,
@@ -253,10 +230,12 @@ export function registerScreenshotTools(server: McpServer) {
           inlineImageCount,
           displayAdvice:
             'For reliable chat rendering, paste primaryMarkdownImageTag or a value from readyToPasteMarkdown directly into the final response. ' +
+            'Kaleidoscope also creates a chat-safe local copy for paths with spaces and exposes original-path fallbacks in fallbackMarkdownImageTags. ' +
             'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
           primaryMarkdownImageTag,
           finalResponseInstruction,
           readyToPasteMarkdown,
+          fallbackMarkdownImageTags,
           screenshots,
         };
 
@@ -289,7 +268,14 @@ export function registerScreenshotTools(server: McpServer) {
             lines.push(markdownTag);
           }
         }
-        lines.push('For reliable chat rendering, use primaryMarkdownImageTag, readyToPasteMarkdown, or markdownImageTag/chatDisplayPath from structuredContent; localhost links and transient preview blocks can be flaky.');
+        if (fallbackMarkdownImageTags.length > 0) {
+          lines.push('');
+          lines.push('Fallback Markdown image tags:');
+          for (const markdownTag of fallbackMarkdownImageTags) {
+            lines.push(markdownTag);
+          }
+        }
+        lines.push('For reliable chat rendering, use primaryMarkdownImageTag or readyToPasteMarkdown first. If the renderer rejects that path, use fallbackMarkdownImageTags; localhost links and transient preview blocks can be flaky.');
 
         return createStructuredResult(result, lines.join('\n'), screenshotContent);
       } catch (error) {

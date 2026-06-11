@@ -12,33 +12,78 @@ MCP server for [Kaleidoscope](https://github.com/Nathanael-R/kaleidoscope), a re
 - Discover likely page elements from natural-language queries.
 - Inspect trusted local pages and return structured source context.
 
-## Install
+## MCP Client Setup
+
+No global install is required. Configure your MCP client to run the package through `npx`:
 
 ```bash
-npm install -g kaleidoscope-mcp-server
+npx -y kaleidoscope-mcp-server@latest
 ```
 
-The executable name is:
+The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
+
+### Claude Code
+
+Project-scoped `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "npx",
+      "args": ["-y", "kaleidoscope-mcp-server@latest"],
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+CLI form:
+
+```bash
+claude mcp add --transport stdio kaleidoscope --scope project -- npx -y kaleidoscope-mcp-server@latest
+```
+
+### Codex `config.toml`
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "npx"
+args = ["-y", "kaleidoscope-mcp-server@latest"]
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+```
+
+### Codex Desktop Connector UI
+
+- Name: `kaleidoscope`
+- Transport: `STDIO`
+- Command to launch: `npx`
+- Arguments: `-y`, `kaleidoscope-mcp-server@latest`
+- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
+- Working directory: leave blank
+
+### Optional Global Install
+
+If you prefer a persistent local command, install the package globally:
+
+```bash
+npm install -g kaleidoscope-mcp-server@latest
+```
+
+Then configure your MCP client to run:
 
 ```bash
 kaleidoscope-mcp
 ```
 
-Screenshots and walkthrough recording require Playwright Chromium:
-
-```bash
-npx playwright install chromium
-```
-
-The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
-
-## MCP Client Setup
-
-Use `kaleidoscope-mcp` as a stdio MCP server command.
-
-### Claude Code
-
-Project-scoped `.mcp.json`:
+JSON config:
 
 ```json
 {
@@ -52,60 +97,6 @@ Project-scoped `.mcp.json`:
   }
 }
 ```
-
-CLI form:
-
-```bash
-claude mcp add --transport stdio kaleidoscope --scope project -- kaleidoscope-mcp
-```
-
-### Codex `config.toml`
-
-```toml
-[mcp_servers.kaleidoscope]
-command = "kaleidoscope-mcp"
-enabled = true
-startup_timeout_sec = 20
-tool_timeout_sec = 60
-
-[mcp_servers.kaleidoscope.env]
-KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
-```
-
-### Codex Desktop Connector UI
-
-- Name: `kaleidoscope`
-- Transport: `STDIO`
-- Command to launch: `kaleidoscope-mcp`
-- Arguments: leave empty
-- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
-- Working directory: leave blank
-
-### Using `npx`
-
-You can also run the package ad hoc with `npx`:
-
-```bash
-npx -y kaleidoscope-mcp-server
-```
-
-JSON config:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "npx",
-      "args": ["-y", "kaleidoscope-mcp-server"],
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
-On Windows, using the installed `kaleidoscope-mcp` command is usually more reliable than wrapping `npx` through `cmd /c`.
 
 ## Common Workflows
 
@@ -181,7 +172,6 @@ Inspect mode works with trusted loopback targets such as `localhost` and `127.0.
 - Inspect mode is limited to loopback targets, and source reads must stay under `KALEIDOSCOPE_WORKSPACE_ROOT`.
 - Walkthrough output directories must stay under `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`.
 - Auth proxy sessions are temporary and cleaned up automatically.
-- Public tunnel URLs created with tools such as `cloudflared` or `ngrok` should be treated as public.
 
 ## License
 

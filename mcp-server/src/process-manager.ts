@@ -87,8 +87,8 @@ function requireProjectRoot(): string {
   }
 
   throw new Error(
-    'Kaleidoscope cannot auto-start local services because neither app source directories nor a packaged app runtime were found next to this MCP server. ' +
-    'Reinstall the kaleidoscope-mcp-server npm package, or start the Kaleidoscope app manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
+    'Kaleidoscope cannot auto-start because this MCP package does not include the packaged app runtime. ' +
+    'Update your MCP config to run `npx -y kaleidoscope-mcp-server@latest`, or start a Kaleidoscope server manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
   );
 }
 
@@ -99,7 +99,7 @@ function requirePackagedAppRoot(): string {
 
   throw new Error(
     'Kaleidoscope cannot auto-start from npm because the packaged app runtime is missing. ' +
-    'Reinstall the kaleidoscope-mcp-server npm package, or start the Kaleidoscope app manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
+    'Update your MCP config to run `npx -y kaleidoscope-mcp-server@latest`, or start a Kaleidoscope server manually and set KALEIDOSCOPE_SERVER_URL to that running server.',
   );
 }
 

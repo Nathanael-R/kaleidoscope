@@ -8,7 +8,7 @@ import { isLikelyPublicHttpUrl } from '@/lib/url-input';
 import { cn } from '@/lib/utils';
 
 const AUTH_FAILURE_MESSAGE = 'Kaleidoscope could not confirm those cookies. The target still looks unauthenticated or redirected to login.';
-const AUTH_PROXY_SCOPE_MESSAGE = 'Auth proxy currently supports public HTTP/HTTPS URLs only. For local/private dev targets, preview directly or use a public tunnel URL.';
+const AUTH_PROXY_SCOPE_MESSAGE = 'Auth proxy currently supports public HTTP/HTTPS URLs only. For local/private dev targets, preview directly in Local Dev mode or use mock data.';
 
 type EditableAuthCookie = AuthCookie & { id: string };
 type EditableAuthHeader = AuthHeader & { id: string };
@@ -632,7 +632,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
           {/* Info */}
           <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md text-xs text-gray-600 dark:text-gray-400">
             <Shield className="size-3 inline mr-1" />
-            <strong>Server-side auth proxy:</strong> Supports cookies and injected request headers for public targets. Full browser-managed SSO or local/private targets may still require a tunnel or mock data.
+            <strong>Server-side auth proxy:</strong> Supports cookies and injected request headers for public targets. Full browser-managed SSO or local/private targets may still require direct preview or mock data.
           </div>
         </div>
       )}
@@ -642,7 +642,7 @@ export default function AuthWizard({ onAuthCapture, onProxyUrl, currentUrl, clas
         <div className="text-xs text-gray-500 dark:text-gray-400">
           {proxySupported
             ? 'Preview pages that require login on public sites by injecting session cookies through the proxy.'
-            : 'Auth proxy is intended for public URLs. Local/private targets should be previewed directly or via a public tunnel URL.'}
+            : 'Auth proxy is intended for public URLs. Local/private targets should be previewed directly in Local Dev mode.'}
         </div>
       )}
     </div>
