@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -65,8 +65,9 @@ function sendJson(res: ServerResponse, body: unknown, status = 200) {
 
 test.before(async () => {
   tempDir = mkdtempSync(join(tmpdir(), 'kaleidoscope-mcp-'));
-  mkdirSync(tempDir, { recursive: true });
-  screenshotPath = join(tempDir, 'desktop-test.png');
+  const screenshotDir = join(tempDir, 'folder with spaces');
+  mkdirSync(screenshotDir, { recursive: true });
+  screenshotPath = join(screenshotDir, 'desktop test.png');
   writeFileSync(screenshotPath, Buffer.from(TINY_PNG_BASE64, 'base64'));
 
   apiServer = createServer(async (req, res) => {
@@ -74,10 +75,6 @@ test.before(async () => {
 
     if (requestUrl.pathname === '/api/health') {
       return sendJson(res, { status: 'ok' });
-    }
-
-    if (requestUrl.pathname === '/api/tunnel') {
-      return sendJson(res, { tunnels: [] });
     }
 
     if (requestUrl.pathname === '/api/screenshots' && req.method === 'POST') {
@@ -89,7 +86,7 @@ test.before(async () => {
             path: screenshotPath,
             width: 1920,
             height: 1080,
-            url: '/api/screenshots-files/desktop-test.png',
+            url: '/api/screenshots-files/folder with spaces/desktop test.png',
           },
         ],
       });
@@ -276,7 +273,6 @@ test('preview_responsive returns structured content', async () => {
     url: string;
     clientUrl: string;
     devices: string[];
-    tunnelUrl: string | null;
     services: {
       client: { running: boolean; port: number | null; url: string | null };
       server: { running: boolean; port: number | null; url: string | null };
@@ -287,7 +283,6 @@ test('preview_responsive returns structured content', async () => {
 
   assert.equal(structured.url, 'https://example.com');
   assert.deepEqual(structured.devices, ['desktop']);
-  assert.equal(structured.tunnelUrl, null);
   assert.equal(structured.services.client.running, true);
   assert.equal(structured.services.client.port, Number(new URL(clientBaseUrl).port));
   assert.match(structured.clientUrl, new RegExp(`:${new URL(clientBaseUrl).port}$`));
@@ -327,6 +322,9 @@ test('capture_screenshots returns structured metadata and rich content', async (
       preferredDisplayUri: string | null;
       chatDisplayPath: string | null;
       markdownImageTag: string | null;
+      markdownImageTagFallbacks: string[];
+      chatSafePath: string | null;
+      chatSafeMarkdownImageTag: string | null;
       downloadUrl: string | null;
     }>;
     inlineImageCount: number;
@@ -334,6 +332,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
     primaryMarkdownImageTag: string | null;
     finalResponseInstruction: string;
     readyToPasteMarkdown: string[];
+    fallbackMarkdownImageTags: string[];
   };
   assert.equal(structured.inlineImageCount, 1);
   assert.match(structured.displayAdvice, /primaryMarkdownImageTag/i);
@@ -341,26 +340,33 @@ test('capture_screenshots returns structured metadata and rich content', async (
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
   assert.equal(structured.screenshots[0]?.preferredDisplayPath, screenshotPath);
   assert.match(structured.screenshots[0]?.preferredDisplayUri ?? '', /^file:/);
-  assert.equal(
-    structured.screenshots[0]?.chatDisplayPath,
-    screenshotPath.replace(/\\/g, '/'),
+  const entry = structured.screenshots[0] as {
+    chatDisplayPath: string | null;
+    markdownImageTag: string | null;
+    markdownImageTagFallbacks: string[];
+    chatSafePath: string | null;
+    chatSafeMarkdownImageTag: string | null;
+  };
+  const chatSafePath = entry.chatSafePath;
+  assert.ok(chatSafePath, 'screenshots should include a chat-safe copy path');
+  assert.equal(existsSync(chatSafePath), true);
+  assert.doesNotMatch(basename(chatSafePath), /\s/);
+  assert.equal(entry.chatDisplayPath, chatSafePath.replace(/\\/g, '/'));
+  assert.equal(entry.markdownImageTag, entry.chatSafeMarkdownImageTag);
+  assert.equal(structured.primaryMarkdownImageTag, entry.chatSafeMarkdownImageTag);
+  assert.deepEqual(structured.readyToPasteMarkdown, [entry.chatSafeMarkdownImageTag]);
+  assert.ok(
+    entry.markdownImageTagFallbacks.some((tag) => tag.includes(screenshotPath.replace(/\\/g, '/'))),
+    'fallbacks should keep an original-path Markdown form',
   );
-  assert.equal(
-    structured.screenshots[0]?.markdownImageTag,
-    `![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`,
-  );
-  assert.deepEqual(
-    structured.readyToPasteMarkdown,
-    [`![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`],
-  );
-  assert.equal(
-    structured.primaryMarkdownImageTag,
-    `![Desktop HD preview](<${screenshotPath.replace(/\\/g, '/')}>)`,
+  assert.ok(
+    structured.fallbackMarkdownImageTags.some((tag) => tag.includes('desktop%20test.png')),
+    'fallbacks should include an encoded original-path Markdown form',
   );
   assert.match(structured.finalResponseInstruction, /include this exact Markdown image tag/i);
   assert.equal(
     structured.screenshots[0]?.downloadUrl,
-    `${apiBaseUrl}/api/screenshots-files/desktop-test.png`,
+    `${apiBaseUrl}/api/screenshots-files/folder%20with%20spaces/desktop%20test.png`,
   );
 
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
@@ -369,7 +375,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
   assert.match(primaryTextBlock?.text ?? '', /Ready-to-paste Markdown image tags:/);
   assert.match(
     primaryTextBlock?.text ?? '',
-    new RegExp(`!\\[Desktop HD preview\\]\\(<${screenshotPath.replace(/\\/g, '/').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>\\)`),
+    new RegExp((entry.chatSafeMarkdownImageTag ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
 });
 

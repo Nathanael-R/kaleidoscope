@@ -18,17 +18,10 @@ const serviceStatusSchema = z.object({
   url: z.string().nullable(),
 });
 
-const tunnelSchema = z.object({
-  port: z.number(),
-  url: z.string(),
-  status: z.string(),
-});
-
 const previewOutputSchema = {
   url: z.string().url(),
   clientUrl: z.string().url(),
   devices: z.array(z.string()),
-  tunnelUrl: z.string().url().nullable(),
   services: z.object({
     client: serviceStatusSchema,
     server: serviceStatusSchema,
@@ -40,7 +33,6 @@ const previewOutputSchema = {
 const statusOutputSchema = {
   client: serviceStatusSchema,
   server: serviceStatusSchema,
-  tunnels: z.array(tunnelSchema),
 };
 
 const previewInputSchema = {
@@ -48,9 +40,6 @@ const previewInputSchema = {
   devices: z.array(z.enum(ALL_DEVICE_IDS)).optional().describe(
     'Optional list of device IDs to preview. Defaults to all devices. ' +
     'Available: iphone-14, samsung-s21, pixel-6, ipad, ipad-pro, macbook-air, desktop, desktop-4k',
-  ),
-  tunnel: z.boolean().optional().describe(
-    'If true, creates a public tunnel URL for the target so it can be shared',
   ),
 } satisfies z.ZodRawShape;
 
@@ -66,17 +55,10 @@ interface ServiceStatusResult {
   url: string | null;
 }
 
-interface TunnelResult {
-  port: number;
-  url: string;
-  status: string;
-}
-
 interface PreviewResult {
   url: string;
   clientUrl: string;
   devices: string[];
-  tunnelUrl: string | null;
   services: {
     client: ServiceStatusResult;
     server: ServiceStatusResult;
@@ -88,7 +70,6 @@ interface PreviewResult {
 interface StatusResult {
   client: ServiceStatusResult;
   server: ServiceStatusResult;
-  tunnels: TunnelResult[];
 }
 
 function normalizeServiceStatus(status: {
@@ -114,10 +95,6 @@ function formatPreviewText(result: PreviewResult): string {
     ...result.devices.map((deviceId) => `  - ${deviceId}`),
   ];
 
-  if (result.tunnelUrl) {
-    lines.push('', `Public tunnel URL: ${result.tunnelUrl}`);
-  }
-
   if (result.warnings.length > 0) {
     lines.push('', 'Warnings:');
     lines.push(...result.warnings.map((warning) => `  - ${warning}`));
@@ -133,13 +110,6 @@ function formatStatusText(result: StatusResult): string {
     `  Client: ${result.client.running ? 'Running' : 'Stopped'} (${result.client.url})`,
     `  Server: ${result.server.running ? 'Running' : 'Stopped'} (${result.server.url})`,
   ];
-
-  if (result.tunnels.length > 0) {
-    lines.push('  Active tunnels:');
-    for (const tunnel of result.tunnels) {
-      lines.push(`    - Port ${tunnel.port}: ${tunnel.url} (${tunnel.status})`);
-    }
-  }
 
   return lines.join('\n');
 }
@@ -165,7 +135,7 @@ export function registerPreviewTools(server: McpServer) {
       inputSchema: previewInputSchema as z.ZodRawShape,
       outputSchema: previewOutputSchema as z.ZodRawShape,
     },
-    async ({ url, devices: selectedDevices, tunnel }) => {
+    async ({ url, devices: selectedDevices }) => {
       try {
         const status = await processManager.startAll();
         if (!status.client.url) {
@@ -180,41 +150,13 @@ export function registerPreviewTools(server: McpServer) {
           );
         }
 
-        let tunnelUrl: string | null = null;
         const warnings: string[] = [];
-
-        if (tunnel) {
-          try {
-            const parsedPreviewUrl = new URL(url);
-            const port = parsedPreviewUrl.port
-              ? parseInt(parsedPreviewUrl.port, 10)
-              : parsedPreviewUrl.protocol === 'https:'
-                ? 443
-                : 80;
-
-            const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel/create`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ port }),
-            });
-
-            if (tunnelRes.ok) {
-              const tunnelData = await tunnelRes.json() as { tunnel: { url: string } };
-              tunnelUrl = tunnelData.tunnel.url;
-            } else {
-              warnings.push('Could not create a public tunnel. Localhost preview still works.');
-            }
-          } catch {
-            warnings.push('Could not create a public tunnel. Localhost preview still works.');
-          }
-        }
 
         const devices = selectedDevices ?? [...ALL_DEVICE_IDS];
         const result: PreviewResult = {
           url,
           clientUrl,
           devices,
-          tunnelUrl,
           services: {
             client: normalizeServiceStatus(status.client),
             server: normalizeServiceStatus(status.server),
@@ -243,19 +185,6 @@ export function registerPreviewTools(server: McpServer) {
       try {
         const status = await processManager.getStatus();
         const serverReachable = await processManager.isServerReachable();
-        const tunnels: Array<{ port: number; url: string; status: string }> = [];
-
-        if (serverReachable) {
-          try {
-            const tunnelRes = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/tunnel`);
-            if (tunnelRes.ok) {
-              const data = await tunnelRes.json() as { tunnels: Array<{ port: number; url: string; status: string }> };
-              tunnels.push(...data.tunnels);
-            }
-          } catch {
-            // Ignore tunnel inspection errors.
-          }
-        }
 
         const result: StatusResult = {
           client: normalizeServiceStatus(status.client),
@@ -263,7 +192,6 @@ export function registerPreviewTools(server: McpServer) {
             ...normalizeServiceStatus(status.server),
             running: serverReachable,
           },
-          tunnels,
         };
 
         return createStructuredResult(result, formatStatusText(result));
@@ -287,7 +215,6 @@ export function registerPreviewTools(server: McpServer) {
         const result: StatusResult = {
           client: normalizeServiceStatus(status.client),
           server: normalizeServiceStatus(status.server),
-          tunnels: [] as Array<{ port: number; url: string; status: string }>,
         };
 
         return createStructuredResult(

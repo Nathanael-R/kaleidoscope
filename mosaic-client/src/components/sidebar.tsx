@@ -15,23 +15,9 @@ import {
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { InspectResult } from "@/lib/inspect";
 
-const TunnelButton = lazy(() => import("@/components/tunnel-button"));
 const LiveReloadToggle = lazy(() => import("@/components/live-reload-toggle"));
 const ScreenshotPanel = lazy(() => import("@/components/screenshot-panel"));
-const PerformancePanel = lazy(() => import("@/components/performance-panel"));
 const InspectPanel = lazy(() => import("@/components/inspect-panel"));
-
-function getPortFromUrl(url: string): number {
-  try {
-    const urlObj = new URL(url);
-    if (urlObj.port) return parseInt(urlObj.port, 10);
-    if (urlObj.protocol === 'https:') return 443;
-    if (urlObj.protocol === 'http:') return 80;
-    return 3000;
-  } catch {
-    return 3000;
-  }
-}
 
 function handleDeviceDragStart(event: React.DragEvent<HTMLElement>, device: Device) {
   event.dataTransfer.effectAllowed = 'copy';
@@ -169,7 +155,6 @@ export default function Sidebar({
   const previewUrl = normalizedUrlError ? null : normalizedUrl;
   const panelUrl = previewUrl ?? currentUrl;
   const hasUrlContext = Boolean(currentUrl || urlInput.trim());
-  const currentPort = previewUrl ? getPortFromUrl(previewUrl) : 3000;
   const [showCollapsedContent, setShowCollapsedContent] = useState(isCollapsed);
   const [showExpandedContent, setShowExpandedContent] = useState(!isCollapsed);
 
@@ -416,12 +401,6 @@ export default function Sidebar({
         )}
 
         {/* Tools sections — collapsible */}
-        <Section title="Share Localhost" icon={Globe}>
-          <Suspense fallback={<SectionLoadingFallback label="sharing tools" />}>
-            <TunnelButton port={currentPort} />
-          </Suspense>
-        </Section>
-
         <Section title="Live Reload" icon={Globe}>
           <Suspense fallback={<SectionLoadingFallback label="live reload" />}>
             <LiveReloadToggle onReload={onReload} />
@@ -451,14 +430,6 @@ export default function Sidebar({
           <Section title="Screenshots" icon={Globe} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="screenshots" />}>
               <ScreenshotPanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
-            </Suspense>
-          </Section>
-        )}
-
-        {hasUrlContext && (
-          <Section title="Performance" icon={Activity}>
-            <Suspense fallback={<SectionLoadingFallback label="performance tools" />}>
-              <PerformancePanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
             </Suspense>
           </Section>
         )}

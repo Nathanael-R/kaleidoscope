@@ -74,10 +74,8 @@ export function isManagementApiPath(pathname: string): boolean {
   }
 
   return (
-    pathname.startsWith('/api/tunnel')
-    || pathname.startsWith('/api/watcher')
+    pathname.startsWith('/api/watcher')
     || pathname.startsWith('/api/screenshots')
-    || pathname.startsWith('/api/performance')
     || pathname.startsWith('/api/inspect')
   );
 }

@@ -5,7 +5,6 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes.js";
-import { tunnelService } from "./services/tunnel.service.js";
 import { watcherService } from "./services/watcher.service.js";
 import { screenshotService } from "./services/screenshot.service.js";
 import { sseService } from "./services/sse.service.js";
@@ -266,7 +265,6 @@ app.use((req, res, next) => {
     clearInterval(cleanupInterval);
     httpServer.close();
     await Promise.allSettled([
-      tunnelService.closeAllTunnels(),
       watcherService.unwatchAll(),
       screenshotService.close(),
     ]);

@@ -74,6 +74,7 @@ export function useAuthProxy() {
     queryKey: sessionBase ? proxyStatusQueryKey(sessionBase.id) : ['proxy-session-status', 'idle'],
     queryFn: () => fetchProxyStatus(sessionBase!.id),
     enabled: !!sessionBase,
+    staleTime: 5_000,
   });
 
   const createSessionMutation = useMutation({

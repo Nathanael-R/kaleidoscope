@@ -10,7 +10,7 @@ import { registerWalkthroughTools } from './tools/walkthrough.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
-  version: '1.2.1',
+  version: '1.2.3',
 });
 
 // Register all tools

@@ -447,7 +447,7 @@ export default function DeviceFrame({
               </h3>
               <p className="text-sm text-gray-600 mb-4">
                 The website may be down, doesn't allow embedding in frames (X-Frame-Options),
-                or you may need to enable tunneling for localhost URLs.
+                or browser security may have blocked the preview.
               </p>
               <Button onClick={handleRetry} data-testid="button-retry" className="transition-transform duration-150 hover:scale-105 active:scale-95">
                 Try Again

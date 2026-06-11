@@ -4,7 +4,6 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import screenshotRoutes from './screenshot.routes.js';
 import proxyRoutes from './proxy.routes.js';
-import performanceRoutes from './performance.routes.js';
 import inspectRoutes from './inspect.routes.js';
 
 let server: Server;
@@ -26,7 +25,6 @@ test.before(async () => {
 
   app.use('/api/screenshots', screenshotRoutes);
   app.use('/api/proxy', proxyRoutes);
-  app.use('/api/performance', performanceRoutes);
   app.use('/api/inspect', inspectRoutes);
 
   server = createServer(app);
@@ -129,56 +127,6 @@ test('POST /api/proxy/session rejects invalid auth headers with normalized error
   assert.equal(status, 400);
   assert.equal(typeof body.error, 'string');
   assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/performance/audit rejects invalid URLs with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/performance/audit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'file:///etc/passwd',
-      devices: ['iphone-14'],
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/performance/audit rejects invalid device IDs with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/performance/audit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'https://example.com',
-      devices: ['not-a-real-device'],
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.equal(body.requestId, 'test-request-id');
-  assert.ok(Array.isArray(body.validDeviceIds));
-  assert.ok(body.validDeviceIds.includes('iphone-14'));
-});
-
-test('POST /api/performance/audit allows loopback URLs and continues validation', async () => {
-  const { status, body } = await requestJson('/api/performance/audit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'http://localhost:5173',
-      devices: ['not-a-real-device'],
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.match(body.error, /Invalid device IDs:/);
-  assert.equal(body.requestId, 'test-request-id');
-  assert.ok(Array.isArray(body.validDeviceIds));
-  assert.ok(body.validDeviceIds.includes('iphone-14'));
 });
 
 test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {

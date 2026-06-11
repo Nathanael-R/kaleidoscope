@@ -52,38 +52,75 @@ Kaleidoscope is a responsive preview and inspection tool for web apps. Load a lo
       <br />
       <strong>Local-first preview workflow</strong>
       <br />
-      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, screenshots, or performance tools.
+      Enter localhost shortcuts like <code>3000</code>, switch devices quickly, and move straight into inspect, auth, or screenshots.
     </td>
   </tr>
 </table>
 
-## Install
+## MCP Client Setup
 
-Install the MCP package globally:
+No global install is required. Configure your MCP client to run the package through `npx`:
 
 ```bash
-npm install -g kaleidoscope-mcp-server
+npx -y kaleidoscope-mcp-server@latest
 ```
 
-The executable name is:
+Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, and similar clients:
+
+```json
+{
+  "mcpServers": {
+    "kaleidoscope": {
+      "command": "npx",
+      "args": ["-y", "kaleidoscope-mcp-server@latest"],
+      "env": {
+        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
+```
+
+Codex `config.toml`:
+
+```toml
+[mcp_servers.kaleidoscope]
+command = "npx"
+args = ["-y", "kaleidoscope-mcp-server@latest"]
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.kaleidoscope.env]
+KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
+```
+
+Codex desktop connector UI:
+
+- Name: `kaleidoscope`
+- Transport: `STDIO`
+- Command to launch: `npx`
+- Arguments: `-y`, `kaleidoscope-mcp-server@latest`
+- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
+- Working directory: leave blank
+
+The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
+
+### Optional Global Install
+
+If you prefer a persistent local command, install the package globally:
+
+```bash
+npm install -g kaleidoscope-mcp-server@latest
+```
+
+Then configure your MCP client to run:
 
 ```bash
 kaleidoscope-mcp
 ```
 
-Screenshots and walkthrough recording require Playwright Chromium:
-
-```bash
-npx playwright install chromium
-```
-
-The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
-
-## MCP Client Setup
-
-Use `kaleidoscope-mcp` as a stdio MCP server command.
-
-Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, and similar clients:
+JSON config:
 
 ```json
 {
@@ -97,52 +134,6 @@ Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, and similar clients:
   }
 }
 ```
-
-Codex `config.toml`:
-
-```toml
-[mcp_servers.kaleidoscope]
-command = "kaleidoscope-mcp"
-enabled = true
-startup_timeout_sec = 20
-tool_timeout_sec = 60
-
-[mcp_servers.kaleidoscope.env]
-KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
-```
-
-Codex desktop connector UI:
-
-- Name: `kaleidoscope`
-- Transport: `STDIO`
-- Command to launch: `kaleidoscope-mcp`
-- Arguments: leave empty
-- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
-- Working directory: leave blank
-
-You can also run it ad hoc with `npx`:
-
-```bash
-npx -y kaleidoscope-mcp-server
-```
-
-For MCP clients that use JSON config:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "npx",
-      "args": ["-y", "kaleidoscope-mcp-server"],
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
-On Windows, using the installed `kaleidoscope-mcp` command is usually more reliable than wrapping `npx` through `cmd /c`.
 
 ## Common Workflows
 
@@ -224,7 +215,6 @@ Inspect mode works with trusted loopback targets such as `localhost` and `127.0.
 - Inspect mode is limited to loopback targets, and source reads must stay under `KALEIDOSCOPE_WORKSPACE_ROOT`.
 - Walkthrough output directories must stay under `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`.
 - Auth proxy sessions are temporary and cleaned up automatically.
-- Public tunnel URLs created with tools such as `cloudflared` or `ngrok` should be treated as public.
 
 ## License
 
