@@ -151,7 +151,7 @@ Use `capture_screenshots` with device IDs or common names:
 ```json
 {
   "url": "http://localhost:3000",
-  "devices": ["iphone-14", "ipad", "desktop-hd"]
+  "devices": ["iphone-14", "ipad", "desktop"]
 }
 ```
 
