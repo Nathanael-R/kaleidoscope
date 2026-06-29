@@ -50,3 +50,41 @@ test('createSession uses opaque random UUID-based session identifiers', () => {
     proxyService.removeSession(sessionTwo.id);
   }
 });
+
+test('cleanExpired uses lastAccessedAt, so active sessions survive a long createdAt age', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } });
+
+  let session: { id: string } | null = null;
+  try {
+    session = proxyService.createSession('http://203.0.113.10');
+    // Artificially age createdAt beyond the expiry window, then back-date
+    // lastAccessedAt to a clearly old timestamp so we can observe the touch.
+    (session as any).createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    (session as any).lastAccessedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const oldLastAccess = (session as any).lastAccessedAt.getTime();
+
+    await proxyService.proxyRequest(session.id, '/');
+
+    assert.ok(
+      (session as any).lastAccessedAt.getTime() > oldLastAccess,
+      'proxyRequest should refresh lastAccessedAt',
+    );
+
+    const cleaned = proxyService.cleanExpired();
+    assert.equal(cleaned, 0, 'an active session should not be expired by createdAt alone');
+    assert.ok(proxyService.getSession(session.id), 'session must still be present');
+  } finally {
+    if (session) proxyService.removeSession(session.id);
+    global.fetch = originalFetch;
+  }
+});
+
+test('cleanExpired removes sessions that have been idle longer than the max age', () => {
+  const session = proxyService.createSession('http://203.0.113.10');
+  (session as any).lastAccessedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+  const cleaned = proxyService.cleanExpired();
+  assert.equal(cleaned, 1);
+  assert.equal(proxyService.getSession(session.id), undefined);
+});

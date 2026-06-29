@@ -10,6 +10,7 @@ export interface ProxySession {
   authFailed: boolean;
   mode: 'standard' | 'inspect';
   createdAt: Date;
+  lastAccessedAt: Date;
 }
 
 // Headers that prevent iframe embedding - we strip these
@@ -91,6 +92,7 @@ class ProxyService {
   ): ProxySession {
     const id = this.generateId();
     const normalizedUrl = new URL(targetUrl).toString().replace(/\/$/, '');
+    const now = new Date();
     const session: ProxySession = {
       id,
       targetUrl: normalizedUrl,
@@ -99,10 +101,20 @@ class ProxyService {
       mockRoutes: new Map(),
       authFailed: false,
       mode: options.mode ?? 'standard',
-      createdAt: new Date(),
+      createdAt: now,
+      lastAccessedAt: now,
     };
     this.sessions.set(id, session);
     return session;
+  }
+
+  /**
+   * Mark a session as active. Called on every state-changing operation
+   * and on every proxied request so that cleanExpired() uses sliding
+   * inactivity-based expiry rather than hard-createdAt cutoff.
+   */
+  private touch(session: ProxySession): void {
+    session.lastAccessedAt = new Date();
   }
 
   /**
@@ -120,6 +132,7 @@ class ProxyService {
     if (!session) return false;
     session.cookies = cookies;
     session.authFailed = false; // reset auth failure status on new cookies
+    this.touch(session);
     return true;
   }
 
@@ -133,6 +146,7 @@ class ProxyService {
     session.cookies = cookies;
     session.requestHeaders = requestHeaders;
     session.authFailed = false;
+    this.touch(session);
     return true;
   }
 
@@ -145,6 +159,7 @@ class ProxyService {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     session.mockRoutes.set(urlPattern, responseData);
+    this.touch(session);
     return true;
   }
 
@@ -157,6 +172,7 @@ class ProxyService {
     for (const mock of mocks) {
       session.mockRoutes.set(mock.pattern, mock.response);
     }
+    this.touch(session);
     return true;
   }
 
@@ -167,6 +183,7 @@ class ProxyService {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     session.mockRoutes.clear();
+    this.touch(session);
     return true;
   }
 
@@ -197,6 +214,7 @@ class ProxyService {
         wasMocked: false,
       };
     }
+    this.touch(session);
 
     // Check if this path matches a mock route
     const mockData = this.findMockRoute(session, requestPath);
@@ -433,15 +451,20 @@ class ProxyService {
   }
 
   /**
-   * Clean up expired sessions (older than 1 hour)
+   * Clean up expired sessions (1 hour since last access).
+   *
+   * Uses lastAccessedAt, not createdAt, so a session remains alive as long
+   * as an agent (or human) is actively prox- ing through it. This matters
+   * for long-running review loops where a proxy session survives many
+   * captures and re-loads.
    */
   cleanExpired(): number {
     const now = Date.now();
-    const maxAge = 60 * 60 * 1000; // 1 hour
+    const maxAge = 60 * 60 * 1000; // 1 hour of inactivity
     let cleaned = 0;
 
     for (const [id, session] of this.sessions) {
-      if (now - session.createdAt.getTime() > maxAge) {
+      if (now - session.lastAccessedAt.getTime() > maxAge) {
         this.sessions.delete(id);
         cleaned++;
       }
