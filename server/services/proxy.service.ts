@@ -318,7 +318,11 @@ class ProxyService {
   }
 
   /**
-   * Check if a response indicates authentication failure
+   * Check if a response indicates authentication failure.
+   *
+   * Login-path matching is segment-aware: '/auth' must be a complete path
+   * segment (e.g. '/auth', '/auth/login', '/foo/auth'), not a substring
+   * inside another word (e.g. '/author-profile', '/authorize-transaction').
    */
   private isAuthFailure(response: Response): boolean {
     // Explicit auth failure status codes
@@ -329,13 +333,32 @@ class ProxyService {
     // Redirect to login page (common pattern)
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location') || '';
-      const loginPatterns = ['/login', '/signin', '/sign-in', '/auth', '/sso', '/oauth', '/cas/login'];
-      if (loginPatterns.some(p => location.toLowerCase().includes(p))) {
+      let locationPath: string;
+      try {
+        locationPath = new URL(location, 'http://kaleidoscope.invalid').pathname.toLowerCase();
+      } catch {
+        locationPath = location.toLowerCase();
+      }
+      const loginSegments = ['/login', '/signin', '/sign-in', '/auth', '/sso', '/oauth', '/cas/login'];
+      if (loginSegments.some(segment => this.pathContainsSegment(locationPath, segment))) {
         return true;
       }
     }
 
     return false;
+  }
+
+  /**
+   * Returns true if `pathname` contains `segment` as a complete path segment.
+   * '/auth' matches '/auth' and '/foo/auth' but not '/author-profile'.
+   */
+  private pathContainsSegment(pathname: string, segment: string): boolean {
+    const idx = pathname.indexOf(segment);
+    if (idx < 0) return false;
+    const beforeOk = idx === 0 || pathname[idx - 1] === '/';
+    const after = idx + segment.length;
+    const afterOk = after === pathname.length || pathname[after] === '/';
+    return beforeOk && afterOk;
   }
 
   /**
