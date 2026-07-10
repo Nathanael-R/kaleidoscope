@@ -1,12 +1,21 @@
 import type { Request, Response } from 'express';
+import { EventEmitter } from 'node:events';
 
 type SSEClient = {
   clientId: string;
   res: Response;
 };
 
+export type SSEServiceEvent = {
+  clientId: string;
+  event: string;
+  data: unknown;
+  delivered: boolean;
+};
+
 class SSEService {
   private clients: Map<string, SSEClient> = new Map();
+  private events = new EventEmitter();
 
   /**
    * Handle a new SSE connection. Call this from a GET endpoint.
@@ -62,12 +71,21 @@ class SSEService {
   sendToClient(clientId: string, event: string, data: unknown): boolean {
     const client = this.clients.get(clientId);
     if (!client) {
+      this.events.emit(event, { clientId, event, data, delivered: false } satisfies SSEServiceEvent);
       return false;
     }
 
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     client.res.write(payload);
+    this.events.emit(event, { clientId, event, data, delivered: true } satisfies SSEServiceEvent);
     return true;
+  }
+
+  once(event: string, listener: (event: SSEServiceEvent) => void): () => void {
+    this.events.once(event, listener);
+    return () => {
+      this.events.off(event, listener);
+    };
   }
 
   /**

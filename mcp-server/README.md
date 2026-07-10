@@ -1,30 +1,29 @@
 # kaleidoscope-mcp-server
 
-MCP server for [Kaleidoscope](https://github.com/Nathanael-R/kaleidoscope), a responsive preview and inspection tool for local and public web apps.
+`kaleidoscope-mcp-server` gives MCP clients browser-grounded responsive QA tools for local and public web apps. It packages the Kaleidoscope web workspace, backend, and stdio MCP server together, so a coding agent can start the runtime, inspect rendered UI, capture artifacts, and verify a post-edit layout without a repository checkout.
 
-## What You Can Do
+## What Agents Can Do
 
-- Start and stop the packaged Kaleidoscope runtime.
-- Preview local and public URLs across mobile, tablet, and desktop device profiles.
-- Capture screenshots across multiple devices.
-- Record scripted walkthrough videos with visible cursor movement.
-- Preview authenticated pages with temporary cookie and header injection.
-- Discover likely page elements from natural-language queries.
-- Inspect trusted local pages and return structured source context.
+- Open a local or public page in Kaleidoscope's multi-device workspace.
+- Capture viewport or full-page screenshots across selected device profiles and return chat-ready local image references.
+- Record structured or script-based Playwright walkthrough videos with a visible cursor overlay.
+- Create a temporary authenticated proxy preview with cookies or safe headers; inject mock API responses through that proxy without changing the application.
+- Find visible page elements from a natural-language query, then inspect a local element for viewport and source metadata.
+- Capture a structured layout baseline, then recapture after an edit to identify meaningful element, text, and geometry changes across selected devices.
+- Wait for a Kaleidoscope watcher reload before running that post-edit comparison.
+- Sweep a continuous width range to find sampled document-overflow and clipped-interactive-control failures beyond named device presets.
 
-## MCP Client Setup
+The layout workflow is a structural DOM/layout comparison, not pixel-level image diffing. It returns a concise no-change verdict when appropriate and source-attributed changes when available.
 
-No global install is required. Configure your MCP client to run the package through `npx`:
+## Install and Configure
+
+No global install is required:
 
 ```bash
 npx -y kaleidoscope-mcp-server@latest
 ```
 
-The npm package includes the Kaleidoscope MCP server, backend, and built web client. When an MCP tool needs Kaleidoscope and no server is already running, it can start the packaged runtime automatically.
-
-### Claude Code
-
-Project-scoped `.mcp.json`:
+Example MCP configuration:
 
 ```json
 {
@@ -40,13 +39,7 @@ Project-scoped `.mcp.json`:
 }
 ```
 
-CLI form:
-
-```bash
-claude mcp add --transport stdio kaleidoscope --scope project -- npx -y kaleidoscope-mcp-server@latest
-```
-
-### Codex `config.toml`
+For Codex:
 
 ```toml
 [mcp_servers.kaleidoscope]
@@ -60,119 +53,63 @@ tool_timeout_sec = 60
 KALEIDOSCOPE_SERVER_URL = "http://localhost:5000"
 ```
 
-### Codex Desktop Connector UI
+The package starts its bundled runtime automatically if a tool needs it and no Kaleidoscope server is already available. To use a persistent command instead, install globally with `npm install -g kaleidoscope-mcp-server@latest` and configure `kaleidoscope-mcp` as the command.
 
-- Name: `kaleidoscope`
-- Transport: `STDIO`
-- Command to launch: `npx`
-- Arguments: `-y`, `kaleidoscope-mcp-server@latest`
-- Environment variable: `KALEIDOSCOPE_SERVER_URL=http://localhost:5000`
-- Working directory: leave blank
+## Recommended Agent Loop
 
-### Optional Global Install
+1. Start the target app, for example at `http://localhost:3000`.
+2. Call `kaleidoscope_read_layout` for the route and device set that matter.
+3. Make the UI change.
+4. Call `kaleidoscope_after_edit` once the app has rebuilt, or `kaleidoscope_observe_layout` if a Kaleidoscope watcher is already waiting for the reload.
+5. Review only the reported changes; capture screenshots or inspect source when more evidence is needed.
 
-If you prefer a persistent local command, install the package globally:
-
-```bash
-npm install -g kaleidoscope-mcp-server@latest
-```
-
-Then configure your MCP client to run:
-
-```bash
-kaleidoscope-mcp
-```
-
-JSON config:
-
-```json
-{
-  "mcpServers": {
-    "kaleidoscope": {
-      "command": "kaleidoscope-mcp",
-      "env": {
-        "KALEIDOSCOPE_SERVER_URL": "http://localhost:5000"
-      }
-    }
-  }
-}
-```
-
-## Common Workflows
-
-### Preview A Local App
-
-1. Start your app, for example on `http://localhost:3000`.
-2. Ask your MCP client to run `kaleidoscope_start`.
-3. Ask it to prepare a responsive preview for your URL.
-4. Open `http://localhost:5000` if you want to use the visual workspace directly.
-
-### Capture Screenshots
-
-Use `capture_screenshots` with device IDs or common names:
-
-```json
-{
-  "url": "http://localhost:3000",
-  "devices": ["iphone-14", "ipad", "desktop"]
-}
-```
-
-### Record A Walkthrough
-
-Use `record_walkthrough` with structured steps or a simple script:
+Example prompt:
 
 ```text
-click #open-settings
-type "hello@example.com" into #email
-click button[type="submit"]
-wait 800ms
+Capture a Kaleidoscope layout baseline for http://localhost:3000/checkout on iphone-14, ipad, and desktop. After changing the checkout form, compare it with the baseline and report only changed elements, including source locations when available.
 ```
 
-Walkthroughs are saved as local `.webm` files and returned as MCP artifacts.
+## Tool Reference
 
-### Inspect A Local Page
+| Tool | Purpose |
+| --- | --- |
+| `kaleidoscope_status`, `kaleidoscope_start`, `kaleidoscope_stop` | Check or control the packaged runtime. |
+| `kaleidoscope_list_devices` | List supported device profiles and the default capture set. |
+| `preview_responsive` | Prepare a multi-device visual workspace for a URL. |
+| `capture_screenshots` | Save viewport or full-page screenshots across devices. |
+| `record_walkthrough` | Record a scripted browser flow as a local WebM video. |
+| `preview_with_auth` | Create a temporary proxy preview with server-side auth injection. |
+| `inject_mock_data` | Serve mock API responses through an existing proxy session. |
+| `discover_page_elements` | Return scored visible-element candidates for a natural-language query. |
+| `inspect_element_source` | Inspect a rendered local element by selector and return source context. |
+| `kaleidoscope_read_layout` | Capture a structured, source-attributed layout baseline. |
+| `kaleidoscope_after_edit` | Recapture and compare after a known app rebuild. |
+| `kaleidoscope_observe_layout` | Wait for a watcher reload, then recapture and compare. |
+| `kaleidoscope_scan_breakpoints` | Sweep a width range for supported responsive failure signals. |
 
-Inspect mode works with trusted loopback targets such as `localhost` and `127.0.0.1`. It can discover likely selectors and return source context for selected elements when a workspace root is configured.
+## Boundaries and Safety
 
-## MCP Tools
-
-- `kaleidoscope_status`, `kaleidoscope_start`, `kaleidoscope_stop`
-- `kaleidoscope_list_devices`
-- `preview_responsive`
-- `capture_screenshots`
-- `record_walkthrough`
-- `preview_with_auth`
-- `inject_mock_data`
-- `discover_page_elements`
-- `inspect_element_source`
+- Inspect mode is limited to local loopback targets such as `localhost` and `127.0.0.1`; source reads must remain under `KALEIDOSCOPE_WORKSPACE_ROOT`.
+- Layout captures are temporary in-memory server state. By default, captures expire after two hours and the latest 50 are retained.
+- Screenshot and layout rendering uses the supported Chromium/Playwright runtime. It is not a cross-browser Safari or Firefox verifier.
+- Breakpoint scanning currently detects document-level horizontal overflow and horizontally clipped visible controls. It reports sampled ranges, not exact breakpoint boundaries or every possible visual defect.
+- Auth proxy sessions are temporary. Mock data is served by the proxy at runtime and does not edit the target codebase.
+- The local API binds to `127.0.0.1` by default.
 
 ## Environment Options
 
-- `KALEIDOSCOPE_SERVER_URL`: Kaleidoscope backend URL. Defaults to `http://localhost:5000`.
-- `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout. Defaults to `60000`.
+- `KALEIDOSCOPE_SERVER_URL`: backend URL; defaults to `http://localhost:5000`.
+- `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout; defaults to `60000`.
 - `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root for local projects.
 - `KALEIDOSCOPE_ARTIFACT_ROOT`: allowed root for user-selected walkthrough output directories.
-- `KALEIDOSCOPE_WALKTHROUGH_DIR`: default output directory for walkthrough videos.
-- `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout. Defaults to `30000`.
-- `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response byte limit. Defaults to `10485760`.
+- `KALEIDOSCOPE_WALKTHROUGH_DIR`: default walkthrough-video directory.
+- `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout; defaults to `30000`.
+- `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response limit; defaults to `10485760`.
+- `KALEIDOSCOPE_LAYOUT_CAPTURE_MAX_AGE_MS`: layout-capture retention time; defaults to `7200000`.
+- `KALEIDOSCOPE_LAYOUT_CAPTURE_MAX_COUNT`: layout-capture limit; defaults to `50`.
 
-## Troubleshooting
-
-- `Browser executable not found`: run `npx playwright install chromium` in the same environment that launches the MCP server.
-- `spawn C:\Windows\system32\cmd.exe ENOENT`: install the package globally and configure your MCP client to run `kaleidoscope-mcp` directly.
-- `sourceDir must be inside...`: set `KALEIDOSCOPE_WORKSPACE_ROOT` to the project root you want Kaleidoscope to inspect.
-- `output_dir must stay inside...`: set `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`, then use an output directory below it.
-- Port conflicts: set `KALEIDOSCOPE_SERVER_URL=http://localhost:<free-port>` or stop the process using port `5000`.
-
-## Privacy And Safety
-
-- Kaleidoscope is designed for local preview and inspection workflows.
-- The local API binds to `127.0.0.1` by default.
-- Inspect mode is limited to loopback targets, and source reads must stay under `KALEIDOSCOPE_WORKSPACE_ROOT`.
-- Walkthrough output directories must stay under `KALEIDOSCOPE_ARTIFACT_ROOT` or `KALEIDOSCOPE_WALKTHROUGH_DIR`.
-- Auth proxy sessions are temporary and cleaned up automatically.
+MCP clients can also discover each tool's structured input and output schema at runtime.
 
 ## License
 
-Kaleidoscope is released under the MIT License. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
