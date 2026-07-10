@@ -1,15 +1,34 @@
 import { randomUUID } from 'node:crypto';
 import { validateProxyTargetUrl } from '../utils/security.js';
 
+/**
+ * A single registered mock response. Multiple entries may share a pattern.
+ * An entry with method=undefined matches any method, but loses to a
+ * method-specific entry.
+ */
+export interface MockRouteEntry {
+  method?: string;
+  status?: number;
+  response: unknown;
+}
+
+export interface MockRouteInput {
+  pattern: string;
+  method?: string;
+  status?: number;
+  response: unknown;
+}
+
 export interface ProxySession {
   id: string;
   targetUrl: string;
   cookies: Array<{ name: string; value: string }>;
   requestHeaders: Array<{ name: string; value: string }>;
-  mockRoutes: Map<string, unknown>;
+  mockRoutes: Map<string, MockRouteEntry[]>;
   authFailed: boolean;
   mode: 'standard' | 'inspect';
   createdAt: Date;
+  lastAccessedAt: Date;
 }
 
 // Headers that prevent iframe embedding - we strip these
@@ -91,6 +110,7 @@ class ProxyService {
   ): ProxySession {
     const id = this.generateId();
     const normalizedUrl = new URL(targetUrl).toString().replace(/\/$/, '');
+    const now = new Date();
     const session: ProxySession = {
       id,
       targetUrl: normalizedUrl,
@@ -99,10 +119,20 @@ class ProxyService {
       mockRoutes: new Map(),
       authFailed: false,
       mode: options.mode ?? 'standard',
-      createdAt: new Date(),
+      createdAt: now,
+      lastAccessedAt: now,
     };
     this.sessions.set(id, session);
     return session;
+  }
+
+  /**
+   * Mark a session as active. Called on every state-changing operation
+   * and on every proxied request so that cleanExpired() uses sliding
+   * inactivity-based expiry rather than hard-createdAt cutoff.
+   */
+  private touch(session: ProxySession): void {
+    session.lastAccessedAt = new Date();
   }
 
   /**
@@ -120,6 +150,7 @@ class ProxyService {
     if (!session) return false;
     session.cookies = cookies;
     session.authFailed = false; // reset auth failure status on new cookies
+    this.touch(session);
     return true;
   }
 
@@ -133,30 +164,50 @@ class ProxyService {
     session.cookies = cookies;
     session.requestHeaders = requestHeaders;
     session.authFailed = false;
+    this.touch(session);
     return true;
   }
 
   /**
    * Register mock data for a URL pattern within a session.
    * When the proxy sees a request matching this pattern, it returns the mock data
-   * instead of forwarding to the target.
+   * instead of forwarding to the target. Accepts a raw response (untyped) for
+   * backward compatibility; new callers should prefer setMockRoutes with
+   * optional method/status.
    */
   setMockRoute(sessionId: string, urlPattern: string, responseData: unknown): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
-    session.mockRoutes.set(urlPattern, responseData);
+    session.mockRoutes.set(urlPattern, [{ response: responseData }]);
+    this.touch(session);
     return true;
   }
 
   /**
-   * Set multiple mock routes at once
+   * Set multiple mock routes at once. Each entry may carry an optional
+   * uppercase HTTP method (default: any) and optional status (default: 200).
+   * Multiple entries for the same pattern can coexist when their methods
+   * differ. Re-registering the same pattern + method replaces the old entry.
    */
-  setMockRoutes(sessionId: string, mocks: Array<{ pattern: string; response: unknown }>): boolean {
+  setMockRoutes(sessionId: string, mocks: Array<MockRouteInput>): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     for (const mock of mocks) {
-      session.mockRoutes.set(mock.pattern, mock.response);
+      const normalizedMethod = mock.method?.trim().toUpperCase() || undefined;
+      const normalizedStatus =
+        typeof mock.status === 'number' && Number.isInteger(mock.status) && mock.status >= 100 && mock.status < 600
+          ? mock.status
+          : undefined;
+      const existing = session.mockRoutes.get(mock.pattern) ?? [];
+      const nextEntries = existing.filter(entry => entry.method !== normalizedMethod);
+      nextEntries.push({
+        method: normalizedMethod,
+        status: normalizedStatus,
+        response: mock.response,
+      });
+      session.mockRoutes.set(mock.pattern, nextEntries);
     }
+    this.touch(session);
     return true;
   }
 
@@ -167,6 +218,7 @@ class ProxyService {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     session.mockRoutes.clear();
+    this.touch(session);
     return true;
   }
 
@@ -197,13 +249,17 @@ class ProxyService {
         wasMocked: false,
       };
     }
+    this.touch(session);
 
-    // Check if this path matches a mock route
-    const mockData = this.findMockRoute(session, requestPath);
-    if (mockData !== undefined) {
+    const requestUrl = new URL(requestPath, 'http://kaleidoscope.invalid');
+
+    // Mock patterns describe paths, so query strings do not affect matching.
+    const mockEntry = this.findMockRoute(session, requestUrl.pathname, method.toUpperCase());
+    if (mockEntry) {
+      const mockData = mockEntry.response;
       const body = typeof mockData === 'string' ? mockData : JSON.stringify(mockData);
       return {
-        status: 200,
+        status: mockEntry.status ?? 200,
         headers: {
           'content-type': typeof mockData === 'string' ? 'text/html' : 'application/json',
           'x-kaleidoscope-mocked': 'true',
@@ -214,8 +270,17 @@ class ProxyService {
       };
     }
 
-    // Build target URL
-    const targetUrl = new URL(requestPath, `${session.targetUrl}/`).toString();
+    // A proxy root request represents the exact URL used to create the
+    // session. Nested proxy paths remain origin-relative, matching the
+    // existing proxy route contract.
+    const initialTargetUrl = new URL(session.targetUrl);
+    const target = requestUrl.pathname === '/'
+      ? new URL(session.targetUrl)
+      : new URL(requestUrl.pathname, initialTargetUrl.origin);
+    if (requestUrl.search) {
+      target.search = requestUrl.search;
+    }
+    const targetUrl = target.toString();
     const targetValidation = await validateProxyTargetUrl(targetUrl, { allowLoopback: true });
     if (!targetValidation.allowed) {
       return {
@@ -318,7 +383,7 @@ class ProxyService {
   }
 
   /**
-   * Check if a response indicates authentication failure
+   * Check if a response indicates authentication failure.
    */
   private isAuthFailure(response: Response): boolean {
     // Explicit auth failure status codes
@@ -329,8 +394,22 @@ class ProxyService {
     // Redirect to login page (common pattern)
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location') || '';
-      const loginPatterns = ['/login', '/signin', '/sign-in', '/auth', '/sso', '/oauth', '/cas/login'];
-      if (loginPatterns.some(p => location.toLowerCase().includes(p))) {
+      let locationPath: string;
+      try {
+        locationPath = new URL(location, 'http://kaleidoscope.invalid').pathname.toLowerCase();
+      } catch {
+        locationPath = location.toLowerCase();
+      }
+      const loginPathPatterns = [
+        /^\/login(\/|$)/,
+        /^\/signin(\/|$)/,
+        /^\/sign-in(\/|$)/,
+        /^\/auth(\/|$)/,
+        /^\/sso(\/|$)/,
+        /^\/oauth(\/|$)/,
+        /^\/cas\/login(\/|$)/,
+      ];
+      if (loginPathPatterns.some(pattern => pattern.test(locationPath))) {
         return true;
       }
     }
@@ -339,22 +418,40 @@ class ProxyService {
   }
 
   /**
-   * Find a matching mock route for a given path
+   * Find a matching mock route entry for a given path and method.
+   * Method-specific entries win over method-agnostic entries.
    */
-  private findMockRoute(session: ProxySession, requestPath: string): unknown | undefined {
+  private findMockRoute(session: ProxySession, requestPath: string, method: string): MockRouteEntry | undefined {
     // Exact match first
-    if (session.mockRoutes.has(requestPath)) {
-      return session.mockRoutes.get(requestPath);
+    const exactEntries = session.mockRoutes.get(requestPath);
+    if (exactEntries) {
+      const match = this.pickEntryByMethod(exactEntries, method);
+      if (match) return match;
     }
 
     // Pattern matching (supports * wildcard and /api/users/:id style)
-    for (const [pattern, data] of session.mockRoutes) {
+    for (const [pattern, entries] of session.mockRoutes) {
+      if (pattern === requestPath) continue; // already tried
       if (this.matchPattern(pattern, requestPath)) {
-        return data;
+        const match = this.pickEntryByMethod(entries, method);
+        if (match) return match;
       }
     }
 
     return undefined;
+  }
+
+  /**
+   * Returns the method-specific entry if one exists, else the
+   * method-agnostic entry (method === undefined), else undefined.
+   */
+  private pickEntryByMethod(entries: MockRouteEntry[], method: string): MockRouteEntry | undefined {
+    let anyMethod: MockRouteEntry | undefined;
+    for (const entry of entries) {
+      if (entry.method === method) return entry;
+      if (!entry.method) anyMethod = entry;
+    }
+    return anyMethod;
   }
 
   /**
@@ -365,7 +462,7 @@ class ProxyService {
     const regexStr = '^' + pattern
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // escape regex chars
       .replace(/\\\*/g, '.*')                  // convert * wildcard
-      .replace(/:[a-zA-Z_]+/g, '[^/]+')        // convert :param style
+      .replace(/:[a-zA-Z_][a-zA-Z0-9_]*/g, '[^/]+') // convert :param style
       + '$';
 
     try {
@@ -410,15 +507,20 @@ class ProxyService {
   }
 
   /**
-   * Clean up expired sessions (older than 1 hour)
+   * Clean up expired sessions (1 hour since last access).
+   *
+   * Uses lastAccessedAt, not createdAt, so a session remains alive as long
+   * as an agent (or human) is actively proxying through it. This matters
+   * for long-running review loops where a proxy session survives many
+   * captures and re-loads.
    */
   cleanExpired(): number {
     const now = Date.now();
-    const maxAge = 60 * 60 * 1000; // 1 hour
+    const maxAge = 60 * 60 * 1000; // 1 hour of inactivity
     let cleaned = 0;
 
     for (const [id, session] of this.sessions) {
-      if (now - session.createdAt.getTime() > maxAge) {
+      if (now - session.lastAccessedAt.getTime() > maxAge) {
         this.sessions.delete(id);
         cleaned++;
       }

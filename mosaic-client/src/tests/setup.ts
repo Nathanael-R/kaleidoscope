@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { expect, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
@@ -49,24 +49,16 @@ global.IntersectionObserver = class IntersectionObserver {
 const happyDomWindow = window as typeof window & {
   happyDOM?: {
     settings?: {
-      disableIframePageLoading?: boolean;
+      navigation?: {
+        disableChildFrameNavigation?: boolean;
+      };
     };
   };
 };
 
 if (happyDomWindow.happyDOM?.settings) {
-  happyDomWindow.happyDOM.settings.disableIframePageLoading = true;
+  happyDomWindow.happyDOM.settings.navigation = {
+    ...happyDomWindow.happyDOM.settings.navigation,
+    disableChildFrameNavigation: true,
+  };
 }
-
-const originalConsoleError = console.error.bind(console);
-vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-  const message = args
-    .map((arg) => (arg instanceof Error ? `${arg.name}: ${arg.message}` : String(arg)))
-    .join(' ');
-
-  if (message.includes('Iframe page loading is disabled.')) {
-    return;
-  }
-
-  originalConsoleError(...args);
-});

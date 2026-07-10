@@ -63,6 +63,117 @@ function sendJson(res: ServerResponse, body: unknown, status = 200) {
   res.end(JSON.stringify(body));
 }
 
+function createLayoutCapture(id: string) {
+  return {
+    id,
+    url: 'http://127.0.0.1:3100/checkout',
+    sourceDir: null,
+    capturedAt: '2026-07-04T00:00:00.000Z',
+    updatedAt: '2026-07-04T00:00:00.000Z',
+    durationMs: 12,
+    devices: [
+      {
+        device: {
+          id: 'desktop',
+          name: 'Desktop HD',
+          type: 'desktop',
+          width: 1920,
+          height: 1080,
+        },
+        page: {
+          title: 'Checkout',
+          url: 'http://127.0.0.1:3100/checkout',
+        },
+        viewport: {
+          width: 1920,
+          height: 1080,
+          scrollWidth: 1920,
+          scrollHeight: 1080,
+        },
+        elements: [
+          {
+            key: 'button|0',
+            selector: '[data-testid="save-button"]',
+            selectorKind: 'test-id',
+            selectorStability: 'stable',
+            fallbackKey: 'button|button|save-button',
+            structuralPath: 'html > body:nth-of-type(1) > button:nth-of-type(1)',
+            tagName: 'button',
+            role: 'button',
+            text: 'Save changes',
+            accessibleName: 'Save changes',
+            attributes: {
+              id: null,
+              className: null,
+              testId: 'save-button',
+              ariaLabel: null,
+              name: null,
+              href: null,
+              type: 'button',
+            },
+            rect: {
+              x: 10,
+              y: 20,
+              width: 120,
+              height: 40,
+              top: 20,
+              right: 130,
+              bottom: 60,
+              left: 10,
+            },
+            depth: 2,
+            visible: true,
+            source: {
+              filePath: 'src/App.tsx',
+              lineNumber: 42,
+              columnNumber: 7,
+              componentName: 'SaveButton',
+            },
+          },
+        ],
+        stats: {
+          elementCount: 1,
+          capturedCount: 1,
+          truncated: false,
+        },
+        diagnostics: [],
+      },
+    ],
+    warnings: [],
+  };
+}
+
+function createLayoutDiff(beforeCaptureId: string, afterCaptureId: string) {
+  return {
+    verdict: 'noChange',
+    beforeCaptureId,
+    afterCaptureId,
+    url: 'http://127.0.0.1:3100/checkout',
+    deviceCount: 1,
+    changedDeviceCount: 0,
+    changeCount: 0,
+    truncated: false,
+    coverageChanged: false,
+    devices: [
+      {
+        device: {
+          id: 'desktop',
+          name: 'Desktop HD',
+          type: 'desktop',
+          width: 1920,
+          height: 1080,
+        },
+        beforeElementCount: 1,
+        afterElementCount: 1,
+        matchedCount: 1,
+        changes: [],
+        diagnostics: [],
+      },
+    ],
+    warnings: [],
+  };
+}
+
 test.before(async () => {
   tempDir = mkdtempSync(join(tmpdir(), 'kaleidoscope-mcp-'));
   const screenshotDir = join(tempDir, 'folder with spaces');
@@ -183,6 +294,91 @@ test.before(async () => {
       });
     }
 
+    if (requestUrl.pathname === '/api/layout/capture' && req.method === 'POST') {
+      return sendJson(res, {
+        success: true,
+        capture: createLayoutCapture('layout_00000000-0000-0000-0000-000000000001'),
+      });
+    }
+
+    if (requestUrl.pathname === '/api/layout/after-edit' && req.method === 'POST') {
+      return sendJson(res, {
+        success: true,
+        baselineCaptureId: 'layout_00000000-0000-0000-0000-000000000001',
+        afterCaptureId: 'layout_00000000-0000-0000-0000-000000000002',
+        verdict: 'noChange',
+        summary: {
+          verdict: 'noChange',
+          text: 'noChange: 1 device(s) checked (desktop); no visible layout/text changes detected.',
+          changedDevices: [],
+          topChanges: [],
+        },
+        diff: {
+          ...createLayoutDiff(
+            'layout_00000000-0000-0000-0000-000000000001',
+            'layout_00000000-0000-0000-0000-000000000002',
+          ),
+        },
+        capture: createLayoutCapture('layout_00000000-0000-0000-0000-000000000002'),
+      });
+    }
+
+    if (requestUrl.pathname === '/api/layout/observe' && req.method === 'POST') {
+      return sendJson(res, {
+        success: true,
+        reload: {
+          clientId: 'observe-test-client-123456',
+          event: 'reload',
+          data: { watcherId: 'observe-test' },
+          delivered: false,
+        },
+        baselineCaptureId: 'layout_00000000-0000-0000-0000-000000000001',
+        afterCaptureId: 'layout_00000000-0000-0000-0000-000000000003',
+        verdict: 'noChange',
+        summary: {
+          verdict: 'noChange',
+          text: 'noChange: 1 device(s) checked (desktop); no visible layout/text changes detected.',
+          changedDevices: [],
+          topChanges: [],
+        },
+        diff: {
+          ...createLayoutDiff(
+            'layout_00000000-0000-0000-0000-000000000001',
+            'layout_00000000-0000-0000-0000-000000000003',
+          ),
+        },
+        capture: createLayoutCapture('layout_00000000-0000-0000-0000-000000000003'),
+      });
+    }
+
+    if (requestUrl.pathname === '/api/breakpoints/scan' && req.method === 'POST') {
+      return sendJson(res, {
+        success: true,
+        result: {
+          url: 'http://127.0.0.1:3100/checkout',
+          minWidth: 320,
+          maxWidth: 400,
+          step: 16,
+          height: 900,
+          scannedWidths: [320, 336, 352, 368, 384, 400],
+          issueRanges: [
+            {
+              type: 'horizontal-overflow',
+              key: 'document',
+              message: 'document is 24px wider than the viewport',
+              selector: null,
+              startWidth: 320,
+              endWidth: 336,
+              sampledWidths: [320, 336],
+              maxOverflowPx: 24,
+            },
+          ],
+          verdict: 'issues-found',
+          durationMs: 45,
+        },
+      });
+    }
+
     sendJson(res, { error: `Unhandled route ${requestUrl.pathname}` }, 404);
   });
 
@@ -229,12 +425,16 @@ test('lists tools with output schemas', async () => {
   const tools = await client.listTools();
   const toolMap = new Map(tools.tools.map((tool) => [tool.name, tool]));
 
-  assert.equal(toolMap.size, 11);
+  assert.equal(toolMap.size, 15);
   assert.ok(toolMap.get('kaleidoscope_list_devices')?.outputSchema);
   assert.ok(toolMap.get('preview_responsive')?.outputSchema);
   assert.ok(toolMap.get('capture_screenshots')?.outputSchema);
   assert.ok(toolMap.get('inspect_element_source')?.outputSchema);
   assert.ok(toolMap.get('record_walkthrough')?.outputSchema);
+  assert.ok(toolMap.get('kaleidoscope_read_layout')?.outputSchema);
+  assert.ok(toolMap.get('kaleidoscope_after_edit')?.outputSchema);
+  assert.ok(toolMap.get('kaleidoscope_observe_layout')?.outputSchema);
+  assert.ok(toolMap.get('kaleidoscope_scan_breakpoints')?.outputSchema);
 });
 
 test('kaleidoscope_list_devices returns device presets and defaults', async () => {
@@ -406,4 +606,81 @@ test('proxy and inspect tools return structured results', async () => {
   };
   assert.equal(inspectStructured.selector, '#save');
   assert.equal(inspectStructured.componentName, 'SaveButton');
+});
+
+test('layout tools return structured results', async () => {
+  assert.ok(client, 'client should be connected');
+
+  const captureResult = await client.callTool({
+    name: 'kaleidoscope_read_layout',
+    arguments: {
+      url: 'http://127.0.0.1:3100/checkout',
+      devices: ['desktop'],
+      include_source: true,
+    },
+  });
+  const afterEditResult = await client.callTool({
+    name: 'kaleidoscope_after_edit',
+    arguments: {
+      baseline_capture_id: 'layout_00000000-0000-0000-0000-000000000001',
+    },
+  });
+  const observeResult = await client.callTool({
+    name: 'kaleidoscope_observe_layout',
+    arguments: {
+      baseline_capture_id: 'layout_00000000-0000-0000-0000-000000000001',
+      timeout_ms: 1000,
+    },
+  });
+
+  assert.equal(captureResult.isError, undefined);
+  assert.equal(afterEditResult.isError, undefined);
+  assert.equal(observeResult.isError, undefined);
+  assert.equal(
+    (captureResult.structuredContent as { id: string }).id,
+    'layout_00000000-0000-0000-0000-000000000001',
+  );
+  assert.equal(
+    (afterEditResult.structuredContent as { verdict: string }).verdict,
+    'noChange',
+  );
+  assert.equal(
+    (observeResult.structuredContent as { afterCaptureId: string }).afterCaptureId,
+    'layout_00000000-0000-0000-0000-000000000003',
+  );
+});
+
+test('kaleidoscope_scan_breakpoints returns compact structured findings', async () => {
+  assert.ok(client, 'client should be connected');
+
+  const result = await client.callTool({
+    name: 'kaleidoscope_scan_breakpoints',
+    arguments: {
+      url: 'http://127.0.0.1:3100/checkout',
+      min_width: 320,
+      max_width: 400,
+      step: 16,
+    },
+  });
+
+  assert.equal(result.isError, undefined);
+  const structured = result.structuredContent as {
+    verdict: string;
+    scannedWidthCount: number;
+    issueRanges: Array<{ type: string; startWidth: number; endWidth: number }>;
+  };
+  assert.equal(structured.verdict, 'issues-found');
+  assert.equal(structured.scannedWidthCount, 6);
+  assert.deepEqual(structured.issueRanges, [
+    {
+      type: 'horizontal-overflow',
+      key: 'document',
+      message: 'document is 24px wider than the viewport',
+      selector: null,
+      startWidth: 320,
+      endWidth: 336,
+      sampledWidths: [320, 336],
+      maxOverflowPx: 24,
+    },
+  ]);
 });

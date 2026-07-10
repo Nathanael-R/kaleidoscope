@@ -26,7 +26,7 @@ If your change touches screenshots, browser automation, or end-to-end behavior, 
 npm run test:e2e
 ```
 
-If you are publishing the public npm package for the MCP server, use the maintainer guide in [Documentation/MCP-RELEASE.md](Documentation/MCP-RELEASE.md).
+If you are publishing the public npm package for the MCP server, run the release scripts in `mcp-server/` (`npm run publish:check`, then `npm run publish:public`).
 
 ## Scope Expectations
 
