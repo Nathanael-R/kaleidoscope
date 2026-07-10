@@ -5,6 +5,7 @@ import { createServer, type Server } from 'node:http';
 import screenshotRoutes from './screenshot.routes.js';
 import proxyRoutes from './proxy.routes.js';
 import inspectRoutes from './inspect.routes.js';
+import { proxyService } from '../services/proxy.service.js';
 
 let server: Server;
 let baseUrl = '';
@@ -127,6 +128,26 @@ test('POST /api/proxy/session rejects invalid auth headers with normalized error
   assert.equal(status, 400);
   assert.equal(typeof body.error, 'string');
   assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/proxy/session/:id/mock rejects fractional HTTP statuses', async () => {
+  const session = proxyService.createSession('https://example.com');
+
+  try {
+    const { status, body } = await requestJson(`/api/proxy/session/${session.id}/mock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mocks: [{ pattern: '/api/items', status: 201.5, response: {} }],
+      }),
+    });
+
+    assert.equal(status, 400);
+    assert.match(body.error, /HTTP status code/);
+    assert.equal(body.requestId, 'test-request-id');
+  } finally {
+    proxyService.removeSession(session.id);
+  }
 });
 
 test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {

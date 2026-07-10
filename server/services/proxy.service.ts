@@ -1,12 +1,30 @@
 import { randomUUID } from 'node:crypto';
 import { validateProxyTargetUrl } from '../utils/security.js';
 
+/**
+ * A single registered mock response. Multiple entries may share a pattern.
+ * An entry with method=undefined matches any method, but loses to a
+ * method-specific entry.
+ */
+export interface MockRouteEntry {
+  method?: string;
+  status?: number;
+  response: unknown;
+}
+
+export interface MockRouteInput {
+  pattern: string;
+  method?: string;
+  status?: number;
+  response: unknown;
+}
+
 export interface ProxySession {
   id: string;
   targetUrl: string;
   cookies: Array<{ name: string; value: string }>;
   requestHeaders: Array<{ name: string; value: string }>;
-  mockRoutes: Map<string, unknown>;
+  mockRoutes: Map<string, MockRouteEntry[]>;
   authFailed: boolean;
   mode: 'standard' | 'inspect';
   createdAt: Date;
@@ -153,24 +171,41 @@ class ProxyService {
   /**
    * Register mock data for a URL pattern within a session.
    * When the proxy sees a request matching this pattern, it returns the mock data
-   * instead of forwarding to the target.
+   * instead of forwarding to the target. Accepts a raw response (untyped) for
+   * backward compatibility; new callers should prefer setMockRoutes with
+   * optional method/status.
    */
   setMockRoute(sessionId: string, urlPattern: string, responseData: unknown): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
-    session.mockRoutes.set(urlPattern, responseData);
+    session.mockRoutes.set(urlPattern, [{ response: responseData }]);
     this.touch(session);
     return true;
   }
 
   /**
-   * Set multiple mock routes at once
+   * Set multiple mock routes at once. Each entry may carry an optional
+   * uppercase HTTP method (default: any) and optional status (default: 200).
+   * Multiple entries for the same pattern can coexist when their methods
+   * differ. Re-registering the same pattern + method replaces the old entry.
    */
-  setMockRoutes(sessionId: string, mocks: Array<{ pattern: string; response: unknown }>): boolean {
+  setMockRoutes(sessionId: string, mocks: Array<MockRouteInput>): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     for (const mock of mocks) {
-      session.mockRoutes.set(mock.pattern, mock.response);
+      const normalizedMethod = mock.method?.trim().toUpperCase() || undefined;
+      const normalizedStatus =
+        typeof mock.status === 'number' && Number.isInteger(mock.status) && mock.status >= 100 && mock.status < 600
+          ? mock.status
+          : undefined;
+      const existing = session.mockRoutes.get(mock.pattern) ?? [];
+      const nextEntries = existing.filter(entry => entry.method !== normalizedMethod);
+      nextEntries.push({
+        method: normalizedMethod,
+        status: normalizedStatus,
+        response: mock.response,
+      });
+      session.mockRoutes.set(mock.pattern, nextEntries);
     }
     this.touch(session);
     return true;
@@ -216,12 +251,15 @@ class ProxyService {
     }
     this.touch(session);
 
-    // Check if this path matches a mock route
-    const mockData = this.findMockRoute(session, requestPath);
-    if (mockData !== undefined) {
+    const requestUrl = new URL(requestPath, 'http://kaleidoscope.invalid');
+
+    // Mock patterns describe paths, so query strings do not affect matching.
+    const mockEntry = this.findMockRoute(session, requestUrl.pathname, method.toUpperCase());
+    if (mockEntry) {
+      const mockData = mockEntry.response;
       const body = typeof mockData === 'string' ? mockData : JSON.stringify(mockData);
       return {
-        status: 200,
+        status: mockEntry.status ?? 200,
         headers: {
           'content-type': typeof mockData === 'string' ? 'text/html' : 'application/json',
           'x-kaleidoscope-mocked': 'true',
@@ -232,8 +270,17 @@ class ProxyService {
       };
     }
 
-    // Build target URL
-    const targetUrl = new URL(requestPath, `${session.targetUrl}/`).toString();
+    // A proxy root request represents the exact URL used to create the
+    // session. Nested proxy paths remain origin-relative, matching the
+    // existing proxy route contract.
+    const initialTargetUrl = new URL(session.targetUrl);
+    const target = requestUrl.pathname === '/'
+      ? new URL(session.targetUrl)
+      : new URL(requestUrl.pathname, initialTargetUrl.origin);
+    if (requestUrl.search) {
+      target.search = requestUrl.search;
+    }
+    const targetUrl = target.toString();
     const targetValidation = await validateProxyTargetUrl(targetUrl, { allowLoopback: true });
     if (!targetValidation.allowed) {
       return {
@@ -337,10 +384,6 @@ class ProxyService {
 
   /**
    * Check if a response indicates authentication failure.
-   *
-   * Login-path matching is segment-aware: '/auth' must be a complete path
-   * segment (e.g. '/auth', '/auth/login', '/foo/auth'), not a substring
-   * inside another word (e.g. '/author-profile', '/authorize-transaction').
    */
   private isAuthFailure(response: Response): boolean {
     // Explicit auth failure status codes
@@ -357,8 +400,16 @@ class ProxyService {
       } catch {
         locationPath = location.toLowerCase();
       }
-      const loginSegments = ['/login', '/signin', '/sign-in', '/auth', '/sso', '/oauth', '/cas/login'];
-      if (loginSegments.some(segment => this.pathContainsSegment(locationPath, segment))) {
+      const loginPathPatterns = [
+        /^\/login(\/|$)/,
+        /^\/signin(\/|$)/,
+        /^\/sign-in(\/|$)/,
+        /^\/auth(\/|$)/,
+        /^\/sso(\/|$)/,
+        /^\/oauth(\/|$)/,
+        /^\/cas\/login(\/|$)/,
+      ];
+      if (loginPathPatterns.some(pattern => pattern.test(locationPath))) {
         return true;
       }
     }
@@ -367,35 +418,40 @@ class ProxyService {
   }
 
   /**
-   * Returns true if `pathname` contains `segment` as a complete path segment.
-   * '/auth' matches '/auth' and '/foo/auth' but not '/author-profile'.
+   * Find a matching mock route entry for a given path and method.
+   * Method-specific entries win over method-agnostic entries.
    */
-  private pathContainsSegment(pathname: string, segment: string): boolean {
-    const idx = pathname.indexOf(segment);
-    if (idx < 0) return false;
-    const beforeOk = idx === 0 || pathname[idx - 1] === '/';
-    const after = idx + segment.length;
-    const afterOk = after === pathname.length || pathname[after] === '/';
-    return beforeOk && afterOk;
-  }
-
-  /**
-   * Find a matching mock route for a given path
-   */
-  private findMockRoute(session: ProxySession, requestPath: string): unknown | undefined {
+  private findMockRoute(session: ProxySession, requestPath: string, method: string): MockRouteEntry | undefined {
     // Exact match first
-    if (session.mockRoutes.has(requestPath)) {
-      return session.mockRoutes.get(requestPath);
+    const exactEntries = session.mockRoutes.get(requestPath);
+    if (exactEntries) {
+      const match = this.pickEntryByMethod(exactEntries, method);
+      if (match) return match;
     }
 
     // Pattern matching (supports * wildcard and /api/users/:id style)
-    for (const [pattern, data] of session.mockRoutes) {
+    for (const [pattern, entries] of session.mockRoutes) {
+      if (pattern === requestPath) continue; // already tried
       if (this.matchPattern(pattern, requestPath)) {
-        return data;
+        const match = this.pickEntryByMethod(entries, method);
+        if (match) return match;
       }
     }
 
     return undefined;
+  }
+
+  /**
+   * Returns the method-specific entry if one exists, else the
+   * method-agnostic entry (method === undefined), else undefined.
+   */
+  private pickEntryByMethod(entries: MockRouteEntry[], method: string): MockRouteEntry | undefined {
+    let anyMethod: MockRouteEntry | undefined;
+    for (const entry of entries) {
+      if (entry.method === method) return entry;
+      if (!entry.method) anyMethod = entry;
+    }
+    return anyMethod;
   }
 
   /**
@@ -406,7 +462,7 @@ class ProxyService {
     const regexStr = '^' + pattern
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // escape regex chars
       .replace(/\\\*/g, '.*')                  // convert * wildcard
-      .replace(/:[a-zA-Z_]+/g, '[^/]+')        // convert :param style
+      .replace(/:[a-zA-Z_][a-zA-Z0-9_]*/g, '[^/]+') // convert :param style
       + '$';
 
     try {
@@ -454,7 +510,7 @@ class ProxyService {
    * Clean up expired sessions (1 hour since last access).
    *
    * Uses lastAccessedAt, not createdAt, so a session remains alive as long
-   * as an agent (or human) is actively prox- ing through it. This matters
+   * as an agent (or human) is actively proxying through it. This matters
    * for long-running review loops where a proxy session survives many
    * captures and re-loads.
    */

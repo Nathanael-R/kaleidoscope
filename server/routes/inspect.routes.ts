@@ -16,6 +16,7 @@ import { proxyService } from '../services/proxy.service.js';
 import { isInspectableLocalUrl } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
 import { resolveSourceDirectory } from '../utils/path-policy.js';
+import { logServerError } from '../utils/logger.js';
 
 const router = Router();
 const require = createRequire(import.meta.url);
@@ -560,7 +561,12 @@ router.post('/selector', async (req: Request, res: Response) => {
     });
 
     return res.json({ success: true, result });
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      requestId: res.locals.requestId as string | undefined,
+      path: req.path,
+      method: req.method,
+    });
     return sendError(res, 500, 'Failed to inspect selector');
   }
 });
@@ -604,7 +610,12 @@ router.post('/discover', async (req: Request, res: Response) => {
       query: query.trim(),
       candidates: discovery.candidates,
     });
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      requestId: res.locals.requestId as string | undefined,
+      path: req.path,
+      method: req.method,
+    });
     return sendError(res, 500, 'Failed to discover inspect candidates');
   }
 });

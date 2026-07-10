@@ -10,6 +10,8 @@ import {
 
 const mockPatternSchema = z.object({
   pattern: z.string(),
+  method: z.string().optional(),
+  status: z.number().optional(),
   responsePreview: z.string(),
 });
 
@@ -55,12 +57,24 @@ const injectMockDataInputSchema = {
       'URL path pattern to match. Supports * wildcards and :param placeholders. ' +
       'Examples: "/api/users", "/api/users/*", "/api/posts/:id"',
     ),
+    method: z.string().optional().describe(
+      'Optional HTTP method to match (e.g. "GET", "POST"). When omitted, this mock matches any method. ' +
+      'Use method-specific mocks when the same endpoint returns different data depending on the verb, ' +
+      'or when you want to mock a 409 on POST without affecting GET.',
+    ),
+    status: z.number().int().min(100).max(599).optional().describe(
+      'Optional HTTP status code to return for this mock. Defaults to 200. ' +
+      'Use non-200 statuses to simulate error states: 401 for unauthorized, 404 for missing resource, ' +
+      '409 for conflict, 500 for server failure, 503 for service unavailable.',
+    ),
     response: z.unknown().describe(
       'The mock response data. Can be any JSON value (object, array, string, etc). ' +
-      'Should match the shape the frontend expects from this endpoint.',
+      'Should match the shape the frontend expects from this endpoint. ' +
+      'When status is non-2xx, the response still ships as the body; some apps expect an error payload.',
     ),
   })).max(MAX_MOCK_ROUTES).describe(
-    'Array of mock routes. Each has a URL pattern and a response to return.',
+    'Array of mock routes. Each has a URL pattern and a response to return. ' +
+    'Method and status are optional and apply per pattern, so GET and POST can share a pattern with different outcomes.',
   ),
 } satisfies z.ZodRawShape;
 
@@ -74,7 +88,16 @@ interface PreviewWithAuthResult {
 
 interface MockPatternResult {
   pattern: string;
+  method?: string;
+  status?: number;
   responsePreview: string;
+}
+
+interface MockPatternInput {
+  pattern: string;
+  method?: string;
+  status?: number;
+  response: unknown;
 }
 
 interface InjectMockDataResult {
@@ -215,10 +238,13 @@ export function registerProxyTools(server: McpServer) {
         }
 
         const data = await mockRes.json() as { mockCount: number; message: string };
-        const normalizedMocks = mocks.map((mock: { pattern: string; response: unknown }) => {
+        const requestedMocks = mocks as MockPatternInput[];
+        const normalizedMocks: MockPatternResult[] = requestedMocks.map((mock) => {
           const responsePreview = JSON.stringify(mock.response) ?? 'undefined';
           return {
             pattern: mock.pattern,
+            method: mock.method?.trim().toUpperCase(),
+            status: mock.status,
             responsePreview: responsePreview.length > 80
               ? `${responsePreview.slice(0, 80)}...`
               : responsePreview,
@@ -239,7 +265,11 @@ export function registerProxyTools(server: McpServer) {
           `Routes mocked: ${result.mockCount}`,
           '',
           'Mocked patterns:',
-          ...normalizedMocks.map((mock: { pattern: string; responsePreview: string }) => `  ${mock.pattern} -> ${mock.responsePreview}`),
+          ...normalizedMocks.map((mock) => {
+            const method = mock.method ? `${mock.method} ` : '';
+            const status = mock.status ? ` [${mock.status}]` : '';
+            return `  ${method}${mock.pattern}${status} -> ${mock.responsePreview}`;
+          }),
           '',
           'The proxy will now return this mock data for matching API requests.',
           'The preview iframe will render with this data - no codebase changes needed.',

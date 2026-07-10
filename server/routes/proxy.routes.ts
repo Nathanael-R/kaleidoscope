@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { proxyService } from '../services/proxy.service.js';
 import { validateCookies, validateProxyTargetUrl, validateRequestHeaders } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
+import { logServerError } from '../utils/logger.js';
 
 const router = Router();
 const MAX_MOCK_ROUTES = 50;
@@ -10,7 +11,7 @@ const MAX_MOCK_PATTERN_LENGTH = 200;
 const MAX_MOCK_RESPONSE_BYTES = 250_000;
 const MAX_TOTAL_MOCK_BYTES = 1_000_000;
 
-function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanitized?: Array<{ pattern: string; response: unknown }> } {
+function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanitized?: Array<{ pattern: string; method?: string; status?: number; response: unknown }> } {
   if (!Array.isArray(mocks)) {
     return { valid: false, reason: 'mocks array is required' };
   }
@@ -20,13 +21,13 @@ function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanit
   }
 
   let totalBytes = 0;
-  const sanitized: Array<{ pattern: string; response: unknown }> = [];
+  const sanitized: Array<{ pattern: string; method?: string; status?: number; response: unknown }> = [];
   for (const [index, mock] of mocks.entries()) {
     if (!mock || typeof mock !== 'object') {
       return { valid: false, reason: `mock at index ${index} must be an object` };
     }
 
-    const candidate = mock as { pattern?: unknown; response?: unknown };
+    const candidate = mock as { pattern?: unknown; method?: unknown; status?: unknown; response?: unknown };
     if (typeof candidate.pattern !== 'string' || candidate.pattern.trim().length === 0) {
       return { valid: false, reason: `mock at index ${index} must include a non-empty pattern` };
     }
@@ -34,6 +35,31 @@ function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanit
     const pattern = candidate.pattern.trim();
     if (pattern.length > MAX_MOCK_PATTERN_LENGTH || !pattern.startsWith('/')) {
       return { valid: false, reason: `mock pattern at index ${index} must start with / and be ${MAX_MOCK_PATTERN_LENGTH} characters or fewer` };
+    }
+
+    let method: string | undefined;
+    if (candidate.method !== undefined && candidate.method !== null) {
+      if (typeof candidate.method !== 'string' || candidate.method.trim().length === 0) {
+        return { valid: false, reason: `mock method at index ${index} must be a non-empty string when provided` };
+      }
+      const upper = candidate.method.trim().toUpperCase();
+      if (!/^[A-Z]+$/.test(upper)) {
+        return { valid: false, reason: `mock method at index ${index} must be a valid HTTP method like GET or POST` };
+      }
+      method = upper;
+    }
+
+    let status: number | undefined;
+    if (candidate.status !== undefined && candidate.status !== null) {
+      if (
+        typeof candidate.status !== 'number'
+        || !Number.isInteger(candidate.status)
+        || candidate.status < 100
+        || candidate.status >= 600
+      ) {
+        return { valid: false, reason: `mock status at index ${index} must be an HTTP status code between 100 and 599` };
+      }
+      status = candidate.status;
     }
 
     const encoded = JSON.stringify(candidate.response);
@@ -47,7 +73,7 @@ function validateMocks(mocks: unknown): { valid: boolean; reason?: string; sanit
       return { valid: false, reason: `mock responses exceed ${MAX_TOTAL_MOCK_BYTES} total bytes` };
     }
 
-    sanitized.push({ pattern, response: candidate.response });
+    sanitized.push({ pattern, method, status, response: candidate.response });
   }
 
   return { valid: true, sanitized };
@@ -96,10 +122,19 @@ router.post('/session', async (req: Request, res: Response) => {
         targetUrl: session.targetUrl,
       },
     });
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      requestId: res.locals.requestId as string | undefined,
+      path: req.path,
+      method: req.method,
+    });
     return sendError(res, 500, 'Failed to create proxy session');
   }
 });
+
+function requestQuery(req: Request): string {
+  return new URL(req.originalUrl, 'http://kaleidoscope.invalid').search;
+}
 
 /**
  * PUT /api/proxy/session/:id/cookies
@@ -155,7 +190,7 @@ router.put('/session/:id/auth', (req: Request, res: Response) => {
 router.post('/session/:id/mock', (req: Request, res: Response) => {
   const { id } = req.params;
   const { mocks } = req.body as {
-    mocks: Array<{ pattern: string; response: unknown }>;
+    mocks: Array<{ pattern: string; method?: string; status?: number; response: unknown }>;
   };
 
   const validation = validateMocks(mocks);
@@ -258,7 +293,7 @@ router.delete('/session/:id', (req: Request, res: Response) => {
 router.all('/:sessionId/*', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   // Express puts the rest of the path in params[0] for wildcard routes
-  const targetPath = '/' + (req.params[0] || '');
+  const targetPath = '/' + (req.params[0] || '') + requestQuery(req);
 
   // Collect request headers
   const headers: Record<string, string> = {};
@@ -306,7 +341,7 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
     }
   }
 
-  const result = await proxyService.proxyRequest(sessionId, '/', 'GET', headers);
+  const result = await proxyService.proxyRequest(sessionId, `/${requestQuery(req)}`, 'GET', headers);
 
   for (const [key, value] of Object.entries(result.headers)) {
     if (key.toLowerCase() !== 'transfer-encoding' && key.toLowerCase() !== 'content-length') {
