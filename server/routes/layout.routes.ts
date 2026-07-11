@@ -12,7 +12,6 @@ import {
 } from '../services/layout-capture.service.js';
 import { layoutStoreService } from '../services/layout-store.service.js';
 import type { StoredLayoutCapture } from '../services/layout-types.js';
-import { sseService, type SSEServiceEvent } from '../services/sse.service.js';
 import { sendError } from '../utils/http.js';
 import { logServerError } from '../utils/logger.js';
 import { resolveSourceDirectory } from '../utils/path-policy.js';
@@ -25,16 +24,11 @@ const MAX_DEVICES_PER_CAPTURE = 10;
 const MAX_LAYOUT_ELEMENTS = 300;
 const MIN_LAYOUT_ELEMENTS = 1;
 const LAYOUT_ID_REGEX = /^layout_[0-9a-f-]{36}$/i;
-const WATCHER_EVENT_CLIENT_ID_REGEX = /^[A-Za-z0-9._-]{16,128}$/;
-const MAX_OBSERVE_TIMEOUT_MS = 60_000;
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false };
 
 type LayoutRequestBody = {
   baselineCaptureId?: unknown;
-  eventClientId?: unknown;
-  watcherId?: unknown;
-  timeoutMs?: unknown;
   url?: unknown;
   devices?: unknown;
   sourceDir?: unknown;
@@ -137,33 +131,6 @@ function parseBaselineCaptureId(res: Response, value: unknown): ParseResult<stri
   return { ok: true, value };
 }
 
-function parseObserveOptions(res: Response, body: LayoutRequestBody): ParseResult<{
-  eventClientId?: string;
-  watcherId?: string;
-  timeoutMs: number;
-}> {
-  if (body.eventClientId !== undefined && (typeof body.eventClientId !== 'string' || !WATCHER_EVENT_CLIENT_ID_REGEX.test(body.eventClientId))) {
-    return invalid(res, 400, 'eventClientId must be a valid watcher event client ID when provided');
-  }
-
-  if (body.watcherId !== undefined && (typeof body.watcherId !== 'string' || body.watcherId.trim().length === 0 || body.watcherId.length > 120)) {
-    return invalid(res, 400, 'watcherId must be a non-empty string of 120 characters or fewer when provided');
-  }
-
-  if (body.timeoutMs !== undefined && (typeof body.timeoutMs !== 'number' || !Number.isInteger(body.timeoutMs) || body.timeoutMs < 1 || body.timeoutMs > MAX_OBSERVE_TIMEOUT_MS)) {
-    return invalid(res, 400, `timeoutMs must be an integer between 1 and ${MAX_OBSERVE_TIMEOUT_MS}`);
-  }
-
-  return {
-    ok: true,
-    value: {
-      eventClientId: typeof body.eventClientId === 'string' ? body.eventClientId : undefined,
-      watcherId: typeof body.watcherId === 'string' ? body.watcherId : undefined,
-      timeoutMs: body.timeoutMs ?? 30_000,
-    },
-  };
-}
-
 function resolveSourceDir(
   res: Response,
   sourceDir: unknown,
@@ -264,56 +231,6 @@ function toCaptureSummary(capture: StoredLayoutCapture) {
   };
 }
 
-function waitForReloadEvent(options: {
-  eventClientId?: string;
-  watcherId?: string;
-  timeoutMs: number;
-}): Promise<SSEServiceEvent> {
-  const { eventClientId, watcherId, timeoutMs } = options;
-
-  return new Promise((resolve, reject) => {
-    let cleanup: (() => void) | null = null;
-    let timeout: NodeJS.Timeout | null = null;
-
-    const arm = () => {
-      cleanup = sseService.once('reload', (event) => {
-        if (eventClientId && event.clientId !== eventClientId) {
-          arm();
-          return;
-        }
-
-        if (watcherId && getReloadWatcherId(event) !== watcherId) {
-          arm();
-          return;
-        }
-
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        resolve(event);
-      });
-    };
-
-    timeout = setTimeout(() => {
-      if (cleanup) {
-        cleanup();
-      }
-      reject(new Error('Timed out waiting for a watcher reload event'));
-    }, timeoutMs);
-
-    arm();
-  });
-}
-
-function getReloadWatcherId(event: SSEServiceEvent): string | undefined {
-  const { data } = event;
-  if (typeof data !== 'object' || data === null || !('watcherId' in data)) {
-    return undefined;
-  }
-
-  return typeof data.watcherId === 'string' ? data.watcherId : undefined;
-}
-
 async function captureAndStore(options: LayoutCaptureRequest): Promise<StoredLayoutCapture> {
   return layoutStoreService.save(await layoutCaptureService.capture(options));
 }
@@ -381,51 +298,6 @@ router.post('/after-edit', async (req, res) => {
       method: req.method,
     });
     return sendError(res, 500, 'Failed to compare layout after edit');
-  }
-});
-
-router.post('/observe', async (req, res) => {
-  const body = req.body as LayoutRequestBody;
-  const baselineId = parseBaselineCaptureId(res, body.baselineCaptureId);
-  if (!baselineId.ok) return;
-
-  const observeOptions = parseObserveOptions(res, body);
-  if (!observeOptions.ok) return;
-
-  const baseline = layoutStoreService.get(baselineId.value);
-  if (!baseline) {
-    return sendError(res, 404, 'Baseline layout capture not found');
-  }
-
-  const parsed = await parseCaptureRequest(res, body, {
-    url: baseline.url,
-    devices: baseline.devices.map(deviceCapture => deviceCapture.device.id),
-    sourceDir: baseline.sourceDir,
-  });
-  if (!parsed.ok) return;
-
-  try {
-    const reloadEvent = await waitForReloadEvent(observeOptions.value);
-
-    return res.json({
-      success: true,
-      reload: reloadEvent,
-      ...(await captureAndCompare(baseline, parsed.value)),
-    });
-  } catch (error) {
-    const timedOut = error instanceof Error && error.message.includes('Timed out');
-    if (!timedOut) {
-      logServerError(error, {
-        requestId: res.locals.requestId as string | undefined,
-        path: req.path,
-        method: req.method,
-      });
-    }
-    return sendError(
-      res,
-      timedOut ? 408 : 500,
-      timedOut ? error.message : 'Failed to observe layout after reload',
-    );
   }
 });
 

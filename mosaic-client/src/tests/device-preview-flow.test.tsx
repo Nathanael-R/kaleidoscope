@@ -280,7 +280,7 @@ describe('Device preview flow', () => {
     });
   });
 
-  describe('live reload trigger', () => {
+  describe('iframe reload trigger', () => {
     it('should remount iframe when reloadTrigger increments', () => {
       const { rerender } = render(
         <DeviceFrame device={iphone} url="http://localhost:3000" reloadTrigger={0} />

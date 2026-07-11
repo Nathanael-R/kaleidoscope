@@ -4,11 +4,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerPreviewTools } from './tools/preview.js';
 import { registerScreenshotTools } from './tools/screenshot.js';
-import { registerProxyTools } from './tools/proxy.js';
 import { registerInspectTools } from './tools/inspect.js';
-import { registerWalkthroughTools } from './tools/walkthrough.js';
 import { registerLayoutTools } from './tools/layout.js';
 import { registerBreakpointTools } from './tools/breakpoint.js';
+import { processManager } from './process-manager.js';
 
 const server = new McpServer({
   name: 'kaleidoscope',
@@ -18,9 +17,7 @@ const server = new McpServer({
 // Register all tools
 registerPreviewTools(server);
 registerScreenshotTools(server);
-registerProxyTools(server);
 registerInspectTools(server);
-registerWalkthroughTools(server);
 registerLayoutTools(server);
 registerBreakpointTools(server);
 
@@ -36,3 +33,13 @@ main().catch((error) => {
   process.stderr.write(`Fatal error: ${message.replace(/\r?\n/g, ' ').slice(0, 500)}\n`);
   process.exit(1);
 });
+
+let shuttingDown = false;
+async function shutdownAfterTransportClose() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await processManager.stopAll();
+}
+
+process.stdin.once('end', shutdownAfterTransportClose);
+process.stdin.once('close', shutdownAfterTransportClose);

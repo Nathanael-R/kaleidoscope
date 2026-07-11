@@ -48,11 +48,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "chokidar": "^5.0.0",
     "element-source": "^0.0.5",
     "express": "^4.21.2",
-    "playwright": "^1.59.1",
+    "pixelmatch": "^7.2.0",
     "playwright-core": "^1.59.1",
+    "pngjs": "^7.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

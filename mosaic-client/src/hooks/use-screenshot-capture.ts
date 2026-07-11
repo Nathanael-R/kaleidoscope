@@ -13,14 +13,12 @@ import {
 
 interface UseScreenshotCaptureOptions {
   currentUrl: string;
-  proxyUrl?: string | null;
   onCaptureStart?: () => void;
 }
 
 interface CaptureScreenshotsOptions {
   devices: string[];
   fullPage?: boolean;
-  includeMockup?: boolean;
 }
 
 type ScreenshotCaptureCompleted<TScreenshot extends DownloadableScreenshot> = {
@@ -46,14 +44,13 @@ export type ScreenshotCaptureOutcome<TScreenshot extends DownloadableScreenshot>
 
 export function useScreenshotCapture<TScreenshot extends DownloadableScreenshot>({
   currentUrl,
-  proxyUrl,
   onCaptureStart,
 }: UseScreenshotCaptureOptions) {
   const [isCapturing, setIsCapturing] = useState(false);
   const directoryHandleRef = useRef<FileSystemDirectoryHandleLike | null>(null);
 
   const captureScreenshots = useCallback(
-    async ({ devices, fullPage = false, includeMockup = false }: CaptureScreenshotsOptions): Promise<ScreenshotCaptureOutcome<TScreenshot>> => {
+    async ({ devices, fullPage = false }: CaptureScreenshotsOptions): Promise<ScreenshotCaptureOutcome<TScreenshot>> => {
       if (!currentUrl || devices.length === 0) {
         return { status: "aborted" };
       }
@@ -88,10 +85,9 @@ export function useScreenshotCapture<TScreenshot extends DownloadableScreenshot>
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: proxyUrl || currentUrl,
+            url: currentUrl,
             devices,
             fullPage,
-            includeMockup,
           }),
         });
 
@@ -136,7 +132,7 @@ export function useScreenshotCapture<TScreenshot extends DownloadableScreenshot>
         setIsCapturing(false);
       }
     },
-    [currentUrl, onCaptureStart, proxyUrl],
+    [currentUrl, onCaptureStart],
   );
 
   return {

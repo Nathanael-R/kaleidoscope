@@ -112,32 +112,6 @@ describe('Screenshot capture', () => {
       expect(captureBtn).toBeDisabled();
     });
 
-    it('should send includeMockup when the option is enabled', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ screenshots: [] }),
-      });
-
-      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
-
-      fireEvent.click(screen.getByTestId('include-mockup-checkbox'));
-      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
-
-      await waitFor(() => {
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.includeMockup).toBe(true);
-        expect(body.fullPage).toBe(false);
-      });
-    });
-
-    it('should disable full page capture when mockups are enabled', () => {
-      render(<ScreenshotPanel currentUrl="http://localhost:3000" />);
-
-      fireEvent.click(screen.getByTestId('include-mockup-checkbox'));
-
-      expect(screen.getByLabelText('Full page capture')).toBeDisabled();
-      expect(screen.getByText(/Mockup captures use the visible device viewport/)).toBeInTheDocument();
-    });
   });
 
   describe('capturing with regular URL', () => {
@@ -257,52 +231,6 @@ describe('Screenshot capture', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Browser not available')).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('capturing with proxy URL (auth-protected sites)', () => {
-    it('should send the proxy URL instead of current URL when proxy is active', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          screenshots: [{ device: 'iPhone 14', path: '/screenshots/iphone.png', width: 390, height: 844 }],
-        }),
-      });
-
-      render(
-        <ScreenshotPanel
-          currentUrl="http://localhost:3000/dashboard"
-          proxyUrl="http://localhost:5000/api/proxy/sess123/"
-        />
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
-
-      await waitFor(() => {
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.url).toBe('http://localhost:5000/api/proxy/sess123/');
-      });
-    });
-
-    it('should fall back to current URL when no proxy is set', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ screenshots: [] }),
-      });
-
-      render(
-        <ScreenshotPanel
-          currentUrl="http://localhost:3000/dashboard"
-          proxyUrl={null}
-        />
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: /Capture 3 Screenshots/ }));
-
-      await waitFor(() => {
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.url).toBe('http://localhost:3000/dashboard');
       });
     });
   });

@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer, type Server } from 'node:http';
 import screenshotRoutes from './screenshot.routes.js';
-import proxyRoutes from './proxy.routes.js';
 import inspectRoutes from './inspect.routes.js';
-import { proxyService } from '../services/proxy.service.js';
 
 let server: Server;
 let baseUrl = '';
@@ -25,7 +23,6 @@ test.before(async () => {
   });
 
   app.use('/api/screenshots', screenshotRoutes);
-  app.use('/api/proxy', proxyRoutes);
   app.use('/api/inspect', inspectRoutes);
 
   server = createServer(app);
@@ -98,56 +95,6 @@ test('POST /api/screenshots accepts loopback proxy URLs before device validation
   assert.equal(status, 400);
   assert.match(body.error, /Invalid device IDs/);
   assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/proxy/session rejects invalid cookies with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/proxy/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'https://example.com',
-      cookies: [{ name: 'bad;name', value: 'cookie-value' }],
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/proxy/session rejects invalid auth headers with normalized error payload', async () => {
-  const { status, body } = await requestJson('/api/proxy/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: 'https://example.com',
-      headers: [{ name: 'Cookie', value: 'session=abc' }],
-    }),
-  });
-
-  assert.equal(status, 400);
-  assert.equal(typeof body.error, 'string');
-  assert.equal(body.requestId, 'test-request-id');
-});
-
-test('POST /api/proxy/session/:id/mock rejects fractional HTTP statuses', async () => {
-  const session = proxyService.createSession('https://example.com');
-
-  try {
-    const { status, body } = await requestJson(`/api/proxy/session/${session.id}/mock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mocks: [{ pattern: '/api/items', status: 201.5, response: {} }],
-      }),
-    });
-
-    assert.equal(status, 400);
-    assert.match(body.error, /HTTP status code/);
-    assert.equal(body.requestId, 'test-request-id');
-  } finally {
-    proxyService.removeSession(session.id);
-  }
 });
 
 test('POST /api/inspect/session rejects public URLs with normalized error payload', async () => {

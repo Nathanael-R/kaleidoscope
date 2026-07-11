@@ -107,6 +107,40 @@ const screenshotInputSchema = {
   ),
 } satisfies z.ZodRawShape;
 
+const visualDiffInputSchema = {
+  baseline_path: z.string().max(2048).describe(
+    'Absolute or screenshot-root-relative PNG path returned by an earlier capture_screenshots call.',
+  ),
+  current_path: z.string().max(2048).describe(
+    'Absolute or screenshot-root-relative PNG path returned by a later capture_screenshots call.',
+  ),
+  color_threshold: z.number().min(0).max(1).optional().describe(
+    'Per-pixel perceptual color threshold. Lower is more sensitive. Defaults to 0.1.',
+  ),
+  allowed_diff_percentage: z.number().min(0).max(100).optional().describe(
+    'Maximum changed-pixel percentage still considered unchanged. Defaults to 0.',
+  ),
+  include_antialiasing: z.boolean().optional().describe(
+    'Count anti-aliased pixel differences instead of ignoring them. Defaults to false.',
+  ),
+} satisfies z.ZodRawShape;
+
+const visualDiffOutputSchema = {
+  verdict: z.enum(['unchanged', 'changed']),
+  baselinePath: z.string(),
+  currentPath: z.string(),
+  diffPath: z.string(),
+  width: z.number(),
+  height: z.number(),
+  totalPixels: z.number(),
+  mismatchedPixels: z.number(),
+  mismatchPercentage: z.number(),
+  colorThreshold: z.number(),
+  allowedDiffPercentage: z.number(),
+  includeAntialiasing: z.boolean(),
+  diff: screenshotEntrySchema,
+} satisfies z.ZodRawShape;
+
 interface ScreenshotOutput {
   url: string;
   outputDirectory: string;
@@ -280,6 +314,97 @@ export function registerScreenshotTools(server: McpServer) {
         return createStructuredResult(result, lines.join('\n'), screenshotContent);
       } catch (error) {
         return createErrorResult(await formatToolError('capturing screenshots', error));
+      }
+    },
+  );
+
+  registerTool(
+    'compare_screenshots',
+    {
+      description:
+        'Compare two PNG screenshots pixel by pixel and write a highlighted diff image. ' +
+        'Use paths returned by capture_screenshots for the same device and capture mode. ' +
+        'Returns exact mismatch counts, percentage, a thresholded verdict, and a chat-ready diff artifact.',
+      inputSchema: visualDiffInputSchema,
+      outputSchema: visualDiffOutputSchema,
+    },
+    async ({
+      baseline_path,
+      current_path,
+      color_threshold,
+      allowed_diff_percentage,
+      include_antialiasing,
+    }) => {
+      try {
+        if (!(await processManager.isServerReachable())) {
+          await processManager.startServer();
+        }
+
+        const response = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/screenshots/compare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            baselinePath: baseline_path,
+            currentPath: current_path,
+            colorThreshold: color_threshold,
+            allowedDiffPercentage: allowed_diff_percentage,
+            includeAntialiasing: include_antialiasing,
+          }),
+        });
+        const body = await response.json() as {
+          error?: string;
+          verdict: 'unchanged' | 'changed';
+          baselinePath: string;
+          currentPath: string;
+          diffPath: string;
+          diffUrl: string;
+          width: number;
+          height: number;
+          totalPixels: number;
+          mismatchedPixels: number;
+          mismatchPercentage: number;
+          colorThreshold: number;
+          allowedDiffPercentage: number;
+          includeAntialiasing: boolean;
+        };
+        if (!response.ok) {
+          return createErrorResult(`Screenshot comparison failed: ${body.error ?? response.statusText}`);
+        }
+
+        const diff = await createScreenshotEntry({
+          device: 'Pixel diff',
+          path: body.diffPath,
+          width: body.width,
+          height: body.height,
+          url: body.diffUrl,
+        }, KALEIDOSCOPE_SERVER);
+        const { content } = await buildScreenshotContent([diff]);
+        const result = {
+          verdict: body.verdict,
+          baselinePath: body.baselinePath,
+          currentPath: body.currentPath,
+          diffPath: body.diffPath,
+          width: body.width,
+          height: body.height,
+          totalPixels: body.totalPixels,
+          mismatchedPixels: body.mismatchedPixels,
+          mismatchPercentage: body.mismatchPercentage,
+          colorThreshold: body.colorThreshold,
+          allowedDiffPercentage: body.allowedDiffPercentage,
+          includeAntialiasing: body.includeAntialiasing,
+          diff,
+        };
+        const text = [
+          `Pixel comparison: ${body.verdict}`,
+          `Changed pixels: ${body.mismatchedPixels}/${body.totalPixels} (${body.mismatchPercentage.toFixed(4)}%)`,
+          `Allowed difference: ${body.allowedDiffPercentage}%`,
+          `Diff image: ${body.diffPath}`,
+          diff.markdownImageTag ? `Show the diff with: ${diff.markdownImageTag}` : '',
+        ].filter(Boolean).join('\n');
+
+        return createStructuredResult(result, text, content);
+      } catch (error) {
+        return createErrorResult(await formatToolError('comparing screenshots', error));
       }
     },
   );

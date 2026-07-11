@@ -15,7 +15,6 @@ interface ScreenshotResult {
 
 interface ScreenshotPanelProps {
   currentUrl: string;
-  proxyUrl?: string | null;
 }
 
 const DEVICE_OPTIONS = devices.map(device => ({
@@ -59,20 +58,18 @@ function CollapsiblePanelSection({
   );
 }
 
-export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPanelProps) {
+export default function ScreenshotPanel({ currentUrl }: ScreenshotPanelProps) {
   const [selectedDevices, setSelectedDevices] = useState<string[]>([
     "iphone-14",
     "ipad",
     "desktop",
   ]);
   const [fullPage, setFullPage] = useState(false);
-  const [includeMockup, setIncludeMockup] = useState(false);
   const [results, setResults] = useState<ScreenshotResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const { isCapturing: capturing, captureScreenshots } = useScreenshotCapture<ScreenshotResult>({
     currentUrl,
-    proxyUrl,
     onCaptureStart: () => {
       setError(null);
       setResults([]);
@@ -100,7 +97,6 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
     const outcome = await captureScreenshots({
       devices: selectedDevices,
       fullPage,
-      includeMockup,
     });
 
     if (outcome.status === "aborted") {
@@ -186,39 +182,12 @@ export default function ScreenshotPanel({ currentUrl, proxyUrl }: ScreenshotPane
       <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
         <input
           type="checkbox"
-          checked={includeMockup}
-          onChange={(e) => {
-            const nextValue = e.target.checked;
-            setIncludeMockup(nextValue);
-            if (nextValue) {
-              setFullPage(false);
-            }
-          }}
-          className="rounded border-gray-300"
-          data-testid="include-mockup-checkbox"
-        />
-        Include device mockups
-      </label>
-      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-        Wrap each screenshot in a device frame instead of saving only the page content.
-      </p>
-
-      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-        <input
-          type="checkbox"
           checked={fullPage}
           onChange={(e) => setFullPage(e.target.checked)}
-          disabled={includeMockup}
           className="rounded border-gray-300"
         />
         Full page capture
       </label>
-      {includeMockup && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          Full-page capture is only available for raw screenshots. Mockup captures use the visible device viewport.
-        </p>
-      )}
-
       {/* Capture Button */}
       <Button
         onClick={handleCaptureScreenshots}

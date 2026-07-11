@@ -10,7 +10,6 @@ import {
   hasDeviceConfig,
   type DeviceConfig,
 } from './device-catalog.js';
-import { renderMockupScreenshot } from './screenshot-mockup.js';
 
 export const SCREENSHOT_DEVICE_MAP = DEVICE_MAP;
 
@@ -29,7 +28,6 @@ export interface ScreenshotRequest {
   devices: string[];
   outputDir: string;
   fullPage?: boolean;
-  includeMockup?: boolean;
 }
 
 export interface ScreenshotResult {
@@ -41,7 +39,7 @@ export interface ScreenshotResult {
 
 class ScreenshotService {
   async capture(request: ScreenshotRequest): Promise<ScreenshotResult[]> {
-    const { url, devices, outputDir, fullPage = false, includeMockup = false } = request;
+    const { url, devices, outputDir, fullPage = false } = request;
 
     // Ensure output directory exists
     const absDir = resolve(outputDir);
@@ -70,33 +68,19 @@ class ScreenshotService {
         await page.waitForTimeout(500);
 
         const timestamp = Date.now();
-        const filename = `${config.id}-${timestamp}${includeMockup ? '-mockup' : ''}.png`;
+        const filename = `${config.id}-${timestamp}.png`;
         const filepath = join(absDir, filename);
 
-        let width = config.width;
-        let height = config.height;
-
-        if (includeMockup) {
-          const screenshotBuffer = await page.screenshot({
-            fullPage: false,
-            type: 'png',
-          });
-
-          const mockupSize = await renderMockupScreenshot(browser, config, screenshotBuffer, filepath);
-          width = mockupSize.width;
-          height = mockupSize.height;
-        } else {
-          await page.screenshot({
-            path: filepath,
-            fullPage,
-          });
-        }
+        await page.screenshot({
+          path: filepath,
+          fullPage,
+        });
 
         results.push({
           device: config.name,
           path: filepath,
-          width,
-          height,
+          width: config.width,
+          height: config.height,
         });
       } catch {
         console.error(`Screenshot failed for ${config.name}.`);

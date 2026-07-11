@@ -21,7 +21,6 @@ interface PreviewAreaProps {
   pinnedDevices: Device[];
   viewMode: 'single' | 'comparison';
   onDevicePin?: (device: Device) => void;
-  reloadTrigger?: number;
   canInspect?: boolean;
   inspectEnabled?: boolean;
   inspectPending?: boolean;
@@ -37,7 +36,6 @@ export default function PreviewArea({
   pinnedDevices,
   viewMode,
   onDevicePin,
-  reloadTrigger = 0,
   canInspect = false,
   inspectEnabled = false,
   inspectPending = false,
@@ -386,7 +384,7 @@ export default function PreviewArea({
               proxyUrl={proxyUrl}
               isLandscape={isLandscape}
               scale={effectiveSingleScale}
-              reloadTrigger={reloadTrigger + localReloadTrigger}
+              reloadTrigger={localReloadTrigger}
               inspectEnabled={inspectEnabled}
               onInspectSelection={onInspectSelection}
             />
@@ -398,7 +396,7 @@ export default function PreviewArea({
           currentUrl={currentUrl}
           proxyUrl={proxyUrl}
           isLandscape={isLandscape}
-          reloadTrigger={reloadTrigger + localReloadTrigger}
+          reloadTrigger={localReloadTrigger}
           isCompactViewport={isCompactComparisonViewport}
           getComparisonScale={getComparisonScale}
           onDevicePin={handleDevicePin}

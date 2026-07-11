@@ -3,8 +3,6 @@ import { create } from 'zustand';
 interface PreviewState {
   currentUrl: string;
   setCurrentUrl: (url: string) => void;
-  proxyUrl: string | null;
-  setProxyUrl: (url: string | null) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
   toggleDarkMode: () => void;
@@ -42,8 +40,6 @@ if (storedDark) {
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   currentUrl: '',
   setCurrentUrl: (url) => set({ currentUrl: url }),
-  proxyUrl: null,
-  setProxyUrl: (url) => set({ proxyUrl: url }),
   darkMode: storedDark,
   setDarkMode: (dark) => {
     setStoredDarkMode(dark);

@@ -27,8 +27,6 @@ export interface PreviewWorkspaceController {
   handleDevicePin: (device: Device) => void;
   viewMode: "single" | "comparison";
   handleViewModeToggle: () => void;
-  handleReload: () => void;
-  proxyUrl: string | null;
   effectiveProxyUrl: string | null;
   inspectEnabled: boolean;
   inspectPending: boolean;
@@ -41,7 +39,6 @@ export interface PreviewWorkspaceController {
   handleInspectSelection: (selection: InspectSelectionPayload) => Promise<void>;
   inspectAvailable: boolean;
   handleAddDeviceToCanvas: (device: Device) => void;
-  reloadTrigger: number;
 }
 
 export function usePreviewWorkspace(
@@ -49,11 +46,10 @@ export function usePreviewWorkspace(
 ): PreviewWorkspaceController {
   const { keyboardNavigationEnabled = true } = options;
   const [selectedDevice, setSelectedDevice] = useState<Device>(devices[0]);
-  const { currentUrl, setCurrentUrl, proxyUrl } = usePreviewStore();
+  const { currentUrl, setCurrentUrl } = usePreviewStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pinnedDevices, setPinnedDevices] = useState<Device[]>([]);
   const [viewMode, setViewMode] = useState<"single" | "comparison">("single");
-  const [reloadTrigger, setReloadTrigger] = useState(0);
   const [inspectEnabled, setInspectEnabled] = useState(false);
   const [inspectProxyUrl, setInspectProxyUrl] = useState<string | null>(null);
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null);
@@ -64,7 +60,7 @@ export function usePreviewWorkspace(
 
   const inspectAvailable = viewMode === "single" && isInspectableLocalUrl(currentUrl);
   const inspectPending = inspectSessionLoading || inspectResolving;
-  const effectiveProxyUrl = inspectEnabled && inspectProxyUrl ? inspectProxyUrl : proxyUrl;
+  const effectiveProxyUrl = inspectEnabled ? inspectProxyUrl : null;
 
   const handleDeviceSelect = useCallback((device: Device) => {
     setSelectedDevice(device);
@@ -122,10 +118,6 @@ export function usePreviewWorkspace(
 
   const handleViewModeToggle = useCallback(() => {
     setViewMode((previous) => (previous === "single" ? "comparison" : "single"));
-  }, []);
-
-  const handleReload = useCallback(() => {
-    setReloadTrigger((previous) => previous + 1);
   }, []);
 
   const clearInspect = useCallback(() => {
@@ -318,8 +310,6 @@ export function usePreviewWorkspace(
     handleDevicePin,
     viewMode,
     handleViewModeToggle,
-    handleReload,
-    proxyUrl,
     effectiveProxyUrl,
     inspectEnabled,
     inspectPending,
@@ -332,6 +322,5 @@ export function usePreviewWorkspace(
     handleInspectSelection,
     inspectAvailable,
     handleAddDeviceToCanvas,
-    reloadTrigger,
   };
 }

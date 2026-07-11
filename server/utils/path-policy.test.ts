@@ -4,7 +4,6 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
-  ARTIFACT_ROOT_ENV,
   WORKSPACE_ROOT_ENV,
   isPathInside,
   resolveBoundedPath,
@@ -35,7 +34,6 @@ test('resolveBoundedPath rejects traversal and outside absolute paths', () => {
 
 test('resolveSourceDirectory uses KALEIDOSCOPE_WORKSPACE_ROOT boundary', () => {
   const previousWorkspaceRoot = process.env[WORKSPACE_ROOT_ENV];
-  const previousArtifactRoot = process.env[ARTIFACT_ROOT_ENV];
   const root = mkdtempSync(path.join(tmpdir(), 'source-root-'));
   const project = path.join(root, 'project');
   const outside = mkdtempSync(path.join(tmpdir(), 'source-outside-'));
@@ -51,12 +49,6 @@ test('resolveSourceDirectory uses KALEIDOSCOPE_WORKSPACE_ROOT boundary', () => {
       delete process.env[WORKSPACE_ROOT_ENV];
     } else {
       process.env[WORKSPACE_ROOT_ENV] = previousWorkspaceRoot;
-    }
-
-    if (previousArtifactRoot === undefined) {
-      delete process.env[ARTIFACT_ROOT_ENV];
-    } else {
-      process.env[ARTIFACT_ROOT_ENV] = previousArtifactRoot;
     }
 
     rmSync(root, { recursive: true, force: true });

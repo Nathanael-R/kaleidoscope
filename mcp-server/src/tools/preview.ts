@@ -43,11 +43,6 @@ const previewInputSchema = {
   ),
 } satisfies z.ZodRawShape;
 
-const stopOutputSchema = {
-  stopped: z.boolean(),
-  message: z.string(),
-} satisfies z.ZodRawShape;
-
 interface ServiceStatusResult {
   running: boolean;
   pid: number | null;
@@ -201,56 +196,4 @@ export function registerPreviewTools(server: McpServer) {
     },
   );
 
-  registerTool(
-    'kaleidoscope_start',
-    {
-      description:
-        'Start Kaleidoscope services (client + server). Idempotent - safe to call even if already running.',
-      inputSchema: {},
-      outputSchema: statusOutputSchema as z.ZodRawShape,
-    },
-    async () => {
-      try {
-        const status = await processManager.startAll();
-        const result: StatusResult = {
-          client: normalizeServiceStatus(status.client),
-          server: normalizeServiceStatus(status.server),
-        };
-
-        return createStructuredResult(
-          result,
-          [
-            'Kaleidoscope started successfully!',
-            `  Client: ${result.client.url}`,
-            `  Server: ${result.server.url}`,
-            '',
-            'Open the client URL in a browser to use the preview tool.',
-          ].join('\n'),
-        );
-      } catch (error) {
-        return createErrorResult(await formatToolError('starting Kaleidoscope', error));
-      }
-    },
-  );
-
-  registerTool(
-    'kaleidoscope_stop',
-    {
-      description: 'Stop all Kaleidoscope services.',
-      inputSchema: {},
-      outputSchema: stopOutputSchema as z.ZodRawShape,
-    },
-    async () => {
-      try {
-        await processManager.stopAll();
-        const result = {
-          stopped: true,
-          message: 'Kaleidoscope services stopped.',
-        };
-        return createStructuredResult(result, result.message);
-      } catch (error) {
-        return createErrorResult(await formatToolError('stopping services', error));
-      }
-    },
-  );
 }

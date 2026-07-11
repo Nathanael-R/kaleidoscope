@@ -2,7 +2,6 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 export const WORKSPACE_ROOT_ENV = 'KALEIDOSCOPE_WORKSPACE_ROOT';
-export const ARTIFACT_ROOT_ENV = 'KALEIDOSCOPE_ARTIFACT_ROOT';
 
 export interface BoundedPathResult {
   ok: boolean;
@@ -12,10 +11,6 @@ export interface BoundedPathResult {
 
 export function getWorkspaceRoot(): string {
   return path.resolve(process.env[WORKSPACE_ROOT_ENV]?.trim() || process.cwd());
-}
-
-export function getArtifactRoot(): string {
-  return path.resolve(process.env[ARTIFACT_ROOT_ENV]?.trim() || process.cwd());
 }
 
 export function isPathInside(baseDir: string, targetPath: string): boolean {
@@ -34,6 +29,7 @@ export function resolveBoundedPath(
     label: string;
     mustExist?: boolean;
     mustBeDirectory?: boolean;
+    mustBeFile?: boolean;
   },
 ): BoundedPathResult {
   const trimmed = input.trim();
@@ -66,6 +62,16 @@ export function resolveBoundedPath(
     try {
       if (!statSync(resolved).isDirectory()) {
         return { ok: false, error: `${options.label} must be a directory.` };
+      }
+    } catch {
+      return { ok: false, error: `${options.label} could not be inspected.` };
+    }
+  }
+
+  if (options.mustBeFile) {
+    try {
+      if (!statSync(resolved).isFile()) {
+        return { ok: false, error: `${options.label} must be a file.` };
       }
     } catch {
       return { ok: false, error: `${options.label} could not be inspected.` };

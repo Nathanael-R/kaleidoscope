@@ -203,37 +203,6 @@ test.before(async () => {
       });
     }
 
-    if (requestUrl.pathname === '/api/proxy/session' && req.method === 'POST') {
-      const body = await readJson(req) as { url?: string };
-      return sendJson(res, {
-        success: true,
-        session: {
-          id: 'proxy_test',
-          proxyUrl: '/api/proxy/proxy_test',
-          targetUrl: body.url ?? 'https://example.com',
-        },
-      });
-    }
-
-    if (requestUrl.pathname === '/api/proxy/session/proxy_test/status') {
-      return sendJson(res, { authFailed: false });
-    }
-
-    if (requestUrl.pathname === '/api/proxy/session/proxy_test/mock' && req.method === 'POST') {
-      const body = await readJson(req) as { mocks?: unknown[] };
-      return sendJson(res, {
-        mockCount: body.mocks?.length ?? 0,
-        message: `${body.mocks?.length ?? 0} mock route(s) registered.`,
-      });
-    }
-
-    if (requestUrl.pathname === '/api/proxy/proxy_test/') {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'text/html');
-      res.end('<!doctype html><html><body>proxied</body></html>');
-      return;
-    }
-
     if (requestUrl.pathname === '/api/inspect/discover' && req.method === 'POST') {
       const body = await readJson(req) as { query?: string; device?: unknown };
       return sendJson(res, {
@@ -294,6 +263,26 @@ test.before(async () => {
       });
     }
 
+    if (requestUrl.pathname === '/api/screenshots/compare' && req.method === 'POST') {
+      const body = await readJson(req) as { baselinePath?: string; currentPath?: string };
+      return sendJson(res, {
+        success: true,
+        verdict: 'changed',
+        baselinePath: body.baselinePath,
+        currentPath: body.currentPath,
+        diffPath: screenshotPath,
+        diffUrl: '/api/screenshots-files/folder with spaces/desktop test.png',
+        width: 1,
+        height: 1,
+        totalPixels: 1,
+        mismatchedPixels: 1,
+        mismatchPercentage: 100,
+        colorThreshold: 0.1,
+        allowedDiffPercentage: 0,
+        includeAntialiasing: false,
+      });
+    }
+
     if (requestUrl.pathname === '/api/layout/capture' && req.method === 'POST') {
       return sendJson(res, {
         success: true,
@@ -320,34 +309,6 @@ test.before(async () => {
           ),
         },
         capture: createLayoutCapture('layout_00000000-0000-0000-0000-000000000002'),
-      });
-    }
-
-    if (requestUrl.pathname === '/api/layout/observe' && req.method === 'POST') {
-      return sendJson(res, {
-        success: true,
-        reload: {
-          clientId: 'observe-test-client-123456',
-          event: 'reload',
-          data: { watcherId: 'observe-test' },
-          delivered: false,
-        },
-        baselineCaptureId: 'layout_00000000-0000-0000-0000-000000000001',
-        afterCaptureId: 'layout_00000000-0000-0000-0000-000000000003',
-        verdict: 'noChange',
-        summary: {
-          verdict: 'noChange',
-          text: 'noChange: 1 device(s) checked (desktop); no visible layout/text changes detected.',
-          changedDevices: [],
-          topChanges: [],
-        },
-        diff: {
-          ...createLayoutDiff(
-            'layout_00000000-0000-0000-0000-000000000001',
-            'layout_00000000-0000-0000-0000-000000000003',
-          ),
-        },
-        capture: createLayoutCapture('layout_00000000-0000-0000-0000-000000000003'),
       });
     }
 
@@ -425,15 +386,14 @@ test('lists tools with output schemas', async () => {
   const tools = await client.listTools();
   const toolMap = new Map(tools.tools.map((tool) => [tool.name, tool]));
 
-  assert.equal(toolMap.size, 15);
+  assert.equal(toolMap.size, 10);
   assert.ok(toolMap.get('kaleidoscope_list_devices')?.outputSchema);
   assert.ok(toolMap.get('preview_responsive')?.outputSchema);
   assert.ok(toolMap.get('capture_screenshots')?.outputSchema);
+  assert.ok(toolMap.get('compare_screenshots')?.outputSchema);
   assert.ok(toolMap.get('inspect_element_source')?.outputSchema);
-  assert.ok(toolMap.get('record_walkthrough')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_read_layout')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_after_edit')?.outputSchema);
-  assert.ok(toolMap.get('kaleidoscope_observe_layout')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_scan_breakpoints')?.outputSchema);
 });
 
@@ -579,15 +539,34 @@ test('capture_screenshots returns structured metadata and rich content', async (
   );
 });
 
-test('proxy and inspect tools return structured results', async () => {
+test('compare_screenshots returns metrics and a diff artifact', async () => {
   assert.ok(client, 'client should be connected');
 
-  const proxyResult = await client.callTool({
-    name: 'preview_with_auth',
+  const result = await client.callTool({
+    name: 'compare_screenshots',
     arguments: {
-      url: 'https://example.com/private',
+      baseline_path: screenshotPath,
+      current_path: screenshotPath,
     },
   });
+
+  assert.equal(result.isError, undefined);
+  const structured = result.structuredContent as {
+    verdict: string;
+    mismatchedPixels: number;
+    mismatchPercentage: number;
+    diff: { path: string; markdownImageTag: string | null };
+  };
+  assert.equal(structured.verdict, 'changed');
+  assert.equal(structured.mismatchedPixels, 1);
+  assert.equal(structured.mismatchPercentage, 100);
+  assert.equal(structured.diff.path, screenshotPath);
+  assert.ok(structured.diff.markdownImageTag);
+});
+
+test('inspect tool returns structured results', async () => {
+  assert.ok(client, 'client should be connected');
+
   const inspectResult = await client.callTool({
     name: 'inspect_element_source',
     arguments: {
@@ -596,9 +575,6 @@ test('proxy and inspect tools return structured results', async () => {
       device: 'desktop',
     },
   });
-
-  assert.equal((proxyResult.structuredContent as { sessionId: string }).sessionId, 'proxy_test');
-  assert.equal((proxyResult.structuredContent as { authFailed: boolean }).authFailed, false);
 
   const inspectStructured = inspectResult.structuredContent as {
     selector: string | null;
@@ -625,17 +601,8 @@ test('layout tools return structured results', async () => {
       baseline_capture_id: 'layout_00000000-0000-0000-0000-000000000001',
     },
   });
-  const observeResult = await client.callTool({
-    name: 'kaleidoscope_observe_layout',
-    arguments: {
-      baseline_capture_id: 'layout_00000000-0000-0000-0000-000000000001',
-      timeout_ms: 1000,
-    },
-  });
-
   assert.equal(captureResult.isError, undefined);
   assert.equal(afterEditResult.isError, undefined);
-  assert.equal(observeResult.isError, undefined);
   assert.equal(
     (captureResult.structuredContent as { id: string }).id,
     'layout_00000000-0000-0000-0000-000000000001',
@@ -643,10 +610,6 @@ test('layout tools return structured results', async () => {
   assert.equal(
     (afterEditResult.structuredContent as { verdict: string }).verdict,
     'noChange',
-  );
-  assert.equal(
-    (observeResult.structuredContent as { afterCaptureId: string }).afterCaptureId,
-    'layout_00000000-0000-0000-0000-000000000003',
   );
 });
 
