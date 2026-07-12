@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { SAMPLE_SITE_URL } from './test-urls';
 
 const STRESS_DEVICE_IDS = [
   'iphone-14',
@@ -96,10 +97,9 @@ test.describe('Preview runtime stress', () => {
       crashed = true;
     });
 
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('input-url').fill(SAMPLE_SITE_URL);
     await page.getByTestId('button-load-url').click();
     await expect(page.getByTestId('preview-iframe')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('Loading website...')).toHaveCount(0, { timeout: 30000 });

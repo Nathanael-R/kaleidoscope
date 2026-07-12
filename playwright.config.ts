@@ -42,7 +42,7 @@ export default defineConfig({
       timeout: 120 * 1000,
     },
     {
-      command: 'cd server && npm run dev',
+      command: 'cd server && npx cross-env KALEIDOSCOPE_WORKSPACE_ROOT=.. npm run dev',
       url: 'http://localhost:5000/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

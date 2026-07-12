@@ -41,7 +41,8 @@
     "docker:build": "docker-compose build"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.2"
+    "@playwright/test": "^1.48.2",
+    "esbuild": "^0.28.1"
   },
   "workspaces": [
     "mosaic-client",

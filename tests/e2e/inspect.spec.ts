@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { resolve } from 'node:path';
+import { SAMPLE_SITE_URL } from './test-urls';
+
+const SAMPLE_SITE_SOURCE_DIR = resolve(process.cwd(), 'examples', 'sample-site');
 
 test.describe('Kaleidoscope Inspect Mode', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,12 +10,12 @@ test.describe('Kaleidoscope Inspect Mode', () => {
   });
 
   test('shows heuristic inspect results for a local sample site', async ({ page }) => {
-    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('input-url').fill(SAMPLE_SITE_URL);
     await page.getByTestId('button-load-url').click();
 
     await expect(page.getByTestId('inspect-panel')).toBeVisible();
 
-    await page.getByTestId('inspect-source-dir-input').fill('c:/Code/kaleidoscope/examples/sample-site');
+    await page.getByTestId('inspect-source-dir-input').fill(SAMPLE_SITE_SOURCE_DIR);
     await page.getByTestId('inspect-toggle').click();
 
     await expect(page.getByTestId('inspect-toggle')).toContainText('Stop Inspecting');
