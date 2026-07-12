@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isAllowedHttpUrl,
   isInspectableLocalUrl,
-  validateCookies,
   validateProxyTargetUrl,
-  validateRequestHeaders,
 } from './security.js';
 
 test('isAllowedHttpUrl rejects disallowed schemes and hosts', async () => {
@@ -39,50 +37,4 @@ test('isInspectableLocalUrl only allows loopback and localhost targets', () => {
   assert.equal(isInspectableLocalUrl('http://studio.localhost:4000'), true);
   assert.equal(isInspectableLocalUrl('https://example.com'), false);
   assert.equal(isInspectableLocalUrl('http://192.168.1.10:3000'), false);
-});
-
-test('validateCookies accepts valid cookie list', () => {
-  const result = validateCookies([
-    { name: 'session_id', value: 'abc123' },
-    { name: 'theme', value: 'dark' },
-  ]);
-
-  assert.equal(result.valid, true);
-  assert.ok(result.sanitized);
-  assert.equal(result.sanitized?.length, 2);
-});
-
-test('validateCookies rejects invalid cookie names and values', () => {
-  const invalidName = validateCookies([{ name: 'bad;name', value: 'ok' }]);
-  assert.equal(invalidName.valid, false);
-
-  const invalidValue = validateCookies([{ name: 'good_name', value: 'line\nbreak' }]);
-  assert.equal(invalidValue.valid, false);
-
-  const nonArray = validateCookies({ name: 'x', value: 'y' });
-  assert.equal(nonArray.valid, false);
-});
-
-test('validateRequestHeaders accepts safe auth-style headers', () => {
-  const result = validateRequestHeaders([
-    { name: 'Authorization', value: 'Bearer token-123' },
-    { name: 'X-API-Key', value: 'secret-key' },
-  ]);
-
-  assert.equal(result.valid, true);
-  assert.deepEqual(result.sanitized, [
-    { name: 'authorization', value: 'Bearer token-123' },
-    { name: 'x-api-key', value: 'secret-key' },
-  ]);
-});
-
-test('validateRequestHeaders rejects blocked or malformed headers', () => {
-  const blockedHeader = validateRequestHeaders([{ name: 'Cookie', value: 'session=abc' }]);
-  assert.equal(blockedHeader.valid, false);
-
-  const invalidValue = validateRequestHeaders([{ name: 'Authorization', value: 'bad\nvalue' }]);
-  assert.equal(invalidValue.valid, false);
-
-  const nonArray = validateRequestHeaders({ name: 'authorization', value: 'x' });
-  assert.equal(nonArray.valid, false);
 });

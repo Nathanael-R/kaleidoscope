@@ -199,42 +199,6 @@ const afterEditInputSchema = {
   ),
 } satisfies z.ZodRawShape;
 
-const observeLayoutInputSchema = {
-  baseline_capture_id: z.string().regex(/^layout_[0-9a-f-]{36}$/i).describe(
-    'The baseline capture ID returned by kaleidoscope_read_layout before editing.',
-  ),
-  event_client_id: z.string().regex(/^[A-Za-z0-9._-]{16,128}$/).optional().describe(
-    'Optional watcher event client ID to filter reload events. Omit to use the next reload from any watcher.',
-  ),
-  watcher_id: z.string().max(120).optional().describe(
-    'Optional watcher ID to filter reload events.',
-  ),
-  timeout_ms: z.number().int().min(1).max(60000).optional().describe(
-    'How long to wait for a reload event before failing. Defaults to 30000.',
-  ),
-  url: z.string().url().optional().describe(
-    'Optional URL override. Defaults to the baseline capture URL.',
-  ),
-  devices: z.array(z.string()).optional().describe(
-    'Optional device IDs or names to recapture. Defaults to the devices from the baseline capture.',
-  ),
-  source_dir: z.string().max(500).optional().describe(
-    'Optional source directory override. Defaults to the baseline capture source_dir.',
-  ),
-  max_elements: z.number().int().min(1).max(300).optional().describe(
-    'Maximum visible elements to capture per device. Defaults to 100.',
-  ),
-  include_source: z.boolean().optional().describe(
-    'Whether to try runtime source attribution with element-source. Defaults to true.',
-  ),
-  wait_until: z.enum(['load', 'domcontentloaded', 'networkidle']).optional().describe(
-    'Playwright navigation readiness signal after the reload event. Defaults to networkidle.',
-  ),
-  settle_ms: z.number().int().min(0).max(2000).optional().describe(
-    'Extra delay after navigation before reading layout. Defaults to 250.',
-  ),
-} satisfies z.ZodRawShape;
-
 const layoutSummarySchema = z.object({
   verdict: z.enum(['noChange', 'changed', 'inconclusive']),
   text: z.string(),
@@ -258,18 +222,6 @@ const afterEditOutputSchema = {
   capture: storedLayoutCaptureSchema,
 } satisfies z.ZodRawShape;
 
-const reloadEventSchema = z.object({
-  clientId: z.string(),
-  event: z.string(),
-  data: z.unknown(),
-  delivered: z.boolean(),
-});
-
-const observeLayoutOutputSchema = {
-  ...afterEditOutputSchema,
-  reload: reloadEventSchema,
-} satisfies z.ZodRawShape;
-
 const errorResponseSchema = z.object({
   error: z.string().optional(),
 });
@@ -281,11 +233,6 @@ const afterEditResultSchema = z.object(afterEditOutputSchema);
 const afterEditResponseSchema = afterEditResultSchema.extend({
   success: z.boolean().optional(),
 }).transform(({ success: _success, ...result }) => result);
-const observeLayoutResultSchema = z.object(observeLayoutOutputSchema);
-const observeLayoutResponseSchema = observeLayoutResultSchema.extend({
-  success: z.boolean().optional(),
-}).transform(({ success: _success, ...result }) => result);
-
 type LayoutCaptureResult = z.infer<typeof storedLayoutCaptureSchema>;
 type LayoutElementResult = z.infer<typeof layoutElementSchema>;
 
@@ -468,71 +415,4 @@ export function registerLayoutTools(server: McpServer) {
     },
   );
 
-  registerTool(
-    'kaleidoscope_observe_layout',
-    {
-      description:
-        'Wait for the next Kaleidoscope watcher reload event, then recapture and compare layout against a baseline. ' +
-        'Use this after making an edit when a watcher is already running and you do not want to guess rebuild timing. ' +
-        'This is the Phase 3 watcher-integrated post-edit loop; it does not create persistent browser pages or proxy login sessions.',
-      inputSchema: observeLayoutInputSchema,
-      outputSchema: observeLayoutOutputSchema,
-    },
-    async ({
-      baseline_capture_id,
-      event_client_id,
-      watcher_id,
-      timeout_ms,
-      url,
-      devices: selectedDevices,
-      source_dir,
-      max_elements,
-      include_source,
-      wait_until,
-      settle_ms,
-    }) => {
-      try {
-        const serverReachable = await processManager.isServerReachable();
-        if (!serverReachable) {
-          await processManager.startServer();
-        }
-
-        const devicesToCapture = selectedDevices
-          ? normalizeScreenshotDevices(selectedDevices)
-          : undefined;
-
-        const response = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/layout/observe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            baselineCaptureId: baseline_capture_id,
-            eventClientId: event_client_id,
-            watcherId: watcher_id,
-            timeoutMs: timeout_ms,
-            url,
-            devices: devicesToCapture,
-            sourceDir: source_dir,
-            maxElements: max_elements,
-            includeSource: include_source,
-            waitUntil: wait_until,
-            settleMs: settle_ms,
-          }),
-        });
-
-        const rawBody: unknown = await response.json();
-        if (!response.ok) {
-          return createErrorResult(`Layout observe failed: ${await readServerError(response, rawBody)}`);
-        }
-
-        const body = observeLayoutResponseSchema.safeParse(rawBody);
-        if (!body.success) {
-          return createErrorResult(`Layout observe failed: Invalid server response (${formatZodError(body.error)})`);
-        }
-
-        return createStructuredResult(body.data, body.data.summary.text);
-      } catch (error) {
-        return createErrorResult(await formatToolError('observing layout after reload', error));
-      }
-    },
-  );
 }

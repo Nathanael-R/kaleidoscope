@@ -35,6 +35,7 @@ export interface BreakpointScanRequest {
   step: number;
   height: number;
   settleMs: number;
+  waitUntil: 'load' | 'domcontentloaded' | 'networkidle';
 }
 
 export interface BreakpointScanResult {
@@ -204,7 +205,7 @@ export class BreakpointScanService {
       const page = await context.newPage();
 
       try {
-        await page.goto(request.url, { waitUntil: 'networkidle', timeout: 30_000 });
+        await page.goto(request.url, { waitUntil: request.waitUntil, timeout: 30_000 });
         const probes: BreakpointProbe[] = [];
 
         for (const width of scannedWidths) {

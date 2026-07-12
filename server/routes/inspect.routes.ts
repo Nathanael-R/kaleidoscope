@@ -436,7 +436,7 @@ router.post('/session', (req: Request, res: Response) => {
     return sendError(res, 400, 'Inspect mode only supports local/dev loopback URLs.');
   }
 
-  const session = proxyService.createSession(url, [], { mode: 'inspect' });
+  const session = proxyService.createSession(url);
 
   return res.json({
     success: true,

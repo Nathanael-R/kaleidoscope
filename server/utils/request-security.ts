@@ -53,7 +53,6 @@ export function isManagementApiPath(pathname: string): boolean {
 
   if (
     pathname === '/api/health'
-    || pathname === '/api/events'
     || pathname === '/api/inspect/bridge.js'
     || pathname === '/api/inspect/element-source.js'
     || pathname.startsWith('/api/screenshots-files/')
@@ -61,21 +60,12 @@ export function isManagementApiPath(pathname: string): boolean {
     return false;
   }
 
-  if (
-    pathname === '/api/proxy/session'
-    || pathname === '/api/proxy/sessions'
-    || pathname.startsWith('/api/proxy/session/')
-  ) {
-    return true;
-  }
-
   if (pathname.startsWith('/api/proxy/')) {
     return false;
   }
 
   return (
-    pathname.startsWith('/api/watcher')
-    || pathname.startsWith('/api/screenshots')
+    pathname.startsWith('/api/screenshots')
     || pathname.startsWith('/api/inspect')
   );
 }

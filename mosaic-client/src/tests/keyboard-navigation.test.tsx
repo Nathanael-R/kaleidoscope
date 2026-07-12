@@ -1,21 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import Home from '@/pages/home';
+import Workspace from '@/pages/workspace';
 import { devices } from '@/lib/devices';
 
 // Mock fetch to prevent real API calls from child components
 vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
 
 function renderHome() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <Home />
-    </QueryClientProvider>
-  );
+  return render(<Workspace />);
 }
 
 describe('Keyboard navigation', () => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { ensureChromium } from './browser.service.js';
 
 function makeExecutable(filePath: string) {
   writeFileSync(filePath, '');
@@ -19,7 +20,7 @@ function getPlaywrightLayout() {
   return { binDir: 'chrome-linux64', executable: 'chrome' };
 }
 
-test('findChromium honors PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH override when it exists', async () => {
+test('ensureChromium honors PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH override when it exists', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'chromium-override-'));
   const executablePath = join(tempDir, process.platform === 'win32' ? 'chrome.exe' : 'chrome');
   const previousExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
@@ -28,8 +29,7 @@ test('findChromium honors PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH override when it e
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = executablePath;
 
   try {
-    const { findChromium } = await import('./find-chromium.js');
-    assert.equal(findChromium(), executablePath);
+    assert.equal(ensureChromium(), executablePath);
   } finally {
     if (previousExecutable) {
       process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = previousExecutable;
@@ -40,7 +40,7 @@ test('findChromium honors PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH override when it e
   }
 });
 
-test('findChromium discovers a browser inside PLAYWRIGHT_BROWSERS_PATH', async () => {
+test('ensureChromium discovers a browser inside PLAYWRIGHT_BROWSERS_PATH', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'playwright-cache-'));
   const { binDir, executable } = getPlaywrightLayout();
   const browserDir = join(tempDir, 'chromium-1208', binDir);
@@ -54,8 +54,7 @@ test('findChromium discovers a browser inside PLAYWRIGHT_BROWSERS_PATH', async (
   delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
   try {
-    const { findChromium } = await import('./find-chromium.js');
-    assert.equal(findChromium(), executablePath);
+    assert.equal(ensureChromium(), executablePath);
   } finally {
     if (previousBrowsersPath) {
       process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;
@@ -73,7 +72,7 @@ test('findChromium discovers a browser inside PLAYWRIGHT_BROWSERS_PATH', async (
   }
 });
 
-test('Chromium discovery supports modern macOS Playwright app bundles', async () => {
+test('Chromium discovery supports modern macOS Playwright app bundles', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'playwright-mac-cache-'));
   const executablePath = join(
     tempDir,
@@ -93,10 +92,6 @@ test('Chromium discovery supports modern macOS Playwright app bundles', async ()
   delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
   try {
-    const { findChromium } = await import('./find-chromium.js');
-    const { ensureChromium } = await import('./browser.service.js');
-
-    assert.equal(findChromium(), executablePath);
     assert.equal(ensureChromium(), executablePath);
   } finally {
     if (previousBrowsersPath) {

@@ -5,9 +5,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes.js";
-import { watcherService } from "./services/watcher.service.js";
 import { screenshotService } from "./services/screenshot.service.js";
-import { sseService } from "./services/sse.service.js";
 import { proxyService } from "./services/proxy.service.js";
 import { logApiRequest, logServerError } from "./utils/logger.js";
 import { sendError } from "./utils/http.js";
@@ -193,28 +191,6 @@ app.use((req, res, next) => {
 (async () => {
   const httpServer = createServer(app);
 
-  // SSE endpoint for live reload events
-  app.get('/api/events', (req, res) => {
-    const origin = req.header('origin');
-    if (origin && !isAllowedOrigin(origin)) {
-      return sendError(res, 403, 'Origin is not allowed.');
-    }
-
-    const clientId = typeof req.query.clientId === 'string' ? req.query.clientId.trim() : '';
-    if (!/^[A-Za-z0-9._-]{16,128}$/.test(clientId)) {
-      return sendError(res, 400, 'clientId is required.');
-    }
-
-    if (origin) {
-      appendVaryHeader(res, 'Origin');
-    }
-
-    sseService.addClient(req, res, {
-      clientId,
-      accessControlAllowOrigin: origin && isAllowedOrigin(origin) ? origin : undefined,
-    });
-  });
-
   // Serve device screenshots for client downloads
   app.use('/api/screenshots-files', express.static(
     path.resolve(process.env.SCREENSHOT_OUTPUT_DIR || './screenshots'),
@@ -251,11 +227,11 @@ app.use((req, res, next) => {
     logServerError(err, { requestId, path: req.path, method: req.method });
   });
 
-  // Clean up expired proxy sessions every 10 minutes
+  // Clean up expired inspect sessions every 10 minutes.
   const cleanupInterval = setInterval(() => {
     const cleaned = proxyService.cleanExpired();
     if (cleaned > 0) {
-      console.log(`Cleaned ${cleaned} expired proxy session(s)`);
+      console.log(`Cleaned ${cleaned} expired inspect session(s)`);
     }
   }, 10 * 60 * 1000);
 
@@ -265,7 +241,6 @@ app.use((req, res, next) => {
     clearInterval(cleanupInterval);
     httpServer.close();
     await Promise.allSettled([
-      watcherService.unwatchAll(),
       screenshotService.close(),
     ]);
     process.exit(0);

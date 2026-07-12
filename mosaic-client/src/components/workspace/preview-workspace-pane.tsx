@@ -14,8 +14,6 @@ export default function PreviewWorkspacePane({
   handleDevicePin,
   viewMode,
   handleViewModeToggle,
-  handleReload,
-  proxyUrl,
   effectiveProxyUrl,
   inspectEnabled,
   inspectPending,
@@ -28,7 +26,6 @@ export default function PreviewWorkspacePane({
   handleInspectSelection,
   inspectAvailable,
   handleAddDeviceToCanvas,
-  reloadTrigger,
 }: PreviewWorkspaceController) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
@@ -45,8 +42,6 @@ export default function PreviewWorkspacePane({
           onLoadUrl: handleLoadUrl,
           viewMode,
           onViewModeToggle: handleViewModeToggle,
-          onReload: handleReload,
-          proxyUrl,
         }}
         inspectControls={{
           enabled: inspectEnabled,
@@ -70,7 +65,6 @@ export default function PreviewWorkspacePane({
           viewMode={viewMode}
           onDevicePin={handleDevicePin}
           onCanvasDeviceDrop={handleAddDeviceToCanvas}
-          reloadTrigger={reloadTrigger}
           canInspect={inspectAvailable}
           inspectEnabled={inspectEnabled}
           inspectPending={inspectPending}

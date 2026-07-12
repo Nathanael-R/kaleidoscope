@@ -22,6 +22,9 @@ const scanInputSchema = {
   step: z.number().int().min(8).max(256).optional().describe('Width increment between probes. Defaults to 16. A smaller step is more precise but slower.'),
   height: z.number().int().min(320).max(2160).optional().describe('Viewport height used for every width. Defaults to 900.'),
   settle_ms: z.number().int().min(0).max(2000).optional().describe('Delay after each resize before measurement. Defaults to 100.'),
+  wait_until: z.enum(['load', 'domcontentloaded', 'networkidle']).optional().describe(
+    'Navigation readiness signal. Defaults to domcontentloaded; use networkidle only for pages that become idle.',
+  ),
 } satisfies z.ZodRawShape;
 
 const scanOutputSchema = {
@@ -93,7 +96,7 @@ export function registerBreakpointTools(server: McpServer) {
       inputSchema: scanInputSchema,
       outputSchema: scanOutputSchema,
     },
-    async ({ url, min_width, max_width, step, height, settle_ms }) => {
+    async ({ url, min_width, max_width, step, height, settle_ms, wait_until }) => {
       try {
         if (!(await processManager.isServerReachable())) {
           await processManager.startServer();
@@ -109,6 +112,7 @@ export function registerBreakpointTools(server: McpServer) {
             step,
             height,
             settleMs: settle_ms,
+            waitUntil: wait_until,
           }),
         });
         const rawBody: unknown = await response.json();

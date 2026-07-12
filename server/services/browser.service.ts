@@ -87,7 +87,7 @@ export function ensureChromium(): string {
   if (existing) return existing;
 
   throw new Error(
-    'Chromium not found. Install it before using screenshots or walkthroughs. ' +
+    'Chromium not found. Install it before using browser-backed tools. ' +
     'Run `npx playwright install chromium` on the machine hosting Kaleidoscope, then retry.'
   );
 }

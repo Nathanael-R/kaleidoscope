@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { SAMPLE_SITE_URL } from './test-urls';
 
 async function expectNoDocumentVerticalOverflow(page: import('@playwright/test').Page) {
   const overflow = await page.evaluate(() => {
@@ -14,8 +15,7 @@ async function expectNoDocumentVerticalOverflow(page: import('@playwright/test')
 
 test.describe('Kaleidoscope Preview', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
   });
 
   test('should load home page', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Kaleidoscope Preview', () => {
     const urlInput = page.locator('input[type="url"]').first();
 
     // Enter localhost URL
-    await urlInput.fill('http://localhost:3000');
+    await urlInput.fill(SAMPLE_SITE_URL);
 
     // Should not show blocking error
     const errorMessage = page.locator('text=/cannot.*localhost/i');
@@ -84,10 +84,9 @@ test.describe('Kaleidoscope Preview', () => {
 
 test.describe('Device Interaction', () => {
   test('should scroll the loaded site inside the device mockup', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('input-url').fill(SAMPLE_SITE_URL);
     await page.getByTestId('button-load-url').click();
 
     const iframeElement = page.getByTestId('preview-iframe');
@@ -122,8 +121,7 @@ test.describe('Device Interaction', () => {
   });
 
   test('should switch between devices', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Click on a device
     const iphoneButton = page.getByTestId('device-iphone-14');
@@ -134,8 +132,7 @@ test.describe('Device Interaction', () => {
   });
 
   test('should pin multiple devices', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Pin first device
     const device1 = page.locator('[data-device-id]').first();
@@ -157,25 +154,23 @@ test.describe('Device Interaction', () => {
 
   test('should keep preview visible on narrow viewports', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 900 });
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByTestId('button-expand-sidebar')).toBeVisible();
     await expect(page.getByTestId('preview-area')).toBeVisible();
 
     await page.getByTestId('button-expand-sidebar').click();
-    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('input-url').fill(SAMPLE_SITE_URL);
     await page.getByTestId('button-load-url').click();
     await expect(page.getByTestId('preview-iframe')).toBeVisible();
   });
 
   test('should keep comparison devices visible on narrow viewports', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 900 });
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     await page.getByTestId('button-expand-sidebar').click();
-    await page.getByTestId('input-url').fill('http://localhost:3000');
+    await page.getByTestId('input-url').fill(SAMPLE_SITE_URL);
     await page.getByTestId('button-load-url').click();
     await expect(page.getByTestId('preview-iframe')).toBeVisible();
 
@@ -188,11 +183,4 @@ test.describe('Device Interaction', () => {
     await expect(page.locator('[data-testid="preview-iframe"]')).toHaveCount(2);
   });
 
-  test('should avoid document-level vertical overflow on the flow workspace', async ({ page }) => {
-    await page.goto('/flows');
-    await page.waitForLoadState('networkidle');
-
-    await expect(page.getByText('Flow Editor')).toBeVisible();
-    await expectNoDocumentVerticalOverflow(page);
-  });
 });

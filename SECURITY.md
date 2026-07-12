@@ -15,4 +15,4 @@ Please avoid public disclosure until the issue has been triaged and a fix or mit
 
 ## Scope Notes
 
-Kaleidoscope includes local-development tooling such as auth proxying, screenshots, and inspect flows. Reports covering SSRF, local file exposure, proxy/session isolation, event-stream leakage, and browser automation boundaries are especially useful.
+Kaleidoscope includes local-development tooling such as screenshots, pixel diffs, and inspect flows. Reports covering SSRF, local file exposure, inspect-session isolation, and browser automation boundaries are especially useful.

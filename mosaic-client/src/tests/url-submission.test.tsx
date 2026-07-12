@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { PropsWithChildren } from 'react';
 
 vi.mock('@/components/screenshot-panel', () => ({
   default: ({ currentUrl }: { currentUrl: string }) => (
@@ -15,12 +15,7 @@ import { devices } from '@/lib/devices';
 vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
 
 function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  return ({ children }: PropsWithChildren) => <>{children}</>;
 }
 
 describe('URL submission', () => {
@@ -216,25 +211,6 @@ describe('URL submission', () => {
       // onLoadUrl should be called twice: once for submit, once for recent click
       expect(defaultProps.previewControls.onLoadUrl).toHaveBeenCalledTimes(2);
       expect(defaultProps.previewControls.onLoadUrl).toHaveBeenLastCalledWith('http://localhost:3000');
-    });
-  });
-
-  describe('auth section visibility', () => {
-    it('keeps auth wizard hidden when no URL is entered', () => {
-      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
-      expect(screen.queryByTestId('auth-wizard-toggle')).not.toBeInTheDocument();
-    });
-
-    it('keeps auth wizard hidden after URL is entered', async () => {
-      render(<Sidebar {...defaultProps} />, { wrapper: createWrapper() });
-
-      fireEvent.change(screen.getByTestId('input-url'), {
-        target: { value: 'http://localhost:3000' },
-      });
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('auth-wizard-toggle')).not.toBeInTheDocument();
-      }, { timeout: 5000 });
     });
   });
 

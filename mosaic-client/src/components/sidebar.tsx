@@ -15,7 +15,6 @@ import {
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { InspectResult } from "@/lib/inspect";
 
-const LiveReloadToggle = lazy(() => import("@/components/live-reload-toggle"));
 const ScreenshotPanel = lazy(() => import("@/components/screenshot-panel"));
 const InspectPanel = lazy(() => import("@/components/inspect-panel"));
 
@@ -38,8 +37,6 @@ interface SidebarProps {
     onLoadUrl: (url: string) => void;
     viewMode: 'single' | 'comparison';
     onViewModeToggle: () => void;
-    onReload?: () => void;
-    proxyUrl?: string | null;
   };
   inspectControls: {
     enabled: boolean;
@@ -126,8 +123,6 @@ export default function Sidebar({
     onLoadUrl,
     viewMode,
     onViewModeToggle,
-    onReload,
-    proxyUrl,
   } = previewControls;
   const {
     enabled: inspectEnabled,
@@ -401,12 +396,6 @@ export default function Sidebar({
         )}
 
         {/* Tools sections — collapsible */}
-        <Section title="Live Reload" icon={Globe}>
-          <Suspense fallback={<SectionLoadingFallback label="live reload" />}>
-            <LiveReloadToggle onReload={onReload} />
-          </Suspense>
-        </Section>
-
         {hasUrlContext && (
           <Section title="Inspect" icon={Activity} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="inspect tools" />}>
@@ -429,7 +418,7 @@ export default function Sidebar({
         {hasUrlContext && (
           <Section title="Screenshots" icon={Globe} defaultOpen>
             <Suspense fallback={<SectionLoadingFallback label="screenshots" />}>
-              <ScreenshotPanel currentUrl={panelUrl} proxyUrl={proxyUrl} />
+              <ScreenshotPanel currentUrl={panelUrl} />
             </Suspense>
           </Section>
         )}
