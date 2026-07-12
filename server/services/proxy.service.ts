@@ -25,7 +25,9 @@ const INSPECT_RUNTIME_SNIPPET = [
 ].join('\n');
 const DEFAULT_PROXY_FETCH_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_PROXY_RESPONSE_BYTES = 10 * 1024 * 1024;
+const MAX_PROXY_REDIRECTS = 5;
 const SESSION_MAX_IDLE_MS = 60 * 60 * 1000;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const value = Number.parseInt(process.env[name] ?? '', 10);
@@ -119,11 +121,6 @@ class InspectProxyService {
       : new URL(requestUrl.pathname, initialTargetUrl.origin);
     target.search = requestUrl.search;
 
-    const validation = await validateProxyTargetUrl(target.toString(), { allowLoopback: true });
-    if (!validation.allowed) {
-      return errorResponse(403, 'Proxy target is not allowed');
-    }
-
     const headers: Record<string, string> = {};
     for (const name of ['accept', 'accept-language', 'content-type']) {
       if (requestHeaders[name]) headers[name] = requestHeaders[name];
@@ -132,13 +129,53 @@ class InspectProxyService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROXY_FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(target, {
-        method,
-        headers,
-        body: requestBody && method !== 'GET' && method !== 'HEAD' ? requestBody : undefined,
-        redirect: 'follow',
-        signal: controller.signal,
-      });
+      let currentTarget = target;
+      let currentMethod = method.toUpperCase();
+      let currentBody = requestBody && currentMethod !== 'GET' && currentMethod !== 'HEAD'
+        ? requestBody
+        : undefined;
+      let response: Response | null = null;
+
+      for (let redirectCount = 0; redirectCount <= MAX_PROXY_REDIRECTS; redirectCount += 1) {
+        const validation = await validateProxyTargetUrl(currentTarget.toString(), { allowLoopback: true });
+        if (!validation.allowed) {
+          return errorResponse(403, 'Proxy target is not allowed');
+        }
+
+        response = await fetch(currentTarget, {
+          method: currentMethod,
+          headers,
+          body: currentBody,
+          redirect: 'manual',
+          signal: controller.signal,
+        });
+
+        if (!REDIRECT_STATUSES.has(response.status)) {
+          break;
+        }
+
+        const location = response.headers.get('location');
+        if (!location) {
+          break;
+        }
+        if (redirectCount === MAX_PROXY_REDIRECTS) {
+          await response.body?.cancel();
+          return errorResponse(508, `Proxy redirect limit of ${MAX_PROXY_REDIRECTS} exceeded`);
+        }
+
+        const nextTarget = new URL(location, currentTarget);
+        await response.body?.cancel();
+        currentTarget = nextTarget;
+        if (response.status === 303 || ((response.status === 301 || response.status === 302) && currentMethod === 'POST')) {
+          currentMethod = 'GET';
+          currentBody = undefined;
+          delete headers['content-type'];
+        }
+      }
+
+      if (!response) {
+        return errorResponse(502, 'Failed to reach target');
+      }
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         if (!BLOCKED_RESPONSE_HEADERS.has(key.toLowerCase())) {

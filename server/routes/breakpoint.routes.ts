@@ -12,6 +12,7 @@ const DEFAULT_MAX_WIDTH = 1440;
 const DEFAULT_STEP = 16;
 const DEFAULT_HEIGHT = 900;
 const DEFAULT_SETTLE_MS = 100;
+const DEFAULT_WAIT_UNTIL = 'domcontentloaded';
 const MAX_SAMPLES = 100;
 
 type BreakpointScanBody = {
@@ -21,6 +22,7 @@ type BreakpointScanBody = {
   step?: unknown;
   height?: unknown;
   settleMs?: unknown;
+  waitUntil?: unknown;
 };
 
 function parseIntInRange(
@@ -67,6 +69,11 @@ router.post('/scan', async (req, res) => {
     return sendError(res, 400, 'minWidth must be less than or equal to maxWidth');
   }
 
+  const waitUntil = body.waitUntil ?? DEFAULT_WAIT_UNTIL;
+  if (waitUntil !== 'load' && waitUntil !== 'domcontentloaded' && waitUntil !== 'networkidle') {
+    return sendError(res, 400, 'waitUntil must be one of: load, domcontentloaded, networkidle');
+  }
+
   const sampleCount = Math.ceil((maxWidth - minWidth) / step) + 1;
   if (sampleCount > MAX_SAMPLES) {
     return sendError(res, 400, `Requested range would scan more than ${MAX_SAMPLES} widths; increase step or narrow the range.`);
@@ -80,6 +87,7 @@ router.post('/scan', async (req, res) => {
       step,
       height,
       settleMs,
+      waitUntil,
     });
     return res.json({ success: true, result });
   } catch (error) {

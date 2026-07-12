@@ -265,6 +265,9 @@ test.before(async () => {
 
     if (requestUrl.pathname === '/api/screenshots/compare' && req.method === 'POST') {
       const body = await readJson(req) as { baselinePath?: string; currentPath?: string };
+      if (body.baselinePath === 'invalid-response.png') {
+        return sendJson(res, { success: true, verdict: 'changed' });
+      }
       return sendJson(res, {
         success: true,
         verdict: 'changed',
@@ -562,6 +565,21 @@ test('compare_screenshots returns metrics and a diff artifact', async () => {
   assert.equal(structured.mismatchPercentage, 100);
   assert.equal(structured.diff.path, screenshotPath);
   assert.ok(structured.diff.markdownImageTag);
+});
+
+test('compare_screenshots rejects a malformed server response', async () => {
+  assert.ok(client, 'client should be connected');
+  const result = await client.callTool({
+    name: 'compare_screenshots',
+    arguments: {
+      baseline_path: 'invalid-response.png',
+      current_path: 'current.png',
+    },
+  });
+
+  assert.equal(result.isError, true);
+  const text = (result.content as Array<{ type: string; text?: string }>)[0]?.text ?? '';
+  assert.match(text, /invalid server response/i);
 });
 
 test('inspect tool returns structured results', async () => {

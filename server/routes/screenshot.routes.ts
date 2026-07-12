@@ -16,6 +16,7 @@ import { resolveBoundedPath } from '../utils/path-policy.js';
 import {
   comparePngFiles,
   VisualDiffDimensionError,
+  VisualDiffLimitError,
 } from '../services/visual-diff.service.js';
 
 const router = Router();
@@ -115,6 +116,9 @@ router.post('/compare', async (req: Request, res: Response) => {
         baselineSize: error.baselineSize,
         currentSize: error.currentSize,
       });
+    }
+    if (error instanceof VisualDiffLimitError) {
+      return sendError(res, 413, error.message);
     }
     logServerError(error, {
       requestId: res.locals.requestId as string | undefined,

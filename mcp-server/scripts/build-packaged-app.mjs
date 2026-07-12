@@ -41,7 +41,8 @@ function run(args, cwd) {
 run(['run', 'build'], serverRoot);
 run(['run', 'build'], clientRoot);
 
-const serverEntry = resolve(serverRoot, 'dist', 'index.js');
+const serverDist = resolve(serverRoot, 'dist');
+const serverEntry = resolve(serverDist, 'index.js');
 const clientDist = resolve(clientRoot, 'dist');
 
 if (!existsSync(serverEntry)) {
@@ -55,7 +56,7 @@ if (!existsSync(resolve(clientDist, 'index.html'))) {
 rmSync(packagedAppRoot, { recursive: true, force: true });
 mkdirSync(resolve(packagedAppRoot, 'server'), { recursive: true });
 
-cpSync(serverEntry, resolve(packagedAppRoot, 'server', 'index.js'));
+cpSync(serverDist, resolve(packagedAppRoot, 'server'), { recursive: true });
 cpSync(clientDist, resolve(packagedAppRoot, 'public'), { recursive: true });
 
 console.log(`Packaged Kaleidoscope app runtime at ${packagedAppRoot}`);

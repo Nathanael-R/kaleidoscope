@@ -141,6 +141,25 @@ const visualDiffOutputSchema = {
   diff: screenshotEntrySchema,
 } satisfies z.ZodRawShape;
 
+const visualDiffServerResponseSchema = z.object({
+  success: z.boolean().optional(),
+  verdict: z.enum(['unchanged', 'changed']),
+  baselinePath: z.string(),
+  currentPath: z.string(),
+  diffPath: z.string(),
+  diffUrl: z.string(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  totalPixels: z.number().int().nonnegative(),
+  mismatchedPixels: z.number().int().nonnegative(),
+  mismatchPercentage: z.number().min(0).max(100),
+  colorThreshold: z.number().min(0).max(1),
+  allowedDiffPercentage: z.number().min(0).max(100),
+  includeAntialiasing: z.boolean(),
+});
+
+const visualDiffErrorResponseSchema = z.object({ error: z.string().optional() });
+
 interface ScreenshotOutput {
   url: string;
   outputDirectory: string;
@@ -351,25 +370,23 @@ export function registerScreenshotTools(server: McpServer) {
             includeAntialiasing: include_antialiasing,
           }),
         });
-        const body = await response.json() as {
-          error?: string;
-          verdict: 'unchanged' | 'changed';
-          baselinePath: string;
-          currentPath: string;
-          diffPath: string;
-          diffUrl: string;
-          width: number;
-          height: number;
-          totalPixels: number;
-          mismatchedPixels: number;
-          mismatchPercentage: number;
-          colorThreshold: number;
-          allowedDiffPercentage: number;
-          includeAntialiasing: boolean;
-        };
+        const rawBody: unknown = await response.json();
         if (!response.ok) {
-          return createErrorResult(`Screenshot comparison failed: ${body.error ?? response.statusText}`);
+          const errorBody = visualDiffErrorResponseSchema.safeParse(rawBody);
+          return createErrorResult(
+            `Screenshot comparison failed: ${errorBody.success ? errorBody.data.error ?? response.statusText : response.statusText}`,
+          );
         }
+
+        const parsedBody = visualDiffServerResponseSchema.safeParse(rawBody);
+        if (!parsedBody.success) {
+          const issue = parsedBody.error.issues[0];
+          const location = issue?.path.length ? issue.path.join('.') : 'response';
+          return createErrorResult(
+            `Screenshot comparison failed: invalid server response (${location}: ${issue?.message ?? 'schema mismatch'}).`,
+          );
+        }
+        const body = parsedBody.data;
 
         const diff = await createScreenshotEntry({
           device: 'Pixel diff',

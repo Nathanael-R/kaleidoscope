@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { BrowserContext } from 'playwright-core';
 import { getSharedBrowser } from './browser.service.js';
+import { isPathInside } from '../utils/path-policy.js';
 import {
   DEVICE_MAP,
   getDeviceContextOptions,
@@ -54,7 +55,10 @@ function toDeviceContext(device: DeviceConfig): LayoutDeviceContext {
   };
 }
 
-function normalizeSourceLocation(value: unknown): LayoutSourceLocation | null {
+export function normalizeLayoutSourceLocation(
+  value: unknown,
+  sourceDir?: string,
+): LayoutSourceLocation | null {
   if (
     !value
     || typeof value !== 'object'
@@ -69,20 +73,37 @@ function normalizeSourceLocation(value: unknown): LayoutSourceLocation | null {
   const columnNumber = 'columnNumber' in value ? value.columnNumber : null;
   const componentName = 'componentName' in value ? value.componentName : null;
 
+  let filePath = value.filePath;
+  if (sourceDir) {
+    const sourceRoot = path.resolve(sourceDir);
+    const candidate = path.isAbsolute(filePath)
+      ? path.resolve(filePath)
+      : path.resolve(sourceRoot, filePath);
+    if (!isPathInside(sourceRoot, candidate)) {
+      return null;
+    }
+    filePath = path.relative(sourceRoot, candidate).split(path.sep).join('/') || path.basename(candidate);
+  } else if (path.isAbsolute(filePath) || filePath.split(/[\\/]+/).includes('..')) {
+    filePath = path.basename(filePath);
+  }
+
   return {
-    filePath: value.filePath,
+    filePath,
     lineNumber: typeof lineNumber === 'number' ? lineNumber : null,
     columnNumber: typeof columnNumber === 'number' ? columnNumber : null,
     componentName: typeof componentName === 'string' ? componentName : null,
   };
 }
 
-function normalizeElementSource(value: BrowserElementSourceResult | null): LayoutSourceLocation | null {
+function normalizeElementSource(
+  value: BrowserElementSourceResult | null,
+  sourceDir?: string,
+): LayoutSourceLocation | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
 
-  const directSource = normalizeSourceLocation(value.source);
+  const directSource = normalizeLayoutSourceLocation(value.source, sourceDir);
   if (directSource) {
     return {
       ...directSource,
@@ -93,7 +114,7 @@ function normalizeElementSource(value: BrowserElementSourceResult | null): Layou
 
   if (Array.isArray(value.stack)) {
     for (const frame of value.stack) {
-      const source = normalizeSourceLocation(frame);
+      const source = normalizeLayoutSourceLocation(frame, sourceDir);
       if (source) {
         return source;
       }
@@ -114,11 +135,14 @@ function getSourceDiagnostics(elements: BrowserLayoutElementSnapshot[]): string[
     : [];
 }
 
-function normalizeCapturedElements(elements: BrowserLayoutElementSnapshot[]) {
-  return elements.map(({ rawSource, ...element }) => ({
-    ...element,
-    source: normalizeElementSource(rawSource),
-  }));
+function normalizeCapturedElements(elements: BrowserLayoutElementSnapshot[], sourceDir?: string) {
+  let filteredSourceCount = 0;
+  const normalized = elements.map(({ rawSource, ...element }) => {
+    const source = normalizeElementSource(rawSource, sourceDir);
+    if (sourceDir && rawSource && !source) filteredSourceCount += 1;
+    return { ...element, source };
+  });
+  return { elements: normalized, filteredSourceCount };
 }
 
 export class LayoutCaptureService {
@@ -167,11 +191,18 @@ export class LayoutCaptureService {
           });
           diagnostics.push(...getSourceDiagnostics(snapshot.elements));
 
+          const normalizedElements = normalizeCapturedElements(snapshot.elements, request.sourceDir);
+          if (normalizedElements.filteredSourceCount > 0) {
+            diagnostics.push(
+              `Ignored source metadata outside sourceDir for ${normalizedElements.filteredSourceCount} element(s).`,
+            );
+          }
+
           captures.push({
             device: toDeviceContext(device),
             page: snapshot.page,
             viewport: snapshot.viewport,
-            elements: normalizeCapturedElements(snapshot.elements),
+            elements: normalizedElements.elements,
             stats: {
               elementCount: snapshot.elementCount,
               capturedCount: snapshot.elements.length,

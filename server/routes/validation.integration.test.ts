@@ -4,6 +4,7 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import screenshotRoutes from './screenshot.routes.js';
 import inspectRoutes from './inspect.routes.js';
+import breakpointRoutes from './breakpoint.routes.js';
 
 let server: Server;
 let baseUrl = '';
@@ -24,6 +25,7 @@ test.before(async () => {
 
   app.use('/api/screenshots', screenshotRoutes);
   app.use('/api/inspect', inspectRoutes);
+  app.use('/api/breakpoints', breakpointRoutes);
 
   server = createServer(app);
   await new Promise<void>((resolve) => {
@@ -108,5 +110,20 @@ test('POST /api/inspect/session rejects public URLs with normalized error payloa
 
   assert.equal(status, 400);
   assert.equal(body.error, 'Inspect mode only supports local/dev loopback URLs.');
+  assert.equal(body.requestId, 'test-request-id');
+});
+
+test('POST /api/breakpoints/scan rejects an invalid navigation readiness value', async () => {
+  const { status, body } = await requestJson('/api/breakpoints/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'http://localhost:3000',
+      waitUntil: 'forever',
+    }),
+  });
+
+  assert.equal(status, 400);
+  assert.match(body.error, /waitUntil must be one of/);
   assert.equal(body.requestId, 'test-request-id');
 });
