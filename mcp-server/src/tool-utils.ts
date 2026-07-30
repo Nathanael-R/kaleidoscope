@@ -1,6 +1,6 @@
 import { homedir, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/server';
 import { processManager } from './process-manager.js';
 
 function textContent(text: string): ContentBlock {

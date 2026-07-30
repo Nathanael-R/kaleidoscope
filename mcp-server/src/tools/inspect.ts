@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { processManager } from '../process-manager.js';
 import { DEVICE_IDS, DEVICES } from '../../../shared/devices.js';
 import { KALEIDOSCOPE_SERVER, kaleidoscopeFetch } from '../kaleidoscope-api.js';
@@ -166,7 +166,7 @@ export function registerInspectTools(server: McpServer) {
     config: {
       description: string;
       inputSchema: z.ZodRawShape;
-      outputSchema: z.ZodRawShape | z.AnyZodObject;
+      outputSchema: z.ZodRawShape | z.ZodObject;
     },
     handler: (args: any) => Promise<ReturnType<typeof createStructuredResult> | ReturnType<typeof createErrorResult>>,
   ) => void;
@@ -221,7 +221,7 @@ export function registerInspectTools(server: McpServer) {
         'This uses Kaleidoscope server-side browser automation, so it can capture page metadata and device viewport context without manual UI clicking. ' +
         'Use this when you know the selector you want to inspect and want the same source payload exposed by the Kaleidoscope inspect panel JSON export.',
       inputSchema: inspectInputSchema as z.ZodRawShape,
-      outputSchema: inspectOutputSchema as z.AnyZodObject,
+      outputSchema: inspectOutputSchema as z.ZodObject,
     },
     async ({ url, selector, device, source_dir }) => {
       try {

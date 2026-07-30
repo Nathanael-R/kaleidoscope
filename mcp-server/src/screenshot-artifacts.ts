@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js';
+import type { ContentBlock } from '@modelcontextprotocol/server';
 import { toFileUri } from './tool-utils.js';
 
 const MAX_INLINE_IMAGE_BYTES = 1_500_000;

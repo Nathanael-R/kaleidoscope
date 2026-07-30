@@ -4,8 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlAbWQAAAAASUVORK5CYII=';
@@ -372,7 +372,10 @@ test.before(async () => {
     // Suppress MCP server stderr noise during tests.
   });
 
-  client = new Client({ name: 'mcp-integration-test', version: '1.0.0' });
+  client = new Client(
+    { name: 'mcp-integration-test', version: '1.0.0' },
+    { versionNegotiation: { mode: 'auto' } },
+  );
   await client.connect(transport);
 });
 
@@ -385,6 +388,7 @@ test.after(async () => {
 
 test('lists tools with output schemas', async () => {
   assert.ok(client, 'client should be connected');
+  assert.equal(client.getProtocolEra(), 'modern');
 
   const tools = await client.listTools();
   const toolMap = new Map(tools.tools.map((tool) => [tool.name, tool]));
@@ -398,6 +402,29 @@ test('lists tools with output schemas', async () => {
   assert.ok(toolMap.get('kaleidoscope_read_layout')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_after_edit')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_scan_breakpoints')?.outputSchema);
+});
+
+test('accepts legacy MCP clients', async () => {
+  const legacyTransport = new StdioClientTransport({
+    command: 'npx',
+    args: ['tsx', 'src/index.ts'],
+    cwd: process.cwd(),
+    env: {
+      KALEIDOSCOPE_SERVER_URL: apiBaseUrl,
+      KALEIDOSCOPE_CLIENT_PORT: new URL(clientBaseUrl).port,
+    },
+    stderr: 'pipe',
+  });
+  const legacyClient = new Client({ name: 'legacy-mcp-integration-test', version: '1.0.0' });
+
+  try {
+    await legacyClient.connect(legacyTransport);
+    assert.equal(legacyClient.getProtocolEra(), 'legacy');
+    assert.equal((await legacyClient.listTools()).tools.length, 10);
+  } finally {
+    await legacyClient.close();
+    await legacyTransport.close();
+  }
 });
 
 test('kaleidoscope_list_devices returns device presets and defaults', async () => {
