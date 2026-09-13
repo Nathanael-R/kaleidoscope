@@ -82,6 +82,18 @@ Capture a Kaleidoscope layout baseline for http://localhost:3000/checkout on iph
 | `kaleidoscope_after_edit` | Recapture and compare after a known app rebuild. |
 | `kaleidoscope_scan_breakpoints` | Sweep a width range for supported responsive failure signals. |
 
+## Capture reliability, chat previews, and expiry
+
+`capture_screenshots` defaults to `wait_until: "domcontentloaded"` and `settle_ms: 500`, so pages with ongoing network requests can still be captured. Increase `settle_ms` (up to 2000) for slower rendering, or select `wait_until: "load"` when the page needs its load event. Playwright [discourages using networkidle for readiness](https://playwright.dev/docs/api/class-page#page-goto-option-wait-until).
+
+Native MCP image blocks include previews for up to ten requested devices. Large PNGs are resized to fit a shared response budget; originals stay at their captured resolution. `inlinePreviews` maps each device to its image block, and `previewWarnings` explains unavailable previews. Local Markdown image paths are a fallback for clients that support them; a terminal or chat renderer may not display them.
+
+New screenshots, pixel diffs, and their chat copies expire after **five minutes** by default. Set `retention_minutes` on `capture_screenshots` or `compare_screenshots` to change the lifetime for that call, or use `0` to keep its files. `expiresAt` reports the deletion deadline. Cleanup checks every ten seconds while each service is running and resumes on restart. Keep captures longer when comparing edits across a longer session.
+
+Cleanup removes only files with Kaleidoscope expiry metadata. Existing captures from older versions and files you save separately remain untouched. If all services are stopped, deletion waits until the next startup. Images already embedded or cached by a chat client cannot be erased by Kaleidoscope.
+
+For OpenCode, use its [local MCP configuration](https://opencode.ai/docs/mcp-servers/#local), with `command: ["npx", "-y", "kaleidoscope-mcp-server@latest"]`. When testing an unpublished checkout, build it and use `command: ["node", "C:/Code/kaleidoscope/mcp-server/dist/index.js"]`, then reconnect the MCP server. Published packages do not include local edits.
+
 ## Boundaries and Safety
 
 - Inspect mode is limited to local loopback targets such as `localhost` and `127.0.0.1`; source reads must remain under `KALEIDOSCOPE_WORKSPACE_ROOT`.
@@ -94,6 +106,7 @@ Capture a Kaleidoscope layout baseline for http://localhost:3000/checkout on iph
 
 - `KALEIDOSCOPE_SERVER_URL`: backend URL; defaults to `http://localhost:5000`.
 - `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout; defaults to `60000`.
+- `KALEIDOSCOPE_IMAGE_RETENTION_MINUTES`: default saved-image lifetime in minutes; defaults to `5`. Use `0` to keep files, or override per call with `retention_minutes`. Configure this on a separately managed backend as well.
 - `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root for local projects.
 - `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout; defaults to `30000`.
 - `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response limit; defaults to `10485760`.

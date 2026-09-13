@@ -8,11 +8,12 @@ import { registerInspectTools } from './tools/inspect.js';
 import { registerLayoutTools } from './tools/layout.js';
 import { registerBreakpointTools } from './tools/breakpoint.js';
 import { processManager } from './process-manager.js';
+import { startChatImageCleanup } from './screenshot-artifacts.js';
 
 function buildServer(): McpServer {
   const server = new McpServer({
     name: 'kaleidoscope',
-    version: '1.2.3',
+    version: '1.2.4',
   });
 
   registerPreviewTools(server);
@@ -26,6 +27,7 @@ function buildServer(): McpServer {
 
 // Start the server
 async function main() {
+  startChatImageCleanup();
   process.stderr.write('Kaleidoscope MCP server running on stdio\n');
   await serveStdio(buildServer);
 }

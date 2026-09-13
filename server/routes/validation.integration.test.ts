@@ -127,3 +127,14 @@ test('POST /api/breakpoints/scan rejects an invalid navigation readiness value',
   assert.match(body.error, /waitUntil must be one of/);
   assert.equal(body.requestId, 'test-request-id');
 });
+
+test('POST /api/screenshots validates expiry and capture readiness before launching a browser', async () => {
+  for (const invalid of [{ retentionMinutes: -1 }, { retentionMinutes: '5' }, { waitUntil: 'forever' }, { settleMs: -1 }, { fullPage: 'true' }, { outputDir: '../outside' }]) {
+    const { status, body } = await requestJson('/api/screenshots', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'http://localhost:3000', devices: ['desktop'], ...invalid }),
+    });
+    assert.equal(status, 400, JSON.stringify(invalid));
+    assert.equal(typeof body.error, 'string');
+  }
+});

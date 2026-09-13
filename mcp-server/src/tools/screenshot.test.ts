@@ -5,7 +5,7 @@ import { normalizeScreenshotDevices } from './screenshot.js';
 test('normalizeScreenshotDevices accepts ids, names, and common natural aliases', () => {
   assert.deepEqual(
     normalizeScreenshotDevices(['iphone-14', 'iPhone 14', 'iphone14']),
-    ['iphone-14', 'iphone-14', 'iphone-14'],
+    ['iphone-14'],
   );
 
   assert.deepEqual(

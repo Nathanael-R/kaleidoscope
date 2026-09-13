@@ -1,15 +1,19 @@
-import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { copyFile, mkdir, readFile, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ContentBlock } from '@modelcontextprotocol/server';
 import { toFileUri } from './tool-utils.js';
+import { imageExpiresAt, registerImageExpiry, startImageExpiryCleanup } from '../../shared/artifact-retention.js';
+import { createInlinePreview } from './image-preview.js';
 
 const MAX_INLINE_IMAGE_BYTES = 1_500_000;
-const MAX_INLINE_IMAGES = 4;
+const MAX_TOTAL_INLINE_BYTES = 4_500_000;
+const MAX_SOURCE_IMAGE_BYTES = 50 * 1024 * 1024;
 const CHAT_SAFE_IMAGE_DIR_NAME = 'kaleidoscope-chat-images';
 
 export interface ScreenshotArtifact {
+  deviceId: string;
   device: string;
   path: string;
   fileUri: string | null;
@@ -20,14 +24,17 @@ export interface ScreenshotArtifact {
 }
 
 export interface ScreenshotCaptureResult {
+  deviceId: string;
   device: string;
   path: string;
   width: number;
   height: number;
   url?: string;
+  expiresAt?: string | null;
 }
 
 export interface ScreenshotEntryResult extends ScreenshotArtifact {
+  expiresAt: string | null;
   preferredDisplayPath: string | null;
   preferredDisplayUri: string | null;
   chatDisplayPath: string | null;
@@ -35,6 +42,12 @@ export interface ScreenshotEntryResult extends ScreenshotArtifact {
   markdownImageTagFallbacks: string[];
   chatSafePath: string | null;
   chatSafeMarkdownImageTag: string | null;
+}
+
+export interface InlinePreviewMapping {
+  deviceId: string;
+  contentIndex: number;
+  resourceUri: string | null;
 }
 
 export function toMarkdownImagePath(filePath: string): string | null {
@@ -130,24 +143,29 @@ function chatSafeImageDirs(): string[] {
   return Array.from(new Set(candidateDirs.filter((dir): dir is string => Boolean(dir))));
 }
 
-export async function createChatSafeImageCopy(filePath: string): Promise<string | null> {
+export function startChatImageCleanup(): () => void {
+  return startImageExpiryCleanup(chatSafeImageDirs());
+}
+
+export async function createChatSafeImageCopy(filePath: string, expiresAt: string | null = imageExpiresAt()): Promise<string | null> {
   if (!path.isAbsolute(filePath)) {
     return null;
   }
 
   const ext = path.extname(filePath) || '.png';
   const stem = sanitizeChatSafeFileStem(path.basename(filePath, ext));
-  const hash = createHash('sha256').update(path.resolve(filePath)).digest('hex').slice(0, 10);
-  const targetFileName = `${stem}-${hash}${ext.toLowerCase()}`;
+  const targetFileName = `${stem}-${randomUUID()}${ext.toLowerCase()}`;
 
   for (const candidateDir of chatSafeImageDirs()) {
+    const targetPath = path.join(candidateDir, targetFileName);
     try {
-      const targetPath = path.join(candidateDir, targetFileName);
       await mkdir(candidateDir, { recursive: true });
       await copyFile(filePath, targetPath);
+      await registerImageExpiry(targetPath, expiresAt);
 
       return targetPath;
     } catch {
+      await unlink(targetPath).catch(() => {});
       // Try the next writable location.
     }
   }
@@ -160,8 +178,9 @@ export async function createScreenshotEntry(
   serverBaseUrl: string,
 ): Promise<ScreenshotEntryResult> {
   const error = screenshot.path.startsWith('ERROR:') ? screenshot.path : null;
+  const expiresAt = error ? null : screenshot.expiresAt === undefined ? imageExpiresAt() : screenshot.expiresAt;
   const altText = `${screenshot.device} preview`;
-  const chatSafePath = error ? null : await createChatSafeImageCopy(screenshot.path);
+  const chatSafePath = error ? null : await createChatSafeImageCopy(screenshot.path, expiresAt);
   const chatSafeMarkdownImageTag = chatSafePath ? toMarkdownImageTag(chatSafePath, altText) : null;
   const originalMarkdownImageTag = error ? null : toMarkdownImageTag(screenshot.path, altText);
   const markdownImageTagVariants = [
@@ -178,6 +197,8 @@ export async function createScreenshotEntry(
     : error ? null : toMarkdownImagePath(screenshot.path);
 
   return {
+    deviceId: screenshot.deviceId,
+    expiresAt,
     device: screenshot.device,
     path: screenshot.path,
     fileUri: error ? null : toFileUri(screenshot.path),
@@ -197,9 +218,14 @@ export async function createScreenshotEntry(
 
 export async function buildScreenshotContent(
   screenshots: ScreenshotArtifact[],
-): Promise<{ content: ContentBlock[]; inlineImageCount: number }> {
+  contentIndexOffset = 0,
+): Promise<{ content: ContentBlock[]; inlineImageCount: number; inlinePreviews: InlinePreviewMapping[]; previewWarnings: string[] }> {
   const content: ContentBlock[] = [];
   let inlineImageCount = 0;
+  const inlinePreviews: InlinePreviewMapping[] = [];
+  const previewWarnings: string[] = [];
+  const successfulCount = Math.max(1, screenshots.filter((screenshot) => !screenshot.error).length);
+  const maxPreviewBytes = Math.min(MAX_INLINE_IMAGE_BYTES, Math.floor(MAX_TOTAL_INLINE_BYTES / successfulCount));
 
   for (const screenshot of screenshots) {
     if (screenshot.fileUri && path.isAbsolute(screenshot.path)) {
@@ -220,30 +246,37 @@ export async function buildScreenshotContent(
       });
     }
 
-    if (inlineImageCount >= MAX_INLINE_IMAGES || screenshot.error) {
+    if (screenshot.error) {
       continue;
     }
 
     try {
       if (!path.isAbsolute(screenshot.path)) {
-        continue;
+        throw new Error('The screenshot path is not local to the MCP server.');
       }
-
+      if ((await stat(screenshot.path)).size > MAX_SOURCE_IMAGE_BYTES) {
+        throw new Error('Image exceeds the preview file-size limit; use the original file.');
+      }
       const file = await readFile(screenshot.path);
-      if (file.byteLength > MAX_INLINE_IMAGE_BYTES) {
-        continue;
-      }
+      const preview = createInlinePreview(file, maxPreviewBytes);
 
+      const contentIndex = contentIndexOffset + content.length;
       content.push({
         type: 'image',
         mimeType: 'image/png',
-        data: file.toString('base64'),
+        data: preview.toString('base64'),
+      });
+      inlinePreviews.push({
+        deviceId: screenshot.deviceId,
+        contentIndex,
+        resourceUri: screenshot.fileUri,
       });
       inlineImageCount += 1;
-    } catch {
-      // Skip inline image generation when the file is unavailable.
+    } catch (error) {
+      const reason = error instanceof Error && !('code' in error) ? error.message : 'The local image could not be read.';
+      previewWarnings.push(`${screenshot.device}: ${reason}`);
     }
   }
 
-  return { content, inlineImageCount };
+  return { content, inlineImageCount, inlinePreviews, previewWarnings };
 }

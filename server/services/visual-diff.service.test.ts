@@ -5,6 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
+import { pruneExpiredImages, registerImageExpiry } from '../../shared/artifact-retention.js';
 import {
   comparePngBuffers,
   comparePngFiles,
@@ -79,6 +80,9 @@ test('comparePngFiles runs comparison in a worker and writes its artifact', asyn
   const result = await comparePngFiles(baselinePath, currentPath, diffPath, options);
   assert.equal(result.mismatchedPixels, 0);
   assert.ok((await readFile(diffPath)).byteLength > 0);
+  assert.ok(result.expiresAt);
+  await pruneExpiredImages(directory, Date.parse(result.expiresAt) + 1);
+  await assert.rejects(readFile(diffPath), { code: 'ENOENT' });
 });
 
 test('pruneVisualDiffArtifacts removes expired and excess PNG artifacts', async () => {
@@ -90,9 +94,14 @@ test('pruneVisualDiffArtifacts removes expired and excess PNG artifacts', async 
   await utimes(paths[0], now - 1000, now - 1000);
   await utimes(paths[1], now - 10, now - 10);
   await utimes(paths[2], now, now);
+  const retained = join(directory, 'retained.png');
+  await writeFile(retained, 'png');
+  await registerImageExpiry(retained, null);
+  await utimes(retained, now - 1000, now - 1000);
 
   await pruneVisualDiffArtifacts(directory, 100_000, 2);
   await assert.rejects(readFile(paths[0]), { code: 'ENOENT' });
   assert.equal((await readFile(paths[1])).toString(), 'png');
   assert.equal((await readFile(paths[2])).toString(), 'png');
+  assert.equal((await readFile(retained)).toString(), 'png');
 });

@@ -200,6 +200,7 @@ The shared device catalog includes iPhone 14–17, Samsung Galaxy S21/S24/S24 Ul
 
 - `KALEIDOSCOPE_SERVER_URL`: Kaleidoscope backend URL. Defaults to `http://localhost:5000`.
 - `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout. Defaults to `60000`.
+- `KALEIDOSCOPE_IMAGE_RETENTION_MINUTES`: saved-image lifetime. Defaults to `5`; use `0` to keep images.
 - `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root for local projects.
 - `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout. Defaults to `30000`.
 - `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response byte limit. Defaults to `10485760`.

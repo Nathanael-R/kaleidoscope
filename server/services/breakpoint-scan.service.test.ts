@@ -1,6 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildScanWidths, groupBreakpointIssues } from './breakpoint-scan.service.js';
+import { breakpointScanService } from './breakpoint-scan.service.js';
+import { closeSharedBrowser } from './browser.service.js';
+
+test('breakpoint scan evaluates real visible controls in the isolated browser context', { timeout: 20_000 }, async () => {
+  try {
+    const result = await breakpointScanService.scan({
+      url: `data:text/html,${encodeURIComponent('<style>body{margin:0}button{width:400px}#hidden{display:none}</style><button id="save">Save</button><button id="hidden">Hidden</button>')}`,
+      minWidth: 320, maxWidth: 480, step: 80, height: 900, settleMs: 0, waitUntil: 'domcontentloaded',
+    });
+    assert.equal(result.verdict, 'issues-found');
+    assert.deepEqual(result.scannedWidths, [320, 400, 480]);
+    const clipped = result.issueRanges.find((issue) => issue.type === 'clipped-interactive');
+    assert.equal(clipped?.selector, '#save');
+    assert.deepEqual(clipped?.sampledWidths, [320]);
+    assert.ok(result.issueRanges.every((issue) => issue.selector !== '#hidden'));
+    assert.deepEqual(result.probes[2]?.issues, []);
+  } finally {
+    await closeSharedBrowser();
+  }
+});
 
 test('buildScanWidths includes both bounds when the step does not land on the maximum', () => {
   assert.deepEqual(buildScanWidths(320, 375, 24), [320, 344, 368, 375]);

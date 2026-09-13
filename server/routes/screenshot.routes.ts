@@ -72,6 +72,7 @@ router.post('/compare', async (req: Request, res: Response) => {
     colorThreshold?: unknown;
     allowedDiffPercentage?: unknown;
     includeAntialiasing?: unknown;
+    retentionMinutes?: unknown;
   };
   const baseline = resolveScreenshotFile(body.baselinePath, 'baselinePath');
   if (!baseline.ok) return sendError(res, 400, baseline.error);
@@ -89,13 +90,16 @@ router.post('/compare', async (req: Request, res: Response) => {
   if (body.includeAntialiasing !== undefined && typeof body.includeAntialiasing !== 'boolean') {
     return sendError(res, 400, 'includeAntialiasing must be a boolean.');
   }
+  if (!validRetentionMinutes(body.retentionMinutes)) {
+    return sendError(res, 400, 'retentionMinutes must be a number between 0 and 10080 (0 keeps images).');
+  }
 
   const diffPath = path.join(SCREENSHOT_BASE_DIR, 'diffs', `diff-${randomUUID()}.png`);
   try {
     const result = await comparePngFiles(baseline.path, current.path, diffPath, {
       colorThreshold,
       includeAntialiasing: body.includeAntialiasing ?? false,
-    });
+    }, body.retentionMinutes);
     const relativeDiffPath = path.relative(SCREENSHOT_BASE_DIR, diffPath).split(path.sep).join('/');
 
     return res.json({
@@ -133,9 +137,13 @@ router.post('/compare', async (req: Request, res: Response) => {
  * POST /api/screenshots
  * Capture screenshots of a URL across multiple device viewports
  */
+function validRetentionMinutes(value: unknown): value is number | undefined {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10080);
+}
+
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { url, devices, outputDir, fullPage } = req.body as ScreenshotRequest;
+    const { url, devices, outputDir, fullPage, waitUntil, settleMs, retentionMinutes } = req.body as ScreenshotRequest;
 
     if (!url || typeof url !== 'string') {
       return sendError(res, 400, 'url is required');
@@ -167,6 +175,21 @@ router.post('/', async (req: Request, res: Response) => {
       return sendError(res, 400, 'outputDir must be a safe directory name of 120 characters or fewer');
     }
 
+    if (outputDir?.split(/[\\/]+/).some((part) => part === '..')) {
+      return sendError(res, 400, 'outputDir must not contain path traversal.');
+    }
+    if (fullPage !== undefined && typeof fullPage !== 'boolean') {
+      return sendError(res, 400, 'fullPage must be a boolean.');
+    }
+    if (waitUntil !== undefined && !['load', 'domcontentloaded', 'networkidle'].includes(waitUntil)) {
+      return sendError(res, 400, 'waitUntil must be one of: load, domcontentloaded, networkidle');
+    }
+    if (settleMs !== undefined && (!Number.isInteger(settleMs) || settleMs < 0 || settleMs > 2000)) {
+      return sendError(res, 400, 'settleMs must be an integer between 0 and 2000');
+    }
+    if (!validRetentionMinutes(retentionMinutes)) {
+      return sendError(res, 400, 'retentionMinutes must be a number between 0 and 10080 (0 keeps images).');
+    }
     const safeOutputDir = sanitizeOutputDir(outputDir);
 
     const results = await screenshotService.capture({
@@ -174,6 +197,9 @@ router.post('/', async (req: Request, res: Response) => {
       devices,
       outputDir: safeOutputDir,
       fullPage: fullPage ?? false,
+      waitUntil,
+      settleMs,
+      retentionMinutes,
     });
 
     const screenshots = results.map((result) => {

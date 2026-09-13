@@ -18,6 +18,7 @@ let transport: StdioClientTransport | null = null;
 let client: Client | null = null;
 let tempDir = '';
 let screenshotPath = '';
+let lastScreenshotRequest: Record<string, unknown> = {};
 
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -189,15 +190,17 @@ test.before(async () => {
     }
 
     if (requestUrl.pathname === '/api/screenshots' && req.method === 'POST') {
+      lastScreenshotRequest = await readJson(req) as Record<string, unknown>;
       return sendJson(res, {
         success: true,
         screenshots: [
           {
             device: 'Desktop HD',
-            path: screenshotPath,
+            path: lastScreenshotRequest.url === 'https://example.com/capture-failure' ? 'ERROR: browser timed out' : screenshotPath,
             width: 1920,
             height: 1080,
             url: '/api/screenshots-files/folder with spaces/desktop test.png',
+            expiresAt: lastScreenshotRequest.retentionMinutes === 0 ? null : new Date(Date.now() + 300_000).toISOString(),
           },
         ],
       });
@@ -402,6 +405,7 @@ test('lists tools with output schemas', async () => {
   assert.ok(toolMap.get('kaleidoscope_read_layout')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_after_edit')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_scan_breakpoints')?.outputSchema);
+
 });
 
 test('accepts legacy MCP clients', async () => {
@@ -485,7 +489,7 @@ test('preview_responsive returns structured content', async () => {
   assert.match(structured.instructions[0] ?? '', /Open Kaleidoscope at http:\/\/(localhost|127\.0\.0\.1):\d+/);
 });
 
-test('capture_screenshots returns structured metadata and rich content', async () => {
+test('capture_screenshots returns structured metadata and rich content', async (t) => {
   assert.ok(client, 'client should be connected');
 
   const result = await client.callTool({
@@ -494,11 +498,18 @@ test('capture_screenshots returns structured metadata and rich content', async (
       url: 'https://example.com',
       devices: ['desktop'],
       output_dir: 'mcp-test',
+      retention_minutes: 0,
+      wait_until: 'load',
+      settle_ms: 750,
     },
   });
 
   assert.equal(result.isError, undefined);
   assert.equal((result.structuredContent as { count: number }).count, 1);
+  assert.equal(lastScreenshotRequest.retentionMinutes, 0);
+  assert.equal(lastScreenshotRequest.waitUntil, 'load');
+  assert.equal(lastScreenshotRequest.settleMs, 750);
+  assert.equal((result.structuredContent as { screenshots: Array<{ expiresAt: string | null }> }).screenshots[0]?.expiresAt, null);
 
   const contentTypes = ((result.content ?? []) as Array<{ type: string }>).map((item) => item.type);
   assert.ok(contentTypes.includes('resource_link'));
@@ -506,6 +517,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
 
   const structured = result.structuredContent as {
     screenshots: Array<{
+      deviceId: string;
       path: string;
       fileUri: string | null;
       preferredDisplayPath: string | null;
@@ -518,6 +530,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
       downloadUrl: string | null;
     }>;
     inlineImageCount: number;
+    inlinePreviews: Array<{ deviceId: string; contentIndex: number; resourceUri: string | null }>;
     displayAdvice: string;
     primaryMarkdownImageTag: string | null;
     finalResponseInstruction: string;
@@ -525,6 +538,12 @@ test('capture_screenshots returns structured metadata and rich content', async (
     fallbackMarkdownImageTags: string[];
   };
   assert.equal(structured.inlineImageCount, 1);
+  assert.deepEqual(structured.inlinePreviews.map(({ deviceId }) => deviceId), ['desktop']);
+  assert.equal(structured.screenshots[0]?.deviceId, 'desktop');
+  const previewMapping = structured.inlinePreviews[0];
+  assert.ok(previewMapping);
+  assert.equal(((result.content ?? [])[previewMapping.contentIndex] as { type?: string } | undefined)?.type, 'image');
+  assert.equal(previewMapping.resourceUri, structured.screenshots[0]?.fileUri);
   assert.match(structured.displayAdvice, /primaryMarkdownImageTag/i);
   assert.equal(structured.screenshots[0]?.path, screenshotPath);
   assert.match(structured.screenshots[0]?.fileUri ?? '', /^file:/);
@@ -539,6 +558,10 @@ test('capture_screenshots returns structured metadata and rich content', async (
   };
   const chatSafePath = entry.chatSafePath;
   assert.ok(chatSafePath, 'screenshots should include a chat-safe copy path');
+  t.after(() => {
+    rmSync(chatSafePath, { force: true });
+    rmSync(`${chatSafePath}.kaleidoscope-expiry.json`, { force: true });
+  });
   assert.equal(existsSync(chatSafePath), true);
   assert.doesNotMatch(basename(chatSafePath), /\s/);
   assert.equal(entry.chatDisplayPath, chatSafePath.replace(/\\/g, '/'));
@@ -656,6 +679,19 @@ test('layout tools return structured results', async () => {
     (afterEditResult.structuredContent as { verdict: string }).verdict,
     'noChange',
   );
+});
+
+test('capture_screenshots marks all-device capture failures as errors without claiming images were saved', async () => {
+  assert.ok(client);
+  const result = await client.callTool({
+    name: 'capture_screenshots',
+    arguments: { url: 'https://example.com/capture-failure', devices: ['desktop'] },
+  });
+  assert.equal(result.isError, true);
+  assert.ok(result.content?.every((block) => block.type !== 'image'));
+  const text = result.content?.find((block) => block.type === 'text');
+  assert.ok(text && text.type === 'text');
+  assert.match(text.text, /0 screenshots saved; 1 failed/);
 });
 
 test('kaleidoscope_scan_breakpoints returns compact structured findings', async () => {

@@ -34,7 +34,7 @@ const DEVICE_ALIASES = new Map<string, string>(
 );
 
 export function normalizeScreenshotDevices(requestedDevices: string[]): string[] {
-  return requestedDevices.map((requestedDevice) => {
+  return [...new Set(requestedDevices.map((requestedDevice) => {
     const deviceId = DEVICE_ALIASES.get(normalizeDeviceLookupKey(requestedDevice));
     if (!deviceId) {
       throw new Error(
@@ -44,7 +44,7 @@ export function normalizeScreenshotDevices(requestedDevices: string[]): string[]
     }
 
     return deviceId;
-  });
+  }))];
 }
 
 const deviceCatalogEntrySchema = z.object({
@@ -58,6 +58,7 @@ const deviceCatalogEntrySchema = z.object({
 });
 
 const screenshotEntrySchema = z.object({
+  deviceId: z.string(),
   device: z.string(),
   path: z.string(),
   fileUri: z.string().nullable(),
@@ -72,6 +73,7 @@ const screenshotEntrySchema = z.object({
   width: z.number(),
   height: z.number(),
   error: z.string().nullable(),
+  expiresAt: z.string().nullable(),
 });
 
 const listDevicesOutputSchema = {
@@ -84,6 +86,12 @@ const screenshotOutputSchema = {
   outputDirectory: z.string(),
   count: z.number(),
   inlineImageCount: z.number(),
+  previewWarnings: z.array(z.string()),
+  inlinePreviews: z.array(z.object({
+    deviceId: z.string(),
+    contentIndex: z.number().int().nonnegative(),
+    resourceUri: z.string().nullable(),
+  })),
   displayAdvice: z.string(),
   primaryMarkdownImageTag: z.string().nullable(),
   finalResponseInstruction: z.string(),
@@ -94,7 +102,7 @@ const screenshotOutputSchema = {
 
 const screenshotInputSchema = {
   url: z.string().url().describe('The URL to screenshot'),
-  devices: z.array(z.string()).optional().describe(
+  devices: z.array(z.string()).min(1).max(10).optional().describe(
     'Device viewports to capture. Accepts device IDs or names, for example "iphone-14" or "iPhone 14". ' +
     'Defaults to iphone-14, ipad, desktop. ' +
     `Available IDs: ${DEVICE_IDS.join(', ')}`,
@@ -104,6 +112,13 @@ const screenshotInputSchema = {
   ),
   full_page: z.boolean().optional().describe(
     'Capture full scrollable page instead of just the viewport. Default: false',
+  ),
+  wait_until: z.enum(['load', 'domcontentloaded', 'networkidle']).optional().describe(
+    'Navigation readiness. Defaults to domcontentloaded; networkidle can time out on pages with ongoing requests.',
+  ),
+  settle_ms: z.number().int().min(0).max(2000).optional().describe('Delay before capture after navigation. Defaults to 500 ms.'),
+  retention_minutes: z.number().min(0).max(10080).optional().describe(
+    'Automatically delete saved images and chat copies after this many minutes. Defaults to the server setting (5 minutes). Use 0 to keep files.',
   ),
 } satisfies z.ZodRawShape;
 
@@ -123,6 +138,7 @@ const visualDiffInputSchema = {
   include_antialiasing: z.boolean().optional().describe(
     'Count anti-aliased pixel differences instead of ignoring them. Defaults to false.',
   ),
+  retention_minutes: screenshotInputSchema.retention_minutes,
 } satisfies z.ZodRawShape;
 
 const visualDiffOutputSchema = {
@@ -148,6 +164,7 @@ const visualDiffServerResponseSchema = z.object({
   currentPath: z.string(),
   diffPath: z.string(),
   diffUrl: z.string(),
+  expiresAt: z.string().nullable().optional(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   totalPixels: z.number().int().nonnegative(),
@@ -165,6 +182,12 @@ interface ScreenshotOutput {
   outputDirectory: string;
   count: number;
   inlineImageCount: number;
+  previewWarnings: string[];
+  inlinePreviews: Array<{
+    deviceId: string;
+    contentIndex: number;
+    resourceUri: string | null;
+  }>;
   displayAdvice: string;
   primaryMarkdownImageTag: string | null;
   finalResponseInstruction: string;
@@ -229,12 +252,12 @@ export function registerScreenshotTools(server: McpServer) {
       description:
         'Capture screenshots of a URL across multiple device viewport sizes. ' +
         'Returns screenshot metadata, local file paths, file URIs, chat-ready local markdown paths, and inline previews when practical. ' +
-        'For reliable user-visible rendering in chat, use markdownImageTag or chatDisplayPath instead of localhost download URLs or transient image viewers. ' +
+        'Includes native MCP image previews for image-capable clients; local Markdown rendering depends on the chat client. ' +
         'Requires Kaleidoscope server to be running.',
       inputSchema: screenshotInputSchema as z.ZodRawShape,
       outputSchema: screenshotOutputSchema as z.ZodRawShape,
     },
-    async ({ url, devices: selectedDevices, output_dir, full_page }) => {
+    async ({ url, devices: selectedDevices, output_dir, full_page, wait_until, settle_ms, retention_minutes }) => {
       try {
         const serverReachable = await processManager.isServerReachable();
         if (!serverReachable) {
@@ -254,6 +277,9 @@ export function registerScreenshotTools(server: McpServer) {
             devices: devicesToCapture,
             outputDir,
             fullPage: full_page ?? false,
+            waitUntil: wait_until,
+            settleMs: settle_ms,
+            retentionMinutes: retention_minutes,
           }),
         });
 
@@ -262,12 +288,24 @@ export function registerScreenshotTools(server: McpServer) {
           return createErrorResult(`Screenshot capture failed: ${errData.error}`);
         }
 
-        const data = await screenshotRes.json() as { screenshots: ScreenshotCaptureResult[] };
+        const data = await screenshotRes.json() as { screenshots: Array<Omit<ScreenshotCaptureResult, 'deviceId'>> };
+        const seenDeviceIds = new Set<string>();
         const screenshots = await Promise.all(
-          data.screenshots.map((screenshot) => createScreenshotEntry(screenshot, KALEIDOSCOPE_SERVER)),
+          data.screenshots.map((screenshot) => {
+            const deviceId = DEVICE_ALIASES.get(normalizeDeviceLookupKey(screenshot.device));
+            if (!deviceId || !devicesToCapture.includes(deviceId) || seenDeviceIds.has(deviceId)) {
+              throw new Error(`Screenshot service returned an unknown or duplicate device: ${screenshot.device}`);
+            }
+            seenDeviceIds.add(deviceId);
+            return createScreenshotEntry({ ...screenshot, deviceId }, KALEIDOSCOPE_SERVER);
+          }),
         );
+        if (seenDeviceIds.size !== devicesToCapture.length) {
+          throw new Error('Screenshot service did not return every requested device.');
+        }
 
-        const { content: screenshotContent, inlineImageCount } = await buildScreenshotContent(screenshots);
+        // createStructuredResult prepends the human-readable text block.
+        const { content: screenshotContent, inlineImageCount, inlinePreviews, previewWarnings } = await buildScreenshotContent(screenshots, 1);
         const readyToPasteMarkdown = screenshots.flatMap((screenshot) => (
           screenshot.markdownImageTag ? [screenshot.markdownImageTag] : []
         ));
@@ -281,10 +319,13 @@ export function registerScreenshotTools(server: McpServer) {
           outputDirectory: outputDir,
           count: screenshots.length,
           inlineImageCount,
+          inlinePreviews,
+          previewWarnings,
           displayAdvice:
-            'For reliable chat rendering, paste primaryMarkdownImageTag or a value from readyToPasteMarkdown directly into the final response. ' +
-            'Kaleidoscope also creates a chat-safe local copy for paths with spaces and exposes original-path fallbacks in fallbackMarkdownImageTags. ' +
-            'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
+            'Native MCP image blocks include a preview for each available image, resized when needed. ' +
+            'For clients that render local images, use primaryMarkdownImageTag or readyToPasteMarkdown in the final response. ' +
+            'Local paths and localhost URLs are not supported by every client. Saved files and chat copies expire at expiresAt; ' +
+            'images already embedded in chat are managed by the chat client.',
           primaryMarkdownImageTag,
           finalResponseInstruction,
           readyToPasteMarkdown,
@@ -310,7 +351,12 @@ export function registerScreenshotTools(server: McpServer) {
         }
 
         lines.push('');
-        lines.push(`Total: ${screenshots.length} screenshots saved.`);
+        const savedCount = screenshots.filter((screenshot) => !screenshot.error).length;
+        lines.push(`Total: ${savedCount} screenshots saved; ${screenshots.length - savedCount} failed.`);
+        for (const screenshot of screenshots) {
+          if (screenshot.expiresAt) lines.push(`${screenshot.device} files expire at ${screenshot.expiresAt}.`);
+        }
+        lines.push(...previewWarnings.map((warning) => `Preview unavailable: ${warning}`));
         if (inlineImageCount > 0) {
           lines.push(`Inline previews attached: ${inlineImageCount}.`);
         }
@@ -328,9 +374,9 @@ export function registerScreenshotTools(server: McpServer) {
             lines.push(markdownTag);
           }
         }
-        lines.push('For reliable chat rendering, use primaryMarkdownImageTag or readyToPasteMarkdown first. If the renderer rejects that path, use fallbackMarkdownImageTags; localhost links and transient preview blocks can be flaky.');
+        lines.push('Native MCP image previews are attached when available. Local Markdown images require client support.');
 
-        return createStructuredResult(result, lines.join('\n'), screenshotContent);
+        return { ...createStructuredResult(result, lines.join('\n'), screenshotContent), ...(savedCount === 0 ? { isError: true } : {}) };
       } catch (error) {
         return createErrorResult(await formatToolError('capturing screenshots', error));
       }
@@ -353,6 +399,7 @@ export function registerScreenshotTools(server: McpServer) {
       color_threshold,
       allowed_diff_percentage,
       include_antialiasing,
+      retention_minutes,
     }) => {
       try {
         if (!(await processManager.isServerReachable())) {
@@ -368,6 +415,7 @@ export function registerScreenshotTools(server: McpServer) {
             colorThreshold: color_threshold,
             allowedDiffPercentage: allowed_diff_percentage,
             includeAntialiasing: include_antialiasing,
+            retentionMinutes: retention_minutes,
           }),
         });
         const rawBody: unknown = await response.json();
@@ -389,11 +437,13 @@ export function registerScreenshotTools(server: McpServer) {
         const body = parsedBody.data;
 
         const diff = await createScreenshotEntry({
+          deviceId: 'visual-diff',
           device: 'Pixel diff',
           path: body.diffPath,
           width: body.width,
           height: body.height,
           url: body.diffUrl,
+          expiresAt: body.expiresAt,
         }, KALEIDOSCOPE_SERVER);
         const { content } = await buildScreenshotContent([diff]);
         const result = {

@@ -9,6 +9,7 @@ import { screenshotService } from "./services/screenshot.service.js";
 import { proxyService } from "./services/proxy.service.js";
 import { logApiRequest, logServerError } from "./utils/logger.js";
 import { sendError } from "./utils/http.js";
+import { startImageExpiryCleanup } from '../shared/artifact-retention.js';
 import {
   KALEIDOSCOPE_CLIENT_HEADER_NAME,
   isAllowedBrowserOrigin,
@@ -194,10 +195,16 @@ app.use((req, res, next) => {
   // Serve device screenshots for client downloads
   app.use('/api/screenshots-files', express.static(
     path.resolve(process.env.SCREENSHOT_OUTPUT_DIR || './screenshots'),
-    { maxAge: '1h' }
+    {
+      dotfiles: 'deny',
+      setHeaders: (res) => { res.setHeader('Cache-Control', 'no-store'); },
+    }
   ));
 
   await registerRoutes(app);
+  const stopImageCleanup = startImageExpiryCleanup([
+    path.resolve(process.env.SCREENSHOT_OUTPUT_DIR || './screenshots'),
+  ]);
 
   // In production, serve static files from dist/public
   if (process.env.NODE_ENV === "production") {
@@ -239,6 +246,7 @@ app.use((req, res, next) => {
   const shutdown = async () => {
     console.log('Shutting down...');
     clearInterval(cleanupInterval);
+    stopImageCleanup();
     httpServer.close();
     await Promise.allSettled([
       screenshotService.close(),

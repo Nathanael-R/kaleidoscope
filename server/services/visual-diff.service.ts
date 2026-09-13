@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { imageExpiresAt, registerImageExpiry } from '../../shared/artifact-retention.js';
 import {
   comparePngBuffersCore,
   VisualDiffDimensionError,
@@ -111,15 +112,24 @@ export async function pruneVisualDiffArtifacts(
     throw error;
   }
 
-  const files = await Promise.all(
+  const candidates = await Promise.all(
     entries
       .filter(entry => entry.isFile() && entry.name.endsWith('.png'))
       .map(async (entry) => {
         const filePath = join(directory, entry.name);
-        const fileStats = await stat(filePath);
-        return { path: filePath, modifiedAt: fileStats.mtimeMs };
+        let fileStats;
+        try {
+          fileStats = await stat(filePath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+          throw error;
+        }
+        // New artifacts have an explicit retention policy, including "keep".
+        const managed = await stat(`${filePath}.kaleidoscope-expiry.json`).then(() => true, () => false);
+        return { path: filePath, modifiedAt: fileStats.mtimeMs, managed };
       }),
   );
+  const files = candidates.filter((file): file is NonNullable<typeof file> => file !== null && !file.managed);
   files.sort((left, right) => {
     if (left.path === protectedPath) return -1;
     if (right.path === protectedPath) return 1;
@@ -136,7 +146,8 @@ export async function comparePngFiles(
   currentPath: string,
   diffPath: string,
   options: VisualDiffOptions,
-): Promise<Omit<VisualDiffResult, 'diffBuffer'>> {
+  retentionMinutes?: number,
+): Promise<Omit<VisualDiffResult, 'diffBuffer'> & { expiresAt: string | null }> {
   const [baselineStats, currentStats] = await Promise.all([stat(baselinePath), stat(currentPath)]);
   for (const [label, size] of [['Baseline screenshot', baselineStats.size], ['Current screenshot', currentStats.size]] as const) {
     if (size > VISUAL_DIFF_LIMITS.maxInputBytes) {
@@ -148,6 +159,13 @@ export async function comparePngFiles(
   const { diffBuffer, ...result } = await compareInWorker(baselineBuffer, currentBuffer, options);
   await mkdir(dirname(diffPath), { recursive: true });
   await writeFile(diffPath, diffBuffer);
+  const expiresAt = imageExpiresAt(retentionMinutes);
+  try {
+    await registerImageExpiry(diffPath, expiresAt);
+  } catch (error) {
+    await unlink(diffPath).catch(() => {});
+    throw error;
+  }
   await pruneVisualDiffArtifacts(dirname(diffPath), MAX_ARTIFACT_AGE_MS, MAX_ARTIFACT_COUNT, diffPath);
-  return result;
+  return { ...result, expiresAt };
 }

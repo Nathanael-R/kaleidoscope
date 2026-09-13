@@ -56,28 +56,13 @@ type BrowserProbe = {
   issues: BreakpointIssue[];
 };
 
-function isVisible(style: CSSStyleDeclaration, rect: DOMRect): boolean {
-  return rect.width >= 1
-    && rect.height >= 1
-    && style.display !== 'none'
-    && style.visibility !== 'hidden'
-    && style.opacity !== '0';
-}
-
 export function captureBreakpointProbe(): BrowserProbe {
+  // Playwright serializes this function into the page; keep it self-contained.
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const scrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
   const issues: BreakpointIssue[] = [];
   const overflowPx = Math.max(0, Math.round(scrollWidth - viewportWidth));
-  const cssEscape = (value: string) => {
-    const css = (window as Window & { CSS?: { escape?: (input: string) => string } }).CSS;
-    if (css && typeof css.escape === 'function') {
-      return css.escape(value);
-    }
-
-    return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-  };
 
   if (overflowPx > 2) {
     issues.push({
@@ -96,7 +81,9 @@ export function captureBreakpointProbe(): BrowserProbe {
   for (const element of interactive) {
     const rect = element.getBoundingClientRect();
     const style = window.getComputedStyle(element);
-    if (!isVisible(style, rect) || rect.bottom <= 0 || rect.top >= viewportHeight) {
+    if (rect.width < 1 || rect.height < 1 || style.display === 'none'
+      || style.visibility === 'hidden' || style.opacity === '0'
+      || rect.bottom <= 0 || rect.top >= viewportHeight) {
       continue;
     }
 
@@ -110,7 +97,7 @@ export function captureBreakpointProbe(): BrowserProbe {
     const selector = element.getAttribute('data-testid')
       ? `[data-testid="${element.getAttribute('data-testid')!.replace(/"/g, '\\"')}"]`
       : element.id
-        ? `#${cssEscape(element.id)}`
+        ? `#${CSS.escape(element.id)}`
         : element.getAttribute('name')
           ? `${tagName}[name="${element.getAttribute('name')!.replace(/"/g, '\\"')}"]`
           : element.getAttribute('aria-label')
