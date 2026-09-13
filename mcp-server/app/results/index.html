@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kaleidoscope capture results</title>
+    <style>__KALEIDOSCOPE_APP_CSS__</style>
+  </head>
+  <body>
+    <main class="app-shell" aria-live="polite">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">K</div>
+          <div>
+            <div class="title-row">
+              <h1>Kaleidoscope</h1>
+              <span id="connection-status" class="status-badge">Result</span>
+            </div>
+            <p id="capture-summary" class="capture-summary">Responsive capture</p>
+          </div>
+        </div>
+        <button id="fullscreen-button" class="icon-button" type="button" hidden title="Open fullscreen" aria-label="Open fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </button>
+      </header>
+
+      <form id="capture-form" class="capture-form">
+        <label class="url-field">
+          <span>Page URL</span>
+          <input id="url-input" name="url" type="url" required placeholder="http://localhost:3000" autocomplete="off" />
+        </label>
+        <button id="capture-button" class="primary-button" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" />
+          </svg>
+          <span>Recapture</span>
+        </button>
+        <div class="capture-options">
+          <label class="check-control">
+            <input id="full-page-input" type="checkbox" />
+            <span>Full page</span>
+          </label>
+          <label class="select-control">
+            <span>Auto-refresh</span>
+            <select id="refresh-interval">
+              <option value="0">Off</option>
+              <option value="5">5 sec</option>
+              <option value="15">15 sec</option>
+              <option value="30">30 sec</option>
+            </select>
+          </label>
+        </div>
+        <fieldset class="device-picker">
+          <legend>Capture devices</legend>
+          <div id="capture-device-options" class="device-options"></div>
+        </fieldset>
+        <p id="capture-feedback" class="capture-feedback" role="status"></p>
+      </form>
+
+      <section id="loading-state" class="state-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>
+          <strong>Preparing previews</strong>
+          <p>The capture result will appear here when the tool finishes.</p>
+        </div>
+      </section>
+
+      <section id="error-state" class="state-panel state-error" hidden>
+        <div>
+          <strong>Preview unavailable</strong>
+          <p id="error-message">Kaleidoscope could not load this result.</p>
+        </div>
+      </section>
+
+      <section id="results" class="results" hidden>
+        <aside class="device-rail">
+          <div class="rail-heading">
+            <span>Captures</span>
+            <strong id="capture-count">0</strong>
+          </div>
+          <nav id="device-tabs" class="device-tabs" aria-label="Captured devices"></nav>
+        </aside>
+
+        <div class="workspace">
+          <div class="workspace-toolbar">
+            <div class="view-switcher" aria-label="Preview layout">
+              <button id="focus-view-button" class="segment-button" type="button" aria-pressed="true">Focus</button>
+              <button id="grid-view-button" class="segment-button" type="button" aria-pressed="false">Grid</button>
+            </div>
+            <div id="zoom-controls" class="zoom-controls">
+              <button id="zoom-out-button" class="icon-button compact" type="button" title="Zoom out" aria-label="Zoom out">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+              </button>
+              <button id="fit-button" class="zoom-value" type="button" title="Fit preview">Fit</button>
+              <button id="zoom-in-button" class="icon-button compact" type="button" title="Zoom in" aria-label="Zoom in">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="preview-stage" class="preview-stage">
+            <div id="preview-frame" class="preview-frame">
+              <img id="preview-image" alt="" />
+              <div id="preview-placeholder" class="preview-placeholder" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <path d="m3 15 5-5 4 4 3-3 6 6M8.5 8.5h.01" />
+                </svg>
+                <strong>Preview unavailable</strong>
+                <p>The screenshot remains available through the normal tool result.</p>
+              </div>
+            </div>
+            <div id="grid-previews" class="grid-previews" hidden></div>
+            <div id="capture-overlay" class="capture-overlay" hidden>
+              <div class="spinner" aria-hidden="true"></div>
+              <strong>Capturing selected devices…</strong>
+            </div>
+          </div>
+
+          <footer class="capture-meta">
+            <div>
+              <span class="meta-label">Device</span>
+              <strong id="device-name">—</strong>
+            </div>
+            <div>
+              <span class="meta-label">Viewport</span>
+              <strong id="device-size">—</strong>
+            </div>
+            <div>
+              <span class="meta-label">Capture</span>
+              <strong id="capture-position">—</strong>
+            </div>
+            <div>
+              <span class="meta-label">Updated</span>
+              <strong id="updated-at">—</strong>
+            </div>
+          </footer>
+        </div>
+      </section>
+    </main>
+    <script>__KALEIDOSCOPE_APP_JS__</script>
+  </body>
+</html>

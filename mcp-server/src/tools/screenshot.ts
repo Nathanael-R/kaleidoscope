@@ -14,6 +14,7 @@ import {
   createStructuredResult,
   formatToolError,
 } from '../tool-utils.js';
+import { RESULTS_APP_TOOL_META } from '../mcp-app.js';
 
 const DEFAULT_CAPTURE_DEVICES = ['iphone-14', 'ipad', 'desktop'] as const;
 
@@ -203,6 +204,7 @@ export function registerScreenshotTools(server: McpServer) {
       description: string;
       inputSchema: z.ZodRawShape;
       outputSchema: z.ZodRawShape;
+      _meta?: typeof RESULTS_APP_TOOL_META;
     },
     handler: (args: any) => Promise<ReturnType<typeof createStructuredResult> | ReturnType<typeof createErrorResult>>,
   ) => void;
@@ -256,6 +258,7 @@ export function registerScreenshotTools(server: McpServer) {
         'Requires Kaleidoscope server to be running.',
       inputSchema: screenshotInputSchema as z.ZodRawShape,
       outputSchema: screenshotOutputSchema as z.ZodRawShape,
+      _meta: RESULTS_APP_TOOL_META,
     },
     async ({ url, devices: selectedDevices, output_dir, full_page, wait_until, settle_ms, retention_minutes }) => {
       try {

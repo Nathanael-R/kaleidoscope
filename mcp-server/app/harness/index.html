@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCP Apps reference harness</title>
+    <style>__MCP_APPS_HARNESS_CSS__</style>
+  </head>
+  <body>
+    <main class="harness-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">M</div>
+          <div>
+            <h1>MCP Apps Harness</h1>
+            <p>Provider-neutral reference host</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="session-status" class="status-badge">Starting</span>
+          <button id="reload-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg>
+            Reload app
+          </button>
+        </div>
+      </header>
+
+      <aside class="inspector">
+        <section class="control-section">
+          <h2>App resource</h2>
+          <label class="field-control">
+            <span>Resource URL</span>
+            <input id="resource-input" type="text" value="./results.html" spellcheck="false" />
+          </label>
+          <button id="load-button" class="primary-button" type="button">Load resource</button>
+        </section>
+
+        <section class="control-section">
+          <h2>Host context</h2>
+          <label class="field-control">
+            <span>Theme</span>
+            <select id="theme-select">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <label class="field-control">
+            <span>Canvas width</span>
+            <select id="viewport-select">
+              <option value="fluid">Fluid</option>
+              <option value="1024">1024 px</option>
+              <option value="768">768 px</option>
+              <option value="390">390 px</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <h2>Capabilities</h2>
+            <span>Applied on reload</span>
+          </div>
+          <label class="toggle-control">
+            <input id="server-tools-toggle" type="checkbox" checked />
+            <span>Server tools</span>
+          </label>
+          <label class="toggle-control">
+            <input id="fullscreen-toggle" type="checkbox" checked />
+            <span>Fullscreen</span>
+          </label>
+        </section>
+
+        <section class="protocol-section">
+          <div class="section-heading">
+            <h2>Protocol</h2>
+            <button id="clear-log-button" class="text-button" type="button">Clear</button>
+          </div>
+          <ol id="protocol-log" class="protocol-log" aria-live="polite"></ol>
+        </section>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-toolbar">
+          <div>
+            <strong id="canvas-title">App canvas</strong>
+            <span id="app-identity">Waiting for ui/initialize</span>
+          </div>
+          <span id="canvas-size">Fluid width</span>
+        </div>
+        <div id="canvas-stage" class="canvas-stage">
+          <div id="canvas-frame" class="canvas-frame">
+            <iframe id="app-frame" title="MCP App under test" sandbox="allow-scripts"></iframe>
+          </div>
+        </div>
+        <footer class="statusbar">
+          <span id="last-event">No protocol traffic yet</span>
+          <span>Protocol 2026-01-26</span>
+        </footer>
+      </section>
+    </main>
+    <script>__MCP_APPS_HARNESS_JS__</script>
+  </body>
+</html>

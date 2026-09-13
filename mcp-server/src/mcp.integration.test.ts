@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { MCP_APP_MIME_TYPE, RESULTS_APP_URI } from './mcp-app.js';
 
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlAbWQAAAAASUVORK5CYII=';
@@ -406,6 +407,18 @@ test('lists tools with output schemas', async () => {
   assert.ok(toolMap.get('kaleidoscope_after_edit')?.outputSchema);
   assert.ok(toolMap.get('kaleidoscope_scan_breakpoints')?.outputSchema);
 
+  const captureMeta = toolMap.get('capture_screenshots')?._meta as {
+    ui?: { resourceUri?: string };
+  } | undefined;
+  assert.equal(captureMeta?.ui?.resourceUri, RESULTS_APP_URI);
+
+  const appResource = await client.readResource({ uri: RESULTS_APP_URI });
+  const appContent = appResource.contents[0];
+  assert.equal(appContent?.mimeType, MCP_APP_MIME_TYPE);
+  assert.ok(appContent && 'text' in appContent);
+  assert.match(appContent.text, /id="capture-form"/);
+  assert.match(appContent.text, /ui\/initialize/);
+  assert.match(appContent.text, /tools\/call/);
 });
 
 test('accepts legacy MCP clients', async () => {

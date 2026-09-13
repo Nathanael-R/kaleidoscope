@@ -34,13 +34,14 @@
     "kaleidoscope-mcp": "dist/index.js"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "npm run build:mcp-app && tsx src/index.ts",
     "build": "npm run build:mcp && npm run build:app",
-    "build:mcp": "esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:mcp": "npm run build:mcp-app && esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:mcp-app": "node scripts/build-mcp-app.mjs",
     "build:app": "node scripts/build-packaged-app.mjs",
     "start": "node dist/index.js",
-    "check": "node ./scripts/typecheck.mjs",
-    "test": "tsx --test src/**/*.test.ts",
+    "check": "node ./scripts/typecheck.mjs && tsc -p tsconfig.browser.json",
+    "test": "npm run build:mcp-app && tsx --test src/**/*.test.ts app/**/*.test.ts",
     "prepack": "npm run build",
     "prepublishOnly": "npm run build && npm run check && npm test",
     "publish:check": "npm run prepublishOnly && npm publish --dry-run --access public",
