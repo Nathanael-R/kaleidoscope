@@ -267,6 +267,7 @@ export function registerScreenshotTools(server: McpServer) {
         if (!serverReachable) {
           await processManager.startServer();
         }
+        const backendFreshness = await processManager.ensureFreshBackend();
 
         const devicesToCapture = selectedDevices
           ? normalizeScreenshotDevices(selectedDevices)
@@ -344,6 +345,12 @@ export function registerScreenshotTools(server: McpServer) {
           '',
         ];
 
+        if (backendFreshness.agentInstructions) {
+          lines.push('Warning: stale Kaleidoscope backend detected.');
+          lines.push(backendFreshness.agentInstructions);
+          lines.push('');
+        }
+
         if (primaryMarkdownImageTag) {
           lines.push('Show this image in your final response:');
           lines.push(primaryMarkdownImageTag);
@@ -410,6 +417,7 @@ export function registerScreenshotTools(server: McpServer) {
         if (!(await processManager.isServerReachable())) {
           await processManager.startServer();
         }
+        const backendFreshness = await processManager.ensureFreshBackend();
 
         const response = await kaleidoscopeFetch(`${KALEIDOSCOPE_SERVER}/api/screenshots/compare`, {
           method: 'POST',
@@ -467,6 +475,7 @@ export function registerScreenshotTools(server: McpServer) {
           diff,
         };
         const text = [
+          backendFreshness.agentInstructions ? ['Warning: stale Kaleidoscope backend detected.', backendFreshness.agentInstructions].join('\n') : '',
           `Pixel comparison: ${body.verdict}`,
           `Changed pixels: ${body.mismatchedPixels}/${body.totalPixels} (${body.mismatchPercentage.toFixed(4)}%)`,
           `Allowed difference: ${body.allowedDiffPercentage}%`,

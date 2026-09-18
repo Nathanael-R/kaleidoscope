@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import type { HealthResponse } from "./types.js";
+import { resolveServerVersion } from "./utils/version.js";
 import screenshotRoutes from "./routes/screenshot.routes.js";
 import proxyRoutes from "./routes/proxy.routes.js";
 import inspectRoutes from "./routes/inspect.routes.js";
@@ -14,6 +15,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       status: "ok",
       timestamp: new Date().toISOString(),
       requestId: res.locals.requestId as string | undefined,
+      version: resolveServerVersion(),
     };
     res.json(response);
   });

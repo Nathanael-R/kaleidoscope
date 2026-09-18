@@ -20,6 +20,7 @@ let client: Client | null = null;
 let tempDir = '';
 let screenshotPath = '';
 let lastScreenshotRequest: Record<string, unknown> = {};
+let mockBackendHealthVersion = '1.2.5';
 
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -187,7 +188,7 @@ test.before(async () => {
     const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
 
     if (requestUrl.pathname === '/api/health') {
-      return sendJson(res, { status: 'ok' });
+      return sendJson(res, { status: 'ok', version: mockBackendHealthVersion });
     }
 
     if (requestUrl.pathname === '/api/screenshots' && req.method === 'POST') {
@@ -708,6 +709,27 @@ test('capture_screenshots marks all-device capture failures as errors without cl
   const text = result.content?.find((block) => block.type === 'text');
   assert.ok(text && text.type === 'text');
   assert.match(text.text, /0 screenshots saved; 1 failed/);
+});
+
+test('capture_screenshots warns agents about a stale Kaleidoscope backend', async () => {
+  assert.ok(client);
+  mockBackendHealthVersion = '1.2.4';
+  try {
+    const result = await client.callTool({
+      name: 'capture_screenshots',
+      arguments: {
+        url: 'https://example.com/capture-failure',
+        devices: ['desktop'],
+      },
+    });
+    const text = (result.content as Array<{ type: string; text?: string }>)[0]?.text ?? '';
+    assert.match(text, /stale Kaleidoscope backend detected/i);
+    assert.match(text, /reports version 1\.2\.4/);
+    assert.match(text, /MCP server is 1\.2\.5/);
+    assert.match(text, /Stop the stale backend process and retry/);
+  } finally {
+    mockBackendHealthVersion = '1.2.5';
+  }
 });
 
 test('kaleidoscope_scan_breakpoints returns compact structured findings', async () => {

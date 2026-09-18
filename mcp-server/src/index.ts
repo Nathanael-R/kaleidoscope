@@ -9,6 +9,7 @@ import { registerLayoutTools } from './tools/layout.js';
 import { registerBreakpointTools } from './tools/breakpoint.js';
 import { processManager } from './process-manager.js';
 import { startChatImageCleanup } from './screenshot-artifacts.js';
+import { MCP_SERVER_VERSION } from './version.js';
 import {
   MCP_APPS_EXTENSION_ID,
   MCP_APP_MIME_TYPE,
@@ -19,7 +20,7 @@ function buildServer(): McpServer {
   const server = new McpServer(
     {
       name: 'kaleidoscope',
-      version: '1.2.5',
+      version: MCP_SERVER_VERSION,
     },
     {
       capabilities: {

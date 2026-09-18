@@ -13,7 +13,7 @@ const files = {
   serverLock: path.join(repoRoot, 'server', 'package-lock.json'),
   mcpPackage: path.join(repoRoot, 'mcp-server', 'package.json'),
   mcpLock: path.join(repoRoot, 'mcp-server', 'package-lock.json'),
-  mcpEntry: path.join(repoRoot, 'mcp-server', 'src', 'index.ts'),
+  mcpEntry: path.join(repoRoot, 'mcp-server', 'src', 'version.ts'),
 };
 
 function usage() {
@@ -109,16 +109,16 @@ function setPackageLockVersion(filePath, packagePath, version) {
 
 function setMcpRuntimeVersion(version) {
   const source = readFileSync(files.mcpEntry, 'utf8');
-  const updated = source.replace(
-    /(version:\s*)['"]\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?['"]/,
-    `$1'${version}'`,
-  );
+  const versionRegex = /(MCP_SERVER_VERSION\s*=\s*)['"]\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?['"]/;
 
-  if (updated === source) {
+  if (!versionRegex.test(source)) {
     throw new Error(`Could not find MCP runtime version in ${path.relative(repoRoot, files.mcpEntry)}.`);
   }
 
-  writeFileSync(files.mcpEntry, updated);
+  const updated = source.replace(versionRegex, `$1'${version}'`);
+  if (updated !== source) {
+    writeFileSync(files.mcpEntry, updated);
+  }
 }
 
 try {

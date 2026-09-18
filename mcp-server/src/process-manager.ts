@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KALEIDOSCOPE_SERVER } from './kaleidoscope-api.js';
+import { MCP_SERVER_VERSION } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE_PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -220,6 +221,14 @@ export interface KaleidoscopeStatus {
   server: ServiceStatus;
 }
 
+export interface BackendFreshness {
+  backendReachable: boolean;
+  backendVersion: string | null;
+  stale: boolean;
+  restarted: boolean;
+  agentInstructions: string | null;
+}
+
 class ProcessManager {
   private clientProcess: ChildProcess | null = null;
   private serverProcess: ChildProcess | null = null;
@@ -413,6 +422,68 @@ class ProcessManager {
 
   async isServerReachable(): Promise<boolean> {
     return this.isReachable(new URL('/api/health', this.serverUrl).toString());
+  }
+
+  private async getBackendVersion(): Promise<string | null> {
+    try {
+      const res = await fetchWithTimeout(new URL('/api/health', this.serverUrl).toString(), 2_000);
+      if (!res.ok) {
+        return null;
+      }
+      const body = await res.json() as { version?: unknown };
+      return typeof body.version === 'string' && body.version.trim() ? body.version.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Detect a stale Kaleidoscope backend (an older process still bound to the configured port)
+   * and either restart it when this manager owns it, or return instructions the calling agent
+   * can act on.
+   */
+  async ensureFreshBackend(): Promise<BackendFreshness> {
+    const backendReachable = await this.isServerReachable();
+    if (!backendReachable) {
+      return { backendReachable: false, backendVersion: null, stale: false, restarted: false, agentInstructions: null };
+    }
+
+    const backendVersion = await this.getBackendVersion();
+    if (!backendVersion) {
+      return { backendReachable: true, backendVersion: null, stale: false, restarted: false, agentInstructions: null };
+    }
+
+    if (backendVersion === MCP_SERVER_VERSION) {
+      return { backendReachable: true, backendVersion, stale: false, restarted: false, agentInstructions: null };
+    }
+
+    let restarted = false;
+    if (this.serverProcess && this.serverProcess.exitCode === null) {
+      this.stopProcessTree(this.serverProcess);
+      this.serverProcess = null;
+      try {
+        await this.startServer();
+        restarted = true;
+      } catch {
+        restarted = false;
+      }
+    }
+
+    const reportVersion = restarted ? await this.getBackendVersion() : backendVersion;
+    const stale = restarted ? reportVersion !== MCP_SERVER_VERSION : true;
+    const agentInstructions = stale
+      ? [
+        `The running Kaleidoscope backend reports version ${reportVersion ?? 'unknown'} ` +
+        `but this MCP server is ${MCP_SERVER_VERSION}.`,
+        'Older backends lack the /api/chat-images route, so chat clients cannot render the served screenshots.',
+        'Stop the stale backend process and retry the capture; the MCP server will start the current backend automatically.',
+        IS_WINDOWS
+          ? 'On Windows: Get-NetTCPConnection -LocalPort <port> -State Listen | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force }'
+          : 'On macOS/Linux: lsof -ti tcp:<port> | xargs kill',
+      ].join('\n')
+      : null;
+
+    return { backendReachable: true, backendVersion: reportVersion, stale, restarted, agentInstructions };
   }
 
   async startServer(): Promise<void> {
