@@ -188,7 +188,10 @@ test.before(async () => {
     const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
 
     if (requestUrl.pathname === '/api/health') {
-      return sendJson(res, { status: 'ok', version: mockBackendHealthVersion });
+      if (mockBackendHealthVersion) {
+        return sendJson(res, { status: 'ok', version: mockBackendHealthVersion });
+      }
+      return sendJson(res, { status: 'ok' });
     }
 
     if (requestUrl.pathname === '/api/screenshots' && req.method === 'POST') {
@@ -607,6 +610,26 @@ test('capture_screenshots returns structured metadata and rich content', async (
     primaryTextBlock?.text ?? '',
     new RegExp((entry.chatSafeHttpImageTag ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
+});
+
+test('capture_screenshots flags legacy backends without version reporting', async () => {
+  assert.ok(client);
+  mockBackendHealthVersion = '';
+  try {
+    const result = await client.callTool({
+      name: 'capture_screenshots',
+      arguments: {
+        url: 'https://example.com/capture-failure',
+        devices: ['desktop'],
+      },
+    });
+    const text = (result.content as Array<{ type: string; text?: string }>)[0]?.text ?? '';
+    assert.match(text, /stale Kaleidoscope backend detected/i);
+    assert.match(text, /does not report its version/);
+    assert.match(text, /Stop the stale backend process and retry/);
+  } finally {
+    mockBackendHealthVersion = '1.2.5';
+  }
 });
 
 test('compare_screenshots returns metrics and a diff artifact', async () => {

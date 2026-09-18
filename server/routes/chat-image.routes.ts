@@ -4,6 +4,9 @@ import { chatSafeImageDirs } from '../../shared/artifact-retention.js';
 
 export function createChatImageRouter(dirs: string[] = chatSafeImageDirs()): express.Router {
   const router = express.Router();
+  router.get('/', (_req, res) => {
+    res.json({ provider: 'kaleidoscope' });
+  });
   const roots = dirs.length > 0 ? dirs : [path.resolve('./chat-images')];
   for (const root of roots) {
     router.use(express.static(root, {

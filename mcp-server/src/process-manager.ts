@@ -450,7 +450,35 @@ class ProcessManager {
 
     const backendVersion = await this.getBackendVersion();
     if (!backendVersion) {
-      return { backendReachable: true, backendVersion: null, stale: false, restarted: false, agentInstructions: null };
+      // Legacy backends (pre-version reporting) are identified by the /api/chat-images provider marker.
+      let hasChatImageRoute = false;
+      try {
+        const probe = await fetchWithTimeout(new URL('/api/chat-images', this.serverUrl).toString(), 2_000);
+        if (probe.ok) {
+          const body = await probe.json() as { provider?: unknown };
+          hasChatImageRoute = body.provider === 'kaleidoscope';
+        }
+      } catch {
+        hasChatImageRoute = false;
+      }
+      if (hasChatImageRoute) {
+        return { backendReachable: true, backendVersion: null, stale: false, restarted: false, agentInstructions: null };
+      }
+      return {
+        backendReachable: true,
+        backendVersion: null,
+        stale: true,
+        restarted: false,
+        agentInstructions: [
+          'The running Kaleidoscope backend does not report its version and lacks the /api/chat-images route, ' +
+          'which means it was started before this MCP server version.',
+          'Older backends cannot serve screenshots to chat clients over HTTP.',
+          'Stop the stale backend process and retry the capture; the MCP server will start the current backend automatically.',
+          IS_WINDOWS
+            ? 'On Windows: Get-NetTCPConnection -LocalPort <port> -State Listen | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force }'
+            : 'On macOS/Linux: lsof -ti tcp:<port> | xargs kill',
+        ].join('\n'),
+      };
     }
 
     if (backendVersion === MCP_SERVER_VERSION) {
