@@ -70,6 +70,7 @@ const screenshotEntrySchema = z.object({
   markdownImageTagFallbacks: z.array(z.string()),
   chatSafePath: z.string().nullable(),
   chatSafeMarkdownImageTag: z.string().nullable(),
+  chatSafeHttpImageTag: z.string().nullable(),
   downloadUrl: z.string().nullable(),
   width: z.number(),
   height: z.number(),
@@ -315,7 +316,7 @@ export function registerScreenshotTools(server: McpServer) {
         const fallbackMarkdownImageTags = screenshots.flatMap((screenshot) => screenshot.markdownImageTagFallbacks);
         const primaryMarkdownImageTag = readyToPasteMarkdown[0] ?? null;
         const finalResponseInstruction = primaryMarkdownImageTag
-          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}. If it does not render, try a fallback from fallbackMarkdownImageTags.`
+          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}. The preferred tag is served over HTTP so most chat clients will render it; if it does not render, try a fallback from fallbackMarkdownImageTags.`
           : 'No chat-renderable screenshot Markdown was produced. Report the screenshot path and error details instead.';
         const result: ScreenshotOutput = {
           url,
@@ -326,8 +327,9 @@ export function registerScreenshotTools(server: McpServer) {
           previewWarnings,
           displayAdvice:
             'Native MCP image blocks include a preview for each available image, resized when needed. ' +
-            'For clients that render local images, use primaryMarkdownImageTag or readyToPasteMarkdown in the final response. ' +
-            'Local paths and localhost URLs are not supported by every client. Saved files and chat copies expire at expiresAt; ' +
+            'Use primaryMarkdownImageTag or readyToPasteMarkdown in the final response; the preferred tag is served over HTTP ' +
+            'from the Kaleidoscope server so Markdown-rendering clients can display it, with local-path tags as fallbacks. ' +
+            'Saved originals and chat copies expire at expiresAt (chat copies use a longer retention window); ' +
             'images already embedded in chat are managed by the chat client.',
           primaryMarkdownImageTag,
           finalResponseInstruction,

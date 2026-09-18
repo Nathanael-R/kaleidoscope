@@ -86,9 +86,9 @@ Capture a Kaleidoscope layout baseline for http://localhost:3000/checkout on iph
 
 `capture_screenshots` defaults to `wait_until: "domcontentloaded"` and `settle_ms: 500`, so pages with ongoing network requests can still be captured. Increase `settle_ms` (up to 2000) for slower rendering, or select `wait_until: "load"` when the page needs its load event. Playwright [discourages using networkidle for readiness](https://playwright.dev/docs/api/class-page#page-goto-option-wait-until).
 
-Native MCP image blocks include previews for up to ten requested devices. Large PNGs are resized to fit a shared response budget; originals stay at their captured resolution. `inlinePreviews` maps each device to its image block, and `previewWarnings` explains unavailable previews. Local Markdown image paths are a fallback for clients that support them; a terminal or chat renderer may not display them.
+Native MCP image blocks include previews for up to ten requested devices. Large PNGs are resized to fit a shared response budget; originals stay at their captured resolution. `inlinePreviews` maps each device to its image block, and `previewWarnings` explains unavailable previews. The preferred chat Markdown tag serves the chat copy over HTTP from the Kaleidoscope server's `/api/chat-images/` endpoint so Markdown-based clients can render it; local-path tags remain as fallbacks for clients that allow local files, and some terminal renderers display none of these.
 
-New screenshots, pixel diffs, and their chat copies expire after **five minutes** by default. Set `retention_minutes` on `capture_screenshots` or `compare_screenshots` to change the lifetime for that call, or use `0` to keep its files. `expiresAt` reports the deletion deadline. Cleanup checks every ten seconds while each service is running and resumes on restart. Keep captures longer when comparing edits across a longer session.
+New screenshots, pixel diffs, and their chat copies expire after **five minutes** by default; chat copies are kept for at least `KALEIDOSCOPE_CHAT_IMAGE_RETENTION_MINUTES` (default 60) so chat clients can still render them after the capture expiry. Set `retention_minutes` on `capture_screenshots` or `compare_screenshots` to change the lifetime for that call, or use `0` to keep its files. `expiresAt` reports the deletion deadline. Cleanup checks every ten seconds while each service is running and resumes on restart. Keep captures longer when comparing edits across a longer session.
 
 Cleanup removes only files with Kaleidoscope expiry metadata. Existing captures from older versions and files you save separately remain untouched. If all services are stopped, deletion waits until the next startup. Images already embedded or cached by a chat client cannot be erased by Kaleidoscope.
 
@@ -107,6 +107,7 @@ For OpenCode, use its [local MCP configuration](https://opencode.ai/docs/mcp-ser
 - `KALEIDOSCOPE_SERVER_URL`: backend URL; defaults to `http://localhost:5000`.
 - `KALEIDOSCOPE_REQUEST_TIMEOUT_MS`: MCP request timeout; defaults to `60000`.
 - `KALEIDOSCOPE_IMAGE_RETENTION_MINUTES`: default saved-image lifetime in minutes; defaults to `5`. Use `0` to keep files, or override per call with `retention_minutes`. Configure this on a separately managed backend as well.
+- `KALEIDOSCOPE_CHAT_IMAGE_RETENTION_MINUTES`: minimum chat-copy lifetime in minutes; defaults to `60`. Chat copies power the HTTP Markdown tag served by `/api/chat-images/`.
 - `KALEIDOSCOPE_WORKSPACE_ROOT`: source-inspection root for local projects.
 - `KALEIDOSCOPE_PROXY_TIMEOUT_MS`: proxy request timeout; defaults to `30000`.
 - `KALEIDOSCOPE_PROXY_MAX_RESPONSE_BYTES`: proxy response limit; defaults to `10485760`.

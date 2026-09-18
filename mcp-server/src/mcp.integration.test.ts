@@ -540,6 +540,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
       markdownImageTagFallbacks: string[];
       chatSafePath: string | null;
       chatSafeMarkdownImageTag: string | null;
+      chatSafeHttpImageTag: string | null;
       downloadUrl: string | null;
     }>;
     inlineImageCount: number;
@@ -568,6 +569,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
     markdownImageTagFallbacks: string[];
     chatSafePath: string | null;
     chatSafeMarkdownImageTag: string | null;
+    chatSafeHttpImageTag: string | null;
   };
   const chatSafePath = entry.chatSafePath;
   assert.ok(chatSafePath, 'screenshots should include a chat-safe copy path');
@@ -578,9 +580,10 @@ test('capture_screenshots returns structured metadata and rich content', async (
   assert.equal(existsSync(chatSafePath), true);
   assert.doesNotMatch(basename(chatSafePath), /\s/);
   assert.equal(entry.chatDisplayPath, chatSafePath.replace(/\\/g, '/'));
-  assert.equal(entry.markdownImageTag, entry.chatSafeMarkdownImageTag);
-  assert.equal(structured.primaryMarkdownImageTag, entry.chatSafeMarkdownImageTag);
-  assert.deepEqual(structured.readyToPasteMarkdown, [entry.chatSafeMarkdownImageTag]);
+  assert.match(entry.chatSafeHttpImageTag ?? '', new RegExp(`^!\\[Desktop HD preview\\]\\(<${apiBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/api\\/chat-images\\/desktop-[a-z0-9.-]+\\.png>\\)$`));
+  assert.equal(entry.markdownImageTag, entry.chatSafeHttpImageTag);
+  assert.equal(structured.primaryMarkdownImageTag, entry.chatSafeHttpImageTag);
+  assert.deepEqual(structured.readyToPasteMarkdown, [entry.chatSafeHttpImageTag]);
   assert.ok(
     entry.markdownImageTagFallbacks.some((tag) => tag.includes(screenshotPath.replace(/\\/g, '/'))),
     'fallbacks should keep an original-path Markdown form',
@@ -601,7 +604,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
   assert.match(primaryTextBlock?.text ?? '', /Ready-to-paste Markdown image tags:/);
   assert.match(
     primaryTextBlock?.text ?? '',
-    new RegExp((entry.chatSafeMarkdownImageTag ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    new RegExp((entry.chatSafeHttpImageTag ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
 });
 

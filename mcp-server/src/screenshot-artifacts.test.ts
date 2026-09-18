@@ -1,13 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildScreenshotContent, createScreenshotEntry } from './screenshot-artifacts.js';
 import { PNG } from 'pngjs';
 import { randomBytes } from 'node:crypto';
-import { pruneExpiredImages } from '../../shared/artifact-retention.js';
 
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlAbWQAAAAASUVORK5CYII=';
@@ -39,11 +38,17 @@ test('createScreenshotEntry prefers a chat-safe copy while preserving original-p
     assert.equal(entry.preferredDisplayPath, screenshotPath);
     assert.match(entry.fileUri ?? '', /^file:/);
     assert.ok(chatSafePath, 'a screenshot path with spaces should get a chat-safe copy');
+    const chatSafeName = path.basename(chatSafePath);
     assert.equal(existsSync(chatSafePath), true);
-    assert.doesNotMatch(path.basename(chatSafePath), /\s/);
+    assert.doesNotMatch(chatSafeName, /\s/);
     assert.equal((await readFile(chatSafePath)).toString('base64'), TINY_PNG_BASE64);
-    assert.equal(entry.markdownImageTag, entry.chatSafeMarkdownImageTag);
+    assert.match(entry.chatSafeHttpImageTag ?? '', /^!\[Desktop HD preview\]\(<http:\/\/127\.0\.0\.1:49152\/api\/chat-images\/desktop-[a-z0-9.-]+\.png>\)$/);
+    assert.equal(entry.markdownImageTag, entry.chatSafeHttpImageTag);
     assert.equal(entry.chatDisplayPath, chatSafePath.replace(/\\/g, '/'));
+    assert.ok(
+      entry.markdownImageTagFallbacks.some((tag) => tag.includes(`${chatSafeName}`)),
+      'fallbacks should keep a Markdown tag for the chat-safe local copy',
+    );
     assert.ok(
       entry.markdownImageTagFallbacks.some((tag) => tag.includes(screenshotPath.replace(/\\/g, '/'))),
       'fallbacks should keep a Markdown tag for the original local file',
@@ -84,6 +89,7 @@ test('createScreenshotEntry keeps failed captures out of chat rendering paths', 
   assert.deepEqual(entry.markdownImageTagFallbacks, []);
   assert.equal(entry.chatSafePath, null);
   assert.equal(entry.chatSafeMarkdownImageTag, null);
+  assert.equal(entry.chatSafeHttpImageTag, null);
 });
 
 test('buildScreenshotContent records an explicit device-to-image content mapping', async () => {
@@ -144,27 +150,26 @@ test('unreadable image previews produce an explicit warning', async () => {
   assert.match(built.previewWarnings[0] ?? '', /Desktop:.*could not be read/);
 });
 
-test('chat copies inherit the capture expiry', async () => {
+test('chat copies outlive the capture expiry for HTTP rendering', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'kaleidoscope-chat-expiry-'));
   let copy: string | null = null;
   try {
     const source = path.join(root, 'desktop.png');
     await writeFile(source, Buffer.from(TINY_PNG_BASE64, 'base64'));
     const expiresAt = new Date(Date.now() + 60_000).toISOString();
+    const before = Date.now();
     const entry = await createScreenshotEntry({ deviceId: 'desktop', device: 'Desktop', path: source, width: 1, height: 1, expiresAt }, 'http://localhost:5000');
     copy = entry.chatSafePath;
     assert.ok(copy);
     assert.equal(entry.expiresAt, expiresAt);
-    // Isolate time-travel cleanup from other sessions' chat images.
-    const isolatedCopy = path.join(root, 'chat.png');
-    await rename(copy, isolatedCopy);
-    await rename(`${copy}.kaleidoscope-expiry.json`, `${isolatedCopy}.kaleidoscope-expiry.json`);
-    copy = isolatedCopy;
-    await pruneExpiredImages(root, Date.parse(expiresAt) + 1);
-    await assert.rejects(readFile(copy), { code: 'ENOENT' });
-    assert.ok((await readFile(source)).byteLength > 0);
+    const metadata = JSON.parse(await readFile(`${copy}.kaleidoscope-expiry.json`, 'utf8')) as { expiresAt: string };
+    // Chat copies get their own, longer retention window.
+    assert.ok(Date.parse(metadata.expiresAt) >= before + 60 * 60_000 - 1000);
   } finally {
-    if (copy) await rm(copy, { force: true });
+    if (copy) {
+      await rm(copy, { force: true });
+      await rm(`${copy}.kaleidoscope-expiry.json`, { force: true });
+    }
     await rm(root, { recursive: true, force: true });
   }
 });

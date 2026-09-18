@@ -1,8 +1,11 @@
 import { lstat, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const EXPIRY_SUFFIX = '.kaleidoscope-expiry.json';
 export const DEFAULT_IMAGE_RETENTION_MINUTES = 5;
+export const DEFAULT_CHAT_IMAGE_RETENTION_MINUTES = 60;
+const CHAT_SAFE_IMAGE_DIR_NAME = 'kaleidoscope-chat-images';
 
 export function imageExpiresAt(retentionMinutes?: number, now = Date.now()): string | null {
   const configured = process.env.KALEIDOSCOPE_IMAGE_RETENTION_MINUTES;
@@ -10,6 +13,33 @@ export function imageExpiresAt(retentionMinutes?: number, now = Date.now()): str
   const validMinutes = Number.isFinite(minutes) && minutes >= 0 && minutes <= 10080
     ? minutes : DEFAULT_IMAGE_RETENTION_MINUTES;
   return validMinutes === 0 ? null : new Date(now + validMinutes * 60_000).toISOString();
+}
+
+export function chatImageExpiresAt(retentionMinutes?: number, now = Date.now()): string | null {
+  const requested = imageExpiresAt(retentionMinutes, now);
+  if (requested === null) return null;
+  const configured = process.env.KALEIDOSCOPE_CHAT_IMAGE_RETENTION_MINUTES;
+  const minutes = configured?.trim() ? Number(configured) : DEFAULT_CHAT_IMAGE_RETENTION_MINUTES;
+  const validMinutes = Number.isFinite(minutes) && minutes >= 0 && minutes <= 10080
+    ? minutes : DEFAULT_CHAT_IMAGE_RETENTION_MINUTES;
+  const expiresAt = Date.parse(requested);
+  if (!Number.isFinite(expiresAt)) return null;
+  const extended = Math.max(expiresAt, now + validMinutes * 60_000);
+  return new Date(extended).toISOString();
+}
+
+export function chatSafeImageDirs(): string[] {
+  const candidateDirs = process.platform === 'win32'
+    ? [
+      process.env.PUBLIC ? path.join(process.env.PUBLIC, CHAT_SAFE_IMAGE_DIR_NAME) : null,
+      process.env.SystemDrive ? path.join(`${process.env.SystemDrive}\\`, CHAT_SAFE_IMAGE_DIR_NAME) : null,
+      path.join(tmpdir(), CHAT_SAFE_IMAGE_DIR_NAME),
+    ]
+    : [
+      path.join(tmpdir(), CHAT_SAFE_IMAGE_DIR_NAME),
+    ];
+
+  return Array.from(new Set(candidateDirs.filter((dir): dir is string => Boolean(dir))));
 }
 
 export async function registerImageExpiry(filePath: string, expiresAt: string | null): Promise<void> {

@@ -10,6 +10,7 @@ import { proxyService } from "./services/proxy.service.js";
 import { logApiRequest, logServerError } from "./utils/logger.js";
 import { sendError } from "./utils/http.js";
 import { startImageExpiryCleanup } from '../shared/artifact-retention.js';
+import { createChatImageRouter } from "./routes/chat-image.routes.js";
 import {
   KALEIDOSCOPE_CLIENT_HEADER_NAME,
   isAllowedBrowserOrigin,
@@ -200,6 +201,9 @@ app.use((req, res, next) => {
       setHeaders: (res) => { res.setHeader('Cache-Control', 'no-store'); },
     }
   ));
+
+  // Serve chat-safe image copies so chat clients can render them over HTTP.
+  app.use('/api/chat-images', createChatImageRouter());
 
   await registerRoutes(app);
   const stopImageCleanup = startImageExpiryCleanup([

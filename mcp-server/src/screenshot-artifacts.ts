@@ -1,16 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readFile, stat, unlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ContentBlock } from '@modelcontextprotocol/server';
 import { toFileUri } from './tool-utils.js';
-import { imageExpiresAt, registerImageExpiry, startImageExpiryCleanup } from '../../shared/artifact-retention.js';
+import {
+  chatImageExpiresAt,
+  chatSafeImageDirs,
+  imageExpiresAt,
+  registerImageExpiry,
+  startImageExpiryCleanup,
+} from '../../shared/artifact-retention.js';
 import { createInlinePreview } from './image-preview.js';
 
 const MAX_INLINE_IMAGE_BYTES = 1_500_000;
 const MAX_TOTAL_INLINE_BYTES = 4_500_000;
 const MAX_SOURCE_IMAGE_BYTES = 50 * 1024 * 1024;
-const CHAT_SAFE_IMAGE_DIR_NAME = 'kaleidoscope-chat-images';
 
 export interface ScreenshotArtifact {
   deviceId: string;
@@ -42,6 +46,7 @@ export interface ScreenshotEntryResult extends ScreenshotArtifact {
   markdownImageTagFallbacks: string[];
   chatSafePath: string | null;
   chatSafeMarkdownImageTag: string | null;
+  chatSafeHttpImageTag: string | null;
 }
 
 export interface InlinePreviewMapping {
@@ -129,25 +134,11 @@ function sanitizeChatSafeFileStem(input: string): string {
   return stem || 'screenshot';
 }
 
-function chatSafeImageDirs(): string[] {
-  const candidateDirs = process.platform === 'win32'
-    ? [
-      process.env.PUBLIC ? path.join(process.env.PUBLIC, CHAT_SAFE_IMAGE_DIR_NAME) : null,
-      process.env.SystemDrive ? path.join(`${process.env.SystemDrive}\\`, CHAT_SAFE_IMAGE_DIR_NAME) : null,
-      path.join(tmpdir(), CHAT_SAFE_IMAGE_DIR_NAME),
-    ]
-    : [
-      path.join(tmpdir(), CHAT_SAFE_IMAGE_DIR_NAME),
-    ];
-
-  return Array.from(new Set(candidateDirs.filter((dir): dir is string => Boolean(dir))));
-}
-
 export function startChatImageCleanup(): () => void {
   return startImageExpiryCleanup(chatSafeImageDirs());
 }
 
-export async function createChatSafeImageCopy(filePath: string, expiresAt: string | null = imageExpiresAt()): Promise<string | null> {
+export async function createChatSafeImageCopy(filePath: string, expiresAt: string | null = chatImageExpiresAt()): Promise<string | null> {
   if (!path.isAbsolute(filePath)) {
     return null;
   }
@@ -173,6 +164,22 @@ export async function createChatSafeImageCopy(filePath: string, expiresAt: strin
   return null;
 }
 
+export function toChatSafeHttpImageTag(
+  chatSafePath: string | null,
+  serverBaseUrl: string,
+  altText: string,
+): string | null {
+  if (!chatSafePath) return null;
+  const fileName = path.basename(chatSafePath);
+  if (!/^[a-z0-9._-]+\.png$/i.test(fileName)) return null;
+  try {
+    const url = new URL(`/api/chat-images/${encodeURIComponent(fileName)}`, serverBaseUrl);
+    return `![${escapeMarkdownAltText(altText)}](<${url.toString()}>)`;
+  } catch {
+    return null;
+  }
+}
+
 export async function createScreenshotEntry(
   screenshot: ScreenshotCaptureResult,
   serverBaseUrl: string,
@@ -180,15 +187,19 @@ export async function createScreenshotEntry(
   const error = screenshot.path.startsWith('ERROR:') ? screenshot.path : null;
   const expiresAt = error ? null : screenshot.expiresAt === undefined ? imageExpiresAt() : screenshot.expiresAt;
   const altText = `${screenshot.device} preview`;
-  const chatSafePath = error ? null : await createChatSafeImageCopy(screenshot.path, expiresAt);
+  // Chat copies outlive the capture expiry so chat-clients can still render them later.
+  const chatSafePath = error ? null : await createChatSafeImageCopy(screenshot.path);
   const chatSafeMarkdownImageTag = chatSafePath ? toMarkdownImageTag(chatSafePath, altText) : null;
+  const chatSafeHttpImageTag = toChatSafeHttpImageTag(chatSafePath, serverBaseUrl, altText);
   const originalMarkdownImageTag = error ? null : toMarkdownImageTag(screenshot.path, altText);
   const markdownImageTagVariants = [
+    ...(chatSafeHttpImageTag ? [chatSafeHttpImageTag] : []),
     ...(chatSafePath ? toMarkdownImageTagVariants(chatSafePath, altText) : []),
     ...(error ? [] : toMarkdownImageTagVariants(screenshot.path, altText)),
   ];
   const markdownImageTags = Array.from(new Set(markdownImageTagVariants));
-  const markdownImageTag = chatSafeMarkdownImageTag
+  const markdownImageTag = chatSafeHttpImageTag
+    ?? chatSafeMarkdownImageTag
     ?? originalMarkdownImageTag
     ?? markdownImageTags[0]
     ?? null;
@@ -209,6 +220,7 @@ export async function createScreenshotEntry(
     markdownImageTagFallbacks: markdownImageTags.filter((tag) => tag !== markdownImageTag),
     chatSafePath,
     chatSafeMarkdownImageTag,
+    chatSafeHttpImageTag,
     downloadUrl: screenshot.url ? new URL(screenshot.url, serverBaseUrl).toString() : null,
     width: screenshot.width,
     height: screenshot.height,
