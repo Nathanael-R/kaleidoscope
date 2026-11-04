@@ -17,6 +17,7 @@ import { isInspectableLocalUrl } from '../utils/security.js';
 import { sendError } from '../utils/http.js';
 import { resolveSourceDirectory } from '../utils/path-policy.js';
 import { logServerError } from '../utils/logger.js';
+import { toPageFunction } from '../utils/page-function.js';
 
 const router = Router();
 const require = createRequire(import.meta.url);
@@ -165,7 +166,7 @@ async function inspectSelectionBySelector(
     await page.waitForTimeout(250);
     await page.addScriptTag({ path: elementSourceBundlePath });
 
-    const selection = await page.evaluate(async (targetSelector) => {
+    const selection = await page.evaluate(toPageFunction(async (targetSelector: string) => {
       const element = document.querySelector(targetSelector);
       if (!(element instanceof Element)) {
         return null;
@@ -214,7 +215,7 @@ async function inspectSelectionBySelector(
         pageUrl: window.location.href,
         elementSource,
       };
-    }, selector);
+    }), selector);
 
     return normalizeSelection(selection);
   } finally {
@@ -262,7 +263,7 @@ async function discoverInspectableElements(
 
     try {
       for (const handle of elementHandles) {
-        const snapshot = await handle.evaluate((element: Element) => {
+        const snapshot = await handle.evaluate(toPageFunction((element: Element) => {
           const rect = element.getBoundingClientRect();
           if (rect.width === 0 || rect.height === 0) {
             return null;
@@ -315,7 +316,7 @@ async function discoverInspectableElements(
             placeholder: element.getAttribute('placeholder'),
             testId: element.getAttribute('data-testid'),
           };
-        });
+        }));
 
         await handle.dispose();
 
