@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { BrowserContext } from 'playwright-core';
 import { getSharedBrowser } from './browser.service.js';
 import { isPathInside } from '../utils/path-policy.js';
+import { toPageFunction } from '../utils/page-function.js';
 import {
   DEVICE_MAP,
   getDeviceContextOptions,
@@ -23,6 +24,7 @@ import type {
 const require = createRequire(import.meta.url);
 const elementSourceEntryPath = require.resolve('element-source');
 const elementSourceBundlePath = path.resolve(path.dirname(elementSourceEntryPath), 'index.global.js');
+const layoutSnapshotPageFunction = toPageFunction(captureBrowserLayoutSnapshot);
 
 export type {
   LayoutCaptureResult,
@@ -185,7 +187,7 @@ export class LayoutCaptureService {
             }
           }
 
-          const snapshot = await page.evaluate(captureBrowserLayoutSnapshot, {
+          const snapshot = await page.evaluate(layoutSnapshotPageFunction, {
             maxElements,
             resolveSource: includeSource,
           });

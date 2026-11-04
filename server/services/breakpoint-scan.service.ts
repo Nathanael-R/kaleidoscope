@@ -1,5 +1,6 @@
 import type { BrowserContext } from 'playwright-core';
 import { getSharedBrowser } from './browser.service.js';
+import { toPageFunction } from '../utils/page-function.js';
 
 export type BreakpointIssueType = 'horizontal-overflow' | 'clipped-interactive';
 
@@ -56,15 +57,14 @@ type BrowserProbe = {
   issues: BreakpointIssue[];
 };
 
-function isVisible(style: CSSStyleDeclaration, rect: DOMRect): boolean {
-  return rect.width >= 1
+// Runs inside the page via page.evaluate, so every helper must be declared in
+// the function body; module-level helpers are not serialized with it.
+export function captureBreakpointProbe(): BrowserProbe {
+  const isVisible = (style: CSSStyleDeclaration, rect: DOMRect): boolean => rect.width >= 1
     && rect.height >= 1
     && style.display !== 'none'
     && style.visibility !== 'hidden'
     && style.opacity !== '0';
-}
-
-export function captureBreakpointProbe(): BrowserProbe {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const scrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
@@ -140,6 +140,8 @@ export function captureBreakpointProbe(): BrowserProbe {
   return { scrollWidth, issues };
 }
 
+const breakpointProbePageFunction = toPageFunction(captureBreakpointProbe);
+
 export function buildScanWidths(minWidth: number, maxWidth: number, step: number): number[] {
   const widths: number[] = [];
   for (let width = minWidth; width <= maxWidth; width += step) {
@@ -214,7 +216,7 @@ export class BreakpointScanService {
             await page.waitForTimeout(request.settleMs);
           }
 
-          const probe = await page.evaluate(captureBreakpointProbe);
+          const probe = await page.evaluate(breakpointProbePageFunction);
           probes.push({ width, ...probe });
         }
 
