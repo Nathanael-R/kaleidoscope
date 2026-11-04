@@ -526,7 +526,8 @@ test('capture_screenshots returns structured metadata and rich content', async (
     structured.fallbackMarkdownImageTags.some((tag) => tag.includes('desktop%20test.png')),
     'fallbacks should include an encoded original-path Markdown form',
   );
-  assert.match(structured.finalResponseInstruction, /include this exact Markdown image tag/i);
+  assert.match(structured.finalResponseInstruction, /renders Markdown images from local files, include this exact Markdown image tag/i);
+  assert.match(structured.finalResponseInstruction, /terminal clients/i);
   assert.equal(
     structured.screenshots[0]?.downloadUrl,
     `${apiBaseUrl}/api/screenshots-files/folder%20with%20spaces/desktop%20test.png`,
@@ -534,7 +535,7 @@ test('capture_screenshots returns structured metadata and rich content', async (
 
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const primaryTextBlock = content.find((item) => item.type === 'text');
-  assert.match(primaryTextBlock?.text ?? '', /Show this image in your final response:/);
+  assert.match(primaryTextBlock?.text ?? '', /renders local Markdown images, show this image in your final response:/);
   assert.match(primaryTextBlock?.text ?? '', /Ready-to-paste Markdown image tags:/);
   assert.match(
     primaryTextBlock?.text ?? '',

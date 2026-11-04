@@ -274,7 +274,8 @@ export function registerScreenshotTools(server: McpServer) {
         const fallbackMarkdownImageTags = screenshots.flatMap((screenshot) => screenshot.markdownImageTagFallbacks);
         const primaryMarkdownImageTag = readyToPasteMarkdown[0] ?? null;
         const finalResponseInstruction = primaryMarkdownImageTag
-          ? `To show the screenshot to the user, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}. If it does not render, try a fallback from fallbackMarkdownImageTags.`
+          ? `If your chat UI renders Markdown images from local files, include this exact Markdown image tag in your final response: ${primaryMarkdownImageTag}. If it does not render, try a fallback from fallbackMarkdownImageTags. ` +
+            'In terminal clients that do not render local images, do not paste the tag; rely on the inline image preview and report the screenshot path instead.'
           : 'No chat-renderable screenshot Markdown was produced. Report the screenshot path and error details instead.';
         const result: ScreenshotOutput = {
           url,
@@ -282,7 +283,9 @@ export function registerScreenshotTools(server: McpServer) {
           count: screenshots.length,
           inlineImageCount,
           displayAdvice:
-            'For reliable chat rendering, paste primaryMarkdownImageTag or a value from readyToPasteMarkdown directly into the final response. ' +
+            'Every screenshot is also returned as an inline image; oversized captures are downscaled previews of the saved file. ' +
+            'In chat UIs that render local Markdown images, paste primaryMarkdownImageTag or a value from readyToPasteMarkdown directly into the final response; ' +
+            'in terminal clients, report the screenshot paths instead of pasting Markdown image tags. ' +
             'Kaleidoscope also creates a chat-safe local copy for paths with spaces and exposes original-path fallbacks in fallbackMarkdownImageTags. ' +
             'Do not rely on localhost downloadUrl links, transient inline previews, or temporary image viewers.',
           primaryMarkdownImageTag,
@@ -299,7 +302,7 @@ export function registerScreenshotTools(server: McpServer) {
         ];
 
         if (primaryMarkdownImageTag) {
-          lines.push('Show this image in your final response:');
+          lines.push('If your chat UI renders local Markdown images, show this image in your final response:');
           lines.push(primaryMarkdownImageTag);
           lines.push('');
         }
@@ -416,7 +419,7 @@ export function registerScreenshotTools(server: McpServer) {
           `Changed pixels: ${body.mismatchedPixels}/${body.totalPixels} (${body.mismatchPercentage.toFixed(4)}%)`,
           `Allowed difference: ${body.allowedDiffPercentage}%`,
           `Diff image: ${body.diffPath}`,
-          diff.markdownImageTag ? `Show the diff with: ${diff.markdownImageTag}` : '',
+          diff.markdownImageTag ? `If your chat UI renders local Markdown images, show the diff with: ${diff.markdownImageTag}` : '',
         ].filter(Boolean).join('\n');
 
         return createStructuredResult(result, text, content);
